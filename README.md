@@ -1,0 +1,2 @@
+# pami
+AI Project manager
