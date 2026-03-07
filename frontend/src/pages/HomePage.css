@@ -1,0 +1,599 @@
+:root {
+    --sidebar-width: 260px;
+    --bg-color: #f8f9fd;
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    --primary-purple: #f06292;
+}
+
+.dashboard-container {
+    display: flex;
+    min-height: 100vh;
+    background-color: var(--bg-color);
+    font-family: 'Inter', sans-serif;
+    transition: all 0.3s ease;
+}
+
+/* Sidebar Styling */
+.sidebar {
+    width: var(--sidebar-width);
+    background: white;
+    padding: 20px;
+    /* מוסיפים מרווח בתחתית כדי שהצ'אט לא יסתתר מאחורי שורת המשימות */
+    padding-bottom: 80px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #eee;
+    position: fixed;
+    height: 100vh;
+    transition: transform 0.3s ease;
+    box-sizing: border-box; /* מבטיח שה-padding לא יגדיל את ה-sidebar מעבר ל-100vh */
+}
+.sidebar-closed .sidebar {
+    transform: translateX(-100%);
+}
+
+.sidebar-nav ul {
+    list-style: none;
+    padding: 0;
+    margin-top: 30px;
+}
+
+.sidebar-nav li {
+    padding: 12px 15px;
+    margin-bottom: 5px;
+    border-radius: 10px;
+    cursor: pointer;
+    color: #666;
+    transition: 0.2s;
+}
+
+    .sidebar-nav li.active {
+        background: #fff0f5;
+        color: var(--primary-purple);
+        font-weight: bold;
+    }
+
+/* Header Styling */
+.main-content {
+    flex: 1;
+    margin-left: var(--sidebar-width);
+    padding: 20px;
+    transition: margin 0.3s ease;
+}
+
+.sidebar-closed .main-content {
+    margin-left: 0;
+}
+
+.top-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 20px;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.search-bar {
+    background: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+    .search-bar input {
+        border: none;
+        outline: none;
+        margin-left: 10px;
+        width: 300px;
+    }
+
+.menu-toggle {
+   background: #f0f2f5; 
+    border: none;
+    font-size: 28px; 
+    cursor: pointer;
+    padding: 10px 15px; 
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    min-width: 50px; 
+    margin-right: 15px; 
+    color: #555;
+}
+
+    .menu-toggle:hover {
+        background: #e4e6e9;
+        color: #f06292; 
+    }
+
+.new-node-btn {
+    background: var(--primary-purple);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 20px;
+    cursor: pointer;
+}
+
+.sidebar-bot {
+    margin-top: auto; /* דוחף את הבוט לתחתית ה-Sidebar */
+    background: rgba(240, 98, 146, 0.05); /* ורוד עדין מאוד */
+    padding: 15px;
+    border-radius: 15px;
+    border: 1px solid rgba(240, 98, 146, 0.1);
+}
+
+.bot-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.bot-info {
+    display: flex;
+    flex-direction: column;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    background: #4caf50; /* נקודה ירוקה - מחובר */
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.bot-bubble {
+    background: #fdf2f7; /* ורוד בהיר מאוד שמתאים ללוגו */
+    padding: 12px;
+    border-radius: 12px 12px 12px 0;
+    font-size: 0.85rem;
+    font-family: 'Inter', sans-serif;
+    color: #333;
+    margin-bottom: 12px;
+    border: 1px solid rgba(240, 98, 146, 0.1);
+}
+
+/* תיבת הטקסט החדשה */
+.bot-input-area {
+    display: flex;
+    background: white;
+    border-radius: 10px;
+    padding: 5px;
+    border: 1px solid #eee;
+}
+
+    .bot-input-area input {
+        border: none;
+        outline: none;
+        font-size: 0.75rem;
+        padding: 5px;
+        flex: 1;
+    }
+
+.send-btn {
+    background: var(--primary-purple);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.stats-container {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 30px;
+    padding: 10px 5px;
+}
+
+.stat-box {
+    background: white;
+    flex: 1;
+    padding: 20px;
+    border-radius: 24px;
+    display: flex;
+    align-items: center;
+    position: relative;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03); /* צל עדין מאוד כמו בתמונה */
+    border: 1px solid #f1f3f8;
+}
+
+.stat-icon {
+    width: 45px;
+    height: 45px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    margin-right: 15px;
+}
+
+/* צבעי רקע עדינים לאייקונים */
+.pink-bg {
+    background-color: #fdf2f7;
+}
+
+.purple-bg {
+    background-color: #f7f2fd;
+}
+
+.green-bg {
+    background-color: #f2fdf5;
+}
+
+.blue-bg {
+    background-color: #f2f7fd;
+}
+
+.stat-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-number {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #1a1a1a;
+    line-height: 1;
+}
+
+.stat-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #9ea5ad;
+    margin-top: 5px;
+    letter-spacing: 0.5px;
+}
+
+/* התגיות הקטנות בצד (Badges) */
+.stat-badge {
+    position: absolute;
+    right: 20px;
+    bottom: 20px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 10px;
+}
+
+.pink-light {
+    background: #fce4ec;
+    color: #d81b60;
+}
+
+.purple-light {
+    background: #f3e5f5;
+    color: #8e24aa;
+}
+
+.green-light {
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.blue-light {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.project-tree-container {
+    background: white;
+    border-radius: 30px;
+    padding: 30px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+    border: 1px solid #f1f3f8;
+    min-height: 500px; /* נותן לו גובה נוכחות במסך */
+    display: flex;
+    flex-direction: column;
+}
+
+.project-tree-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.tree-title-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+    .tree-title-group h2 {
+        font-size: 1.4rem;
+        color: #1a1a1a;
+        font-weight: 800;
+    }
+
+.pulse-icon {
+    font-size: 1.5rem;
+    color: #f06292;
+}
+
+.node-count {
+    background: #f8f9fd;
+    padding: 6px 15px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #9ea5ad;
+}
+
+/* אזור הציור של הגרף */
+.project-tree-canvas {
+    flex: 1;
+    background-color: #fafbfc; /* רקע מעט שונה כדי להבליט את אזור העבודה */
+    border: 2px dashed #edf0f5; /* מסגרת מקווקוות למראה של "אזור פיתוח" */
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.empty-tree-state {
+    text-align: center;
+}
+
+    .empty-tree-state p {
+        font-weight: 700;
+        color: #1a1a1a;
+        margin: 15px 0 5px 0;
+    }
+
+    .empty-tree-state span {
+        font-size: 0.85rem;
+        color: #9ea5ad;
+    }
+
+/* אנימציה קטנה לטעינה */
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #f06292;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.no-projects .empty-icon {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    opacity: 0.5;
+}
+
+.no-projects p {
+    color: #f06292; /* צבע ורוד כמו המותג של פמי */
+    font-size: 1.2rem;
+}
+
+.create-first-btn {
+    margin-top: 20px;
+    background: white;
+    color: #f06292;
+    border: 2px solid #f06292;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.create-first-btn:hover {
+        background: #f06292;
+        color: white;
+}
+
+.bottom-row {
+    margin-top: 25px;
+    display: flex;
+}
+
+.performers-container {
+    background: white;
+    border-radius: 24px;
+    padding: 20px;
+    flex: 1; /* תופס את כל הרוחב הזמין */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
+    border: 1px solid #f1f3f8;
+}
+
+.performers-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.performers-header h3 {
+        font-size: 1.1rem;
+        margin: 0;
+        color: #1a1a1a;
+}
+
+.view-all {
+    font-size: 0.75rem;
+    color: #f06292;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+/* עיצוב כל שורת משתמש */
+.performer-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f9fafb;
+}
+
+.performer-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.avatar.grey {
+    width: 35px;
+    height: 35px;
+    background: #f0f2f5;
+    color: #9ea5ad;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.performer-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin: 0;
+    color: #1a1a1a;
+}
+
+.performer-role {
+    font-size: 0.7rem;
+    color: #9ea5ad;
+    margin: 0;
+}
+
+/* עיצוב מד האחוזים */
+.performer-stat {
+    width: 120px;
+    text-align: right;
+}
+
+.stat-pct {
+    font-size: 0.75rem;
+    font-weight: bold;
+    color: #9ea5ad;
+}
+
+.progress-bar {
+    height: 4px;
+    background: #f0f2f5;
+    border-radius: 2px;
+    margin-top: 6px;
+    overflow: hidden;
+}
+
+.progress.grey-bg-bar {
+    background: #e0e0e0;
+    height: 100%;
+}
+
+/* הגריד שמחזיק את שני החלקים */
+.dashboard-grid {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start; /* שומר שהם יתחילו מאותו גובה */
+}
+
+/* הגרף המרכזי - מקבל 70% מהרוחב */
+.project-tree-container {
+    flex: 3;
+    background: white;
+    border-radius: 30px;
+    padding: 25px;
+    min-height: 500px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+}
+
+/* סיידבר הביצועים - מקבל 30% מהרוחב */
+.performers-sidebar {
+    flex: 1;
+    background: white;
+    border-radius: 30px;
+    padding: 25px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
+    border: 1px solid #f1f3f8;
+}
+
+/* עיצוב רשימת הביצועים */
+.performer-item {
+    display: flex;
+    flex-direction: column; /* שמות ונתונים אחד מעל השני או לצד - בוא נעשה לצד */
+    gap: 10px;
+    padding: 15px 0;
+    border-bottom: 1px solid #f9fafb;
+}
+
+.performer-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.avatar.grey {
+    width: 35px;
+    height: 35px;
+    background: #f0f2f5;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #9ea5ad;
+}
+
+.performer-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.performer-role {
+    font-size: 0.7rem;
+    color: #9ea5ad;
+    margin: 0;
+}
+
+.performer-stat {
+    width: 100%;
+    margin-top: 5px;
+}
+
+.stat-pct {
+    font-size: 0.75rem;
+    font-weight: bold;
+}
+
+.progress-bar {
+    height: 4px;
+    background: #f0f2f5;
+    border-radius: 2px;
+    margin-top: 4px;
+}
+
+.progress.grey-bg-bar {
+    background: #e0e0e0;
+    height: 100%;
+}

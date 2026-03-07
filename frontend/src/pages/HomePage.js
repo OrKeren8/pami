@@ -1,0 +1,174 @@
+﻿import React, { useState, useEffect } from 'react';
+import './HomePage.css';
+
+const HomePage = () => {
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        // טיימר של 4 שניות
+        const timer = setTimeout(() => {
+            setIsLoading(false); // אחרי 4 שניות מפסיקים להראות טעינה
+        }, 4000);
+
+        return () => clearTimeout(timer); // מנקה את הטיימר אם יוצאים מהדף
+    }, []);
+
+    return (
+        <div className={`dashboard-container ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
+
+            {/* תפריט צד - Sidebar */}
+            <aside className="sidebar">
+                <div className="sidebar-logo">
+                    <h2>Pami</h2>
+                </div>
+                <nav className="sidebar-nav">
+                    <ul>
+                        <li className="active">Neural Dashboard</li>
+                        <li>Context Brain</li>
+                        <li>Health Monitor</li>
+                        <li>Workers</li>
+                        <li>Settings</li>
+                    </ul>
+                </nav>
+                {/* אזור הבוט הקטן בתחתית התפריט */}
+                <div className="sidebar-bot">
+                    <div className="bot-header">
+                        <span className="bot-avatar">🤖</span>
+                        <div className="bot-info">
+                            <strong>PAMI</strong>
+                            <span className="status-dot"></span>
+                        </div>
+                    </div>
+                    <div className="bot-bubble">
+                        <p>Hello! How can I assist you today?</p>
+                    </div>
+                    <div className="bot-input-area">
+                        <input type="text" placeholder="Type a message..." />
+                        <button className="send-btn">➔</button>
+                    </div>
+                </div>
+            </aside>
+
+            {/* תוכן ראשי */}
+            <main className="main-content">
+                {/* סרגל עליון - Header */}
+                <header className="top-header">
+                    <div className="header-left">
+                        <button className="menu-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+                            ☰
+                        </button>
+                        <div className="search-bar">
+                            <span className="search-icon">🔍</span>
+                            <input type="text" placeholder="Search the machine memory..." />
+                        </div>
+                    </div>
+                    <div className="header-right">
+                        <span className="notification">🔔</span>
+                        <button className="new-node-btn">+ New Node</button>
+                    </div>
+                </header>
+
+                <div className="stats-container">
+                    <div className="stat-box">
+                        <div className="stat-icon pink-bg">💼</div>
+                        <div className="stat-details">
+                            <span className="stat-number">-</span>
+                            <span className="stat-label">TOTAL PROJECTS</span>
+                        </div>
+                        <span className="stat-badge pink-light">+1 Month</span>
+                    </div>
+
+                    <div className="stat-box">
+                        <div className="stat-icon purple-bg">👥</div>
+                        <div className="stat-details">
+                            <span className="stat-number">-</span>
+                            <span className="stat-label">ACTIVE WORKERS</span>
+                        </div>
+                        <span className="stat-badge purple-light">Across Depts</span>
+                    </div>
+
+                    <div className="stat-box">
+                        <div className="stat-icon green-bg">📈</div>
+                        <div className="stat-details">
+                            <span className="stat-number">-%</span>
+                            <span className="stat-label">TASK VELOCITY</span>
+                        </div>
+                        <span className="stat-badge green-light">On Track</span>
+                    </div>
+
+                    <div className="stat-box">
+                        <div className="stat-icon blue-bg">⚙️</div>
+                        <div className="stat-details">
+                            <span className="stat-number">-%</span>
+                            <span className="stat-label">AI UPTIME</span>
+                        </div>
+                        <span className="stat-badge blue-light">Stable</span>
+                    </div>
+                </div>
+
+
+                {/* אזור מרכזי מחולק לגרף וביצועים */}
+                <div className="dashboard-grid">
+
+                    {/* גרף הפרויקטים (תופס את רוב המקום) */}
+                    <div className="project-tree-container">
+                        <div className="project-tree-header">
+                            <div className="tree-title-group">
+                                <span className="pulse-icon">📈</span>
+                                <h2>Project Tree</h2>
+                            </div>
+                            <span className="node-count">0 Nodes Connected</span>
+                        </div>
+
+                        <div className="project-tree-canvas">
+                            {isLoading ? (
+                                <div className="empty-tree-state">
+                                    <div className="loading-spinner"></div>
+                                    <p>Initializing Neural Workspace...</p>
+                                </div>
+                            ) : (
+                                <div className="empty-tree-state no-projects">
+                                    <div className="empty-icon">📂</div>
+                                    <p>No Active Projects Found</p>
+                                    <button className="create-first-btn">+ Create First Project</button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* רשימת ביצועים (בצד ימין) */}
+                    <aside className="performers-sidebar">
+                        <div className="performers-header">
+                            <h3>Top Performers</h3>
+                            <span className="view-all">View All</span>
+                        </div>
+
+                        <div className="performers-list">
+                            {[1, 2, 3, 4].map((item) => (
+                                <div key={item} className="performer-item">
+                                    <div className="performer-info">
+                                        <div className="avatar grey">--</div>
+                                        <div>
+                                            <p className="performer-name">No User Active</p>
+                                            <p className="performer-role">Waiting for data...</p>
+                                        </div>
+                                    </div>
+                                    <div className="performer-stat">
+                                        <span className="stat-pct">--%</span>
+                                        <div className="progress-bar">
+                                            <div className="progress grey-bg-bar" style={{ width: '0%' }}></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </aside>
+
+                </div>
+            </main>
+        </div>
+    );
+};
+
+export default HomePage;
