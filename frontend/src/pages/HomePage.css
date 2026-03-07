@@ -13,12 +13,12 @@
     transition: all 0.3s ease;
 }
 
-/* Sidebar Styling */
+
 .sidebar {
     width: var(--sidebar-width);
     background: white;
     padding: 20px;
-    /* מוסיפים מרווח בתחתית כדי שהצ'אט לא יסתתר מאחורי שורת המשימות */
+    
     padding-bottom: 80px;
     display: flex;
     flex-direction: column;
@@ -26,7 +26,7 @@
     position: fixed;
     height: 100vh;
     transition: transform 0.3s ease;
-    box-sizing: border-box; /* מבטיח שה-padding לא יגדיל את ה-sidebar מעבר ל-100vh */
+    box-sizing: border-box; 
 }
 .sidebar-closed .sidebar {
     transform: translateX(-100%);
@@ -53,7 +53,7 @@
         font-weight: bold;
     }
 
-/* Header Styling */
+
 .main-content {
     flex: 1;
     margin-left: var(--sidebar-width);
@@ -125,8 +125,8 @@
 }
 
 .sidebar-bot {
-    margin-top: auto; /* דוחף את הבוט לתחתית ה-Sidebar */
-    background: rgba(240, 98, 146, 0.05); /* ורוד עדין מאוד */
+    margin-top: auto;
+    background: rgba(240, 98, 146, 0.05);
     padding: 15px;
     border-radius: 15px;
     border: 1px solid rgba(240, 98, 146, 0.1);
@@ -149,13 +149,13 @@
 .status-dot {
     width: 8px;
     height: 8px;
-    background: #4caf50; /* נקודה ירוקה - מחובר */
+    background: #4caf50;
     border-radius: 50%;
     display: inline-block;
 }
 
 .bot-bubble {
-    background: #fdf2f7; /* ורוד בהיר מאוד שמתאים ללוגו */
+    background: #fdf2f7; 
     padding: 12px;
     border-radius: 12px 12px 12px 0;
     font-size: 0.85rem;
@@ -165,7 +165,7 @@
     border: 1px solid rgba(240, 98, 146, 0.1);
 }
 
-/* תיבת הטקסט החדשה */
+
 .bot-input-area {
     display: flex;
     background: white;
@@ -208,7 +208,7 @@
     display: flex;
     align-items: center;
     position: relative;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03); /* צל עדין מאוד כמו בתמונה */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03); 
     border: 1px solid #f1f3f8;
 }
 
@@ -223,7 +223,6 @@
     margin-right: 15px;
 }
 
-/* צבעי רקע עדינים לאייקונים */
 .pink-bg {
     background-color: #fdf2f7;
 }
@@ -260,7 +259,7 @@
     letter-spacing: 0.5px;
 }
 
-/* התגיות הקטנות בצד (Badges) */
+
 .stat-badge {
     position: absolute;
     right: 20px;
@@ -297,7 +296,7 @@
     padding: 30px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
     border: 1px solid #f1f3f8;
-    min-height: 500px; /* נותן לו גובה נוכחות במסך */
+    min-height: 500px; 
     display: flex;
     flex-direction: column;
 }
@@ -335,11 +334,11 @@
     color: #9ea5ad;
 }
 
-/* אזור הציור של הגרף */
+
 .project-tree-canvas {
     flex: 1;
-    background-color: #fafbfc; /* רקע מעט שונה כדי להבליט את אזור העבודה */
-    border: 2px dashed #edf0f5; /* מסגרת מקווקוות למראה של "אזור פיתוח" */
+    background-color: #fafbfc;
+    border: 2px dashed #edf0f5;
     border-radius: 20px;
     display: flex;
     align-items: center;
@@ -361,7 +360,7 @@
         color: #9ea5ad;
     }
 
-/* אנימציה קטנה לטעינה */
+
 .loading-spinner {
     width: 40px;
     height: 40px;
@@ -389,7 +388,7 @@
 }
 
 .no-projects p {
-    color: #f06292; /* צבע ורוד כמו המותג של פמי */
+    color: #f06292;
     font-size: 1.2rem;
 }
 
@@ -419,7 +418,7 @@
     background: white;
     border-radius: 24px;
     padding: 20px;
-    flex: 1; /* תופס את כל הרוחב הזמין */
+    flex: 1; 
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
     border: 1px solid #f1f3f8;
 }
@@ -444,7 +443,7 @@
     cursor: pointer;
 }
 
-/* עיצוב כל שורת משתמש */
+
 .performer-item {
     display: flex;
     justify-content: space-between;
@@ -484,7 +483,7 @@
     margin: 0;
 }
 
-/* עיצוב מד האחוזים */
+
 .performer-stat {
     width: 120px;
     text-align: right;
@@ -509,14 +508,14 @@
     height: 100%;
 }
 
-/* הגריד שמחזיק את שני החלקים */
+
 .dashboard-grid {
     display: flex;
     gap: 20px;
-    align-items: flex-start; /* שומר שהם יתחילו מאותו גובה */
+    align-items: flex-start; 
 }
 
-/* הגרף המרכזי - מקבל 70% מהרוחב */
+
 .project-tree-container {
     flex: 3;
     background: white;
@@ -528,7 +527,7 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
 }
 
-/* סיידבר הביצועים - מקבל 30% מהרוחב */
+
 .performers-sidebar {
     flex: 1;
     background: white;
@@ -538,10 +537,10 @@
     border: 1px solid #f1f3f8;
 }
 
-/* עיצוב רשימת הביצועים */
+
 .performer-item {
     display: flex;
-    flex-direction: column; /* שמות ונתונים אחד מעל השני או לצד - בוא נעשה לצד */
+    flex-direction: column;
     gap: 10px;
     padding: 15px 0;
     border-bottom: 1px solid #f9fafb;
@@ -596,4 +595,17 @@
 .progress.grey-bg-bar {
     background: #e0e0e0;
     height: 100%;
+}
+
+.sidebar-logo {
+    padding: 20px 0;
+    display: flex;
+    justify-content: center; 
+    align-items: center;
+}
+
+.logo-img {
+    height: 45px; 
+    width: auto;
+    object-fit: contain;
 }

@@ -1,17 +1,18 @@
 ﻿import React, { useState, useEffect } from 'react';
 import './HomePage.css';
+import pamiLogo from '../assets/pami-logo.png';
 
 const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        // טיימר של 4 שניות
+       
         const timer = setTimeout(() => {
-            setIsLoading(false); // אחרי 4 שניות מפסיקים להראות טעינה
+            setIsLoading(false);
         }, 4000);
 
-        return () => clearTimeout(timer); // מנקה את הטיימר אם יוצאים מהדף
+        return () => clearTimeout(timer); 
     }, []);
 
     return (
@@ -20,7 +21,7 @@ const HomePage = () => {
             {/* תפריט צד - Sidebar */}
             <aside className="sidebar">
                 <div className="sidebar-logo">
-                    <h2>Pami</h2>
+                    <img src={pamiLogo} alt="Pami Logo" className="logo-img" />
                 </div>
                 <nav className="sidebar-nav">
                     <ul>
@@ -31,7 +32,7 @@ const HomePage = () => {
                         <li>Settings</li>
                     </ul>
                 </nav>
-                {/* אזור הבוט הקטן בתחתית התפריט */}
+                
                 <div className="sidebar-bot">
                     <div className="bot-header">
                         <span className="bot-avatar">🤖</span>
@@ -50,9 +51,9 @@ const HomePage = () => {
                 </div>
             </aside>
 
-            {/* תוכן ראשי */}
+            
             <main className="main-content">
-                {/* סרגל עליון - Header */}
+                
                 <header className="top-header">
                     <div className="header-left">
                         <button className="menu-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
@@ -108,10 +109,10 @@ const HomePage = () => {
                 </div>
 
 
-                {/* אזור מרכזי מחולק לגרף וביצועים */}
+                
                 <div className="dashboard-grid">
 
-                    {/* גרף הפרויקטים (תופס את רוב המקום) */}
+                   
                     <div className="project-tree-container">
                         <div className="project-tree-header">
                             <div className="tree-title-group">
@@ -137,7 +138,7 @@ const HomePage = () => {
                         </div>
                     </div>
 
-                    {/* רשימת ביצועים (בצד ימין) */}
+                   
                     <aside className="performers-sidebar">
                         <div className="performers-header">
                             <h3>Top Performers</h3>
