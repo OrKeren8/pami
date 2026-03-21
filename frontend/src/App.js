@@ -1,12 +1,21 @@
 import React from 'react';
-import HomePage from './pages/HomePage'; // החיבור לעמוד החדש
-import './App.css';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+// Simplified paths
+import LoginPage from './pages/LoginPage';
+import HomePage from './pages/HomePage';
 
 function App() {
     return (
-        <div className="App">
-            <HomePage />
-        </div>
+        <BrowserRouter>
+            <Routes>
+                {/* Redirecting to login by default */}
+                <Route path="/" element={<Navigate to="/login" />} />
+
+                <Route path="/login" element={<LoginPage />} />
+
+                <Route path="/dashboard" element={<HomePage />} />
+            </Routes>
+        </BrowserRouter>
     );
 }
 

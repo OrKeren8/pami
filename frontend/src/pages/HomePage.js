@@ -7,18 +7,15 @@ const HomePage = () => {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-       
         const timer = setTimeout(() => {
             setIsLoading(false);
         }, 4000);
-
-        return () => clearTimeout(timer); 
+        return () => clearTimeout(timer);
     }, []);
 
     return (
         <div className={`dashboard-container ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
 
-            {/* תפריט צד - Sidebar */}
             <aside className="sidebar">
                 <div className="sidebar-logo">
                     <img src={pamiLogo} alt="Pami Logo" className="logo-img" />
@@ -30,9 +27,13 @@ const HomePage = () => {
                         <li>Health Monitor</li>
                         <li>Workers</li>
                         <li>Settings</li>
+                        
+                        <li className="logout-item" onClick={() => alert('Logging out...')}>
+                            <span>🚪 Log Out</span>
+                        </li>
                     </ul>
                 </nav>
-                
+
                 <div className="sidebar-bot">
                     <div className="bot-header">
                         <span className="bot-avatar">🤖</span>
@@ -51,9 +52,7 @@ const HomePage = () => {
                 </div>
             </aside>
 
-            
             <main className="main-content">
-                
                 <header className="top-header">
                     <div className="header-left">
                         <button className="menu-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
@@ -108,11 +107,7 @@ const HomePage = () => {
                     </div>
                 </div>
 
-
-                
                 <div className="dashboard-grid">
-
-                   
                     <div className="project-tree-container">
                         <div className="project-tree-header">
                             <div className="tree-title-group">
@@ -138,34 +133,26 @@ const HomePage = () => {
                         </div>
                     </div>
 
-                   
-                    <aside className="performers-sidebar">
-                        <div className="performers-header">
-                            <h3>Top Performers</h3>
-                            <span className="view-all">View All</span>
-                        </div>
+                    
+                    <aside className="integrations-sidebar">
+                        <div className="integrations-stack">
+                            
+                            <button className="integration-icon-btn slack-btn">
+                                <img
+                                    src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+                                    alt="Slack"
+                                />
+                            </button>
 
-                        <div className="performers-list">
-                            {[1, 2, 3, 4].map((item) => (
-                                <div key={item} className="performer-item">
-                                    <div className="performer-info">
-                                        <div className="avatar grey">--</div>
-                                        <div>
-                                            <p className="performer-name">No User Active</p>
-                                            <p className="performer-role">Waiting for data...</p>
-                                        </div>
-                                    </div>
-                                    <div className="performer-stat">
-                                        <span className="stat-pct">--%</span>
-                                        <div className="progress-bar">
-                                            <div className="progress grey-bg-bar" style={{ width: '0%' }}></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
+                            
+                            <button className="integration-icon-btn jira-btn">
+                                <img
+                                    src="https://cdn.worldvectorlogo.com/logos/jira-1.svg"
+                                    alt="Jira"
+                                />
+                            </button>
                         </div>
                     </aside>
-
                 </div>
             </main>
         </div>
