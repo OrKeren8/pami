@@ -27,12 +27,12 @@ jobs:
         run: |
           cd projects_service
           docker build -t pami-projects-service .
-          docker tag pami-projects-service:latest ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/pami-projects-service:latest
-          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/pami-projects-service:latest
+          docker tag pami-projects-service:latest 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
+          docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
 
       - name: Deploy to ECS Express
         uses: aws-actions/amazon-ecs-deploy-express-service@v1
         with:
           service-name: pami-projects-service
-          image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com/pami-projects-service:latest
+          image: 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
           cluster: pami-cluster
