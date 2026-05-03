@@ -1,7 +1,8 @@
-:root {
+﻿:root {
     --sidebar-width: 260px;
     --bg-color: #f8f9fd;
     --primary-purple: #f06292;
+    --connector-color: #d1d9e2;
 }
 
 .dashboard-container {
@@ -25,13 +26,11 @@
     box-sizing: border-box;
     z-index: 100;
     transition: transform 0.3s ease-in-out;
-    transform: translateX(0);
 }
 
 .sidebar-closed .sidebar {
     transform: translateX(-100%);
 }
-
 
 .main-content {
     flex: 1;
@@ -76,7 +75,6 @@
         font-weight: bold;
     }
 
-/* Log Out Button */
 .logout-item {
     margin-top: 20px;
     color: #ff4d4d !important;
@@ -89,13 +87,7 @@
         background: #fff5f5 !important;
     }
 
-/* Main Content */
-.main-content {
-    flex: 1;
-    margin-left: var(--sidebar-width);
-    padding: 20px;
-}
-
+/* Header & Search */
 .top-header {
     display: flex;
     justify-content: space-between;
@@ -152,7 +144,6 @@
     position: relative;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
     border: 1px solid #f1f3f8;
-    overflow: hidden; 
 }
 
 .stat-details {
@@ -200,32 +191,12 @@
     text-transform: uppercase;
 }
 
-
-.stat-badge {
-    position: absolute;
-    bottom: 15px;
-    right: 15px;
-    font-size: 0.65rem;
-    font-weight: 700;
-    padding: 4px 10px;
-    border-radius: 20px;
-}
-
-/* Dashboard Grid */
-.dashboard-grid {
-    display: flex;
-    gap: 20px;
-    align-items: flex-start;
-}
-
+/* Project Tree Section */
 .project-tree-container {
-    flex: 3;
     background: white;
     border-radius: 30px;
     padding: 25px;
-    min-height: 500px;
-    display: flex;
-    flex-direction: column;
+    min-height: 650px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
 }
 
@@ -234,59 +205,143 @@
     background-color: #fafbfc;
     border: 2px dashed #edf0f5;
     border-radius: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    margin-top: 20px;
 }
 
-/* integration Sidebar (Right) */
-.integrations-sidebar {
-    flex: 0.25;
+/* --- Hierarchical Tree Logic --- */
+.hierarchical-tree-container {
     display: flex;
     justify-content: center;
-    padding-top: 20px;
+    padding: 60px 20px;
+    width: 100%;
 }
 
-.integrations-stack {
+.tree-branch {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    align-items: center;
+    position: relative;
+}
+
+.tree-node-wrapper {
+    position: relative;
+    padding-bottom: 40px; /* רווח לקו שיורד */
+}
+
+/* הקו האנכי שיורד מהאבא */
+.tree-connector-arrow {
+    width: 2px;
+    height: 40px;
+    background: var(--connector-color);
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* קבוצת הילדים */
+.tree-children {
+    display: flex;
+    flex-direction: row;
+    gap: 40px;
+    position: relative;
+    padding-top: 40px;
+}
+
+    /* הקו האופקי המחבר בין האחים */
+    .tree-children::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        height: 2px;
+        background: var(--connector-color);
+        width: calc(100% - 160px);
+    }
+
+    /* הקו האנכי שעולה מכל ילד לקו האופקי */
+    .tree-children .tree-branch::before {
+        content: "";
+        position: absolute;
+        top: -40px;
+        left: 50%;
+        width: 2px;
+        height: 40px;
+        background: var(--connector-color);
+    }
+
+    /* ראש החץ בכניסה לכל נוד */
+    .tree-children .tree-branch::after {
+        content: "▼";
+        position: absolute;
+        top: -8px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 10px;
+        color: var(--connector-color);
+    }
+
+    /* הסתרת קווים מיותרים כשיש רק ילד אחד */
+    .tree-children > .tree-branch:only-child::before,
+    .tree-children > .tree-branch:only-child::after {
+        height: 40px;
+        top: -40px;
+    }
+
+/* עיצוב הנוד החדש */
+.neural-node-v2 {
+    background: white;
+    border: 2px solid;
+    padding: 12px 20px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.06);
+    z-index: 10;
+    min-width: 170px;
+    transition: transform 0.2s;
+}
+
+    .neural-node-v2:hover {
+        transform: translateY(-3px);
+    }
+
+.node-name-v2 {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+.node-status-v2 {
+    font-size: 0.6rem;
+    color: #999;
+    text-transform: uppercase;
+}
+
+.node-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+/* Integrations Sidebar */
+.integrations-fixed-container {
+    position: fixed;
+    right: 30px;
+    top: 200px;
+    z-index: 9999;
 }
 
 .integration-icon-btn {
-    background: white;
-    border: 1px solid #f1f3f8;
-    border-radius: 18px;
-    width: 70px; /* ���� ������ */
-    height: 70px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     transition: all 0.2s;
+    cursor: pointer !important;
 }
-
-    .integration-icon-btn img {
-        width: 40px; /* ���� ����� ����� */
-        height: 40px;
-        object-fit: contain;
-    }
 
     .integration-icon-btn:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+        transform: scale(1.1);
     }
-
-.slack-btn:hover {
-    border-color: #E01E5A;
-}
-
-.jira-btn:hover {
-    border-color: #0052CC;
-}
-
-
 
 /* Bot area */
 .sidebar-bot {
@@ -304,30 +359,11 @@
     margin-bottom: 10px;
 }
 
-.bot-input-area {
-    display: flex;
-    background: white;
-    border-radius: 8px;
-    padding: 5px;
-    border: 1px solid #eee;
+/* Modal */
+.modal-overlay {
+    backdrop-filter: blur(4px);
 }
 
-    .bot-input-area input {
-        border: none;
-        outline: none;
-        flex: 1;
-        font-size: 0.75rem;
-    }
-
-.send-btn {
-    background: var(--primary-purple);
-    color: white;
-    border: none;
-    border-radius: 5px;
-    padding: 2px 8px;
-}
-
-/* Loading Spinner */
 .loading-spinner {
     width: 30px;
     height: 30px;
