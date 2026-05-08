@@ -18,6 +18,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
 
       - name: Login to Amazon ECR
@@ -26,13 +27,37 @@ jobs:
       - name: Build and Push Image
         run: |
           cd projects_service
-          docker build -t pami-projects-service .
-          docker tag pami-projects-service:latest 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
+          # Generate a unique tag based on commit SHA
+          IMAGE_TAG=${{ github.sha }}
+          docker build -t pami-projects-service:$IMAGE_TAG .
+          docker tag pami-projects-service:$IMAGE_TAG 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:$IMAGE_TAG
+          docker tag pami-projects-service:$IMAGE_TAG 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
+          docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:$IMAGE_TAG
           docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
 
-      - name: Deploy to ECS Express
-        uses: aws-actions/amazon-ecs-deploy-express-service@v1
-        with:
-          service-name: pami-projects-service
-          image: 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
-          cluster: pami-cluster
+      - name: Update ECS Service
+        run: |
+          # Update the service to use the new image
+          aws ecs update-service \
+            --cluster pami-cluster \
+            --service pami-projects-service \
+            --force-new-deployment \
+            --region us-east-1
+
+      - name: Wait for deployment to complete
+        run: |
+          # Wait for the service to stabilize
+          aws ecs wait services-stable \
+            --cluster pami-cluster \
+            --services pami-projects-service \
+            --region us-east-1
+
+      - name: Get service status
+        run: |
+          echo "Deployment completed successfully!"
+          aws ecs describe-services \
+            --cluster pami-cluster \
+            --services pami-projects-service \
+            --region us-east-1 \
+            --query 'services[0].taskDefinition' \
+            --output text
