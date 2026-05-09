@@ -1,6 +1,7 @@
 from typing import List, Optional
 from datetime import datetime
 from loguru import logger
+import uuid
 
 from projects_service.data.context_tree_repository import ContextTreeRepository
 from projects_service.models.context_tree import ContextTreeNode
@@ -22,9 +23,12 @@ class ContextTreeService:
         self, project_id: str, request: CreateContextTreeNodeRequest
     ) -> ContextTreeNodeResponse:
         """Create a new context tree node."""
+        # Always generate a unique node_id
+        node_id = str(uuid.uuid4())
+        
         # Create domain model from request
         node = ContextTreeNode(
-            node_id=request.node_id,
+            node_id=node_id,
             parent_id=request.parent_id,
             children_ids=request.children_ids,
             text=request.text,

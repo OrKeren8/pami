@@ -27,7 +27,7 @@ class TestContextTreeService:
         """Test creating a context tree node."""
         project_id = "507f1f77bcf86cd799439011"
         request = CreateContextTreeNodeRequest(
-            node_id="node-1",
+            # node_id is auto-generated, not provided
             parent_id="parent-node",
             children_ids=["child-1", "child-2"],
             text="Test node",
@@ -41,7 +41,7 @@ class TestContextTreeService:
         # Mock the created node from repository
         created_node = MagicMock()
         created_node.id = "507f1f77bcf86cd799439012"
-        created_node.node_id = "node-1"
+        created_node.node_id = "550e8400-e29b-41d4-a716-446655440000"  # UUID format - always auto-generated
         created_node.parent_id = "parent-node"
         created_node.children_ids = ["child-1", "child-2"]
         created_node.text = "Test node"
@@ -56,7 +56,7 @@ class TestContextTreeService:
 
         assert isinstance(result, ContextTreeNodeResponse)
         assert result.id == "507f1f77bcf86cd799439012"
-        assert result.node_id == "node-1"
+        assert result.node_id == "550e8400-e29b-41d4-a716-446655440000"  # Always auto-generated UUID
         assert result.parent_id == "parent-node"
         assert result.children_ids == ["child-1", "child-2"]
         assert result.text == "Test node"

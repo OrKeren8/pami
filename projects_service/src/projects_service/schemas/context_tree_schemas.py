@@ -4,7 +4,6 @@ from datetime import datetime
 
 
 class CreateContextTreeNodeRequest(BaseModel):
-    node_id: str
     parent_id: Optional[str] = None
     children_ids: List[str] = []
     text: str
