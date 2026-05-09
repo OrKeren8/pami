@@ -1,5 +1,5 @@
 from typing import List, Optional
-from motor.motor_asyncio import AsyncIOMotorClient
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from loguru import logger
 
 from projects_service.models.task import Task
@@ -8,8 +8,8 @@ from projects_service.models.task import Task
 class TaskRepository:
     """Repository for task data access."""
 
-    def __init__(self, client: AsyncIOMotorClient):
-        self._client = client
+    def __init__(self, database: AsyncIOMotorDatabase):
+        self._database = database
         self._logger = logger.bind(repository="TaskRepository")
 
     async def create(self, task: Task, session=None) -> Task:

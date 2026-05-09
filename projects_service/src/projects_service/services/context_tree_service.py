@@ -25,7 +25,7 @@ class ContextTreeService:
         """Create a new context tree node."""
         # Always generate a unique node_id
         node_id = str(uuid.uuid4())
-        
+
         # Create domain model from request
         node = ContextTreeNode(
             node_id=node_id,
@@ -36,16 +36,20 @@ class ContextTreeService:
             node_type=request.node_type,
         )
         created_node = await self._context_tree_repository.create(node)
-        
+
         # If the node has a parent, update the parent's children list
         if request.parent_id:
-            parent_node = await self._context_tree_repository.get_by_id(request.parent_id)
+            parent_node = await self._context_tree_repository.get_by_id(
+                request.parent_id
+            )
             if parent_node:
                 # Add the new child to parent's children_ids if not already present
                 if node_id not in parent_node.children_ids:
                     parent_node.children_ids.append(node_id)
                     await self._context_tree_repository.update(parent_node)
-                    self._logger.info(f"Updated parent {request.parent_id} to include child {node_id}")
+                    self._logger.info(
+                        f"Updated parent {request.parent_id} to include child {node_id}"
+                    )
 
         return ContextTreeNodeResponse(
             id=str(created_node.id),

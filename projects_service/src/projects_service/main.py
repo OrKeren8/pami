@@ -24,21 +24,21 @@ from projects_service.api.v1.context_tree import router as context_tree_router
 async def lifespan(app: FastAPI):
     logger.info("Setting up application...")
 
-    # MongoDB connection
+    # Initialize Beanie with connection string
+    await init_beanie(connection_string=settings.mongodb_url, document_models=[Project, Task, ContextTreeNode])
+
+    # Get database for repositories
     client = AsyncIOMotorClient(settings.mongodb_url)
     database = client[settings.database_name]
 
-    # Initialize Beanie with the document models
-    await init_beanie(database, document_models=[Project, Task, ContextTreeNode])
-
     # Create repositories
-    project_repository = ProjectRepository(client)
+    project_repository = ProjectRepository(database)
     app.state.project_repository = project_repository
 
-    task_repository = TaskRepository(client)
+    task_repository = TaskRepository(database)
     app.state.task_repository = task_repository
 
-    context_tree_repository = ContextTreeRepository(client)
+    context_tree_repository = ContextTreeRepository(database)
     app.state.context_tree_repository = context_tree_repository
 
     # Create services
