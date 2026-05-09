@@ -25,7 +25,10 @@ async def lifespan(app: FastAPI):
     logger.info("Setting up application...")
 
     # Initialize Beanie with connection string
-    await init_beanie(connection_string=settings.mongodb_url, document_models=[Project, Task, ContextTreeNode])
+    await init_beanie(
+        connection_string=settings.mongodb_url,
+        document_models=[Project, Task, ContextTreeNode],
+    )
 
     # Get database for repositories
     client = AsyncIOMotorClient(settings.mongodb_url)
