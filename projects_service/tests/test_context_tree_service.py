@@ -1,6 +1,7 @@
 import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
+import uuid
 
 from projects_service.models.context_tree import ContextTreeNode
 from projects_service.services.context_tree_service import ContextTreeService
@@ -40,8 +41,7 @@ class TestContextTreeService:
 
         # Mock the created node from repository
         created_node = MagicMock()
-        created_node.id = "507f1f77bcf86cd799439012"
-        created_node.node_id = "550e8400-e29b-41d4-a716-446655440000"  # UUID format - always auto-generated
+        created_node.id = "550e8400-e29b-41d4-a716-446655440000"  # UUID format - always auto-generated
         created_node.parent_id = "parent-node"
         created_node.children_ids = ["child-1", "child-2"]
         created_node.text = "Test node"
@@ -55,10 +55,7 @@ class TestContextTreeService:
         result = await service.create_node(project_id, request)
 
         assert isinstance(result, ContextTreeNodeResponse)
-        assert result.id == "507f1f77bcf86cd799439012"
-        assert (
-            result.node_id == "550e8400-e29b-41d4-a716-446655440000"
-        )  # Always auto-generated UUID
+        assert result.id == "550e8400-e29b-41d4-a716-446655440000"
         assert result.parent_id == "parent-node"
         assert result.children_ids == ["child-1", "child-2"]
         assert result.text == "Test node"
@@ -71,21 +68,16 @@ class TestContextTreeService:
 
     @pytest.mark.asyncio
     @patch("projects_service.services.context_tree_service.ContextTreeNode")
-    @patch("projects_service.services.context_tree_service.uuid.uuid4")
     async def test_create_node_updates_parent_children(
-        self, mock_uuid, mock_node_class, service, mock_repository
+        self, mock_node_class, service, mock_repository
     ):
         """Test that creating a node with a parent updates the parent's children list."""
-        # Mock UUID generation to return predictable value
-        mock_uuid.return_value = "child-uuid-456"
-
         project_id = "507f1f77bcf86cd799439011"
         parent_node_id = "parent-uuid-123"
 
         # Mock existing parent node
         parent_node = MagicMock()
-        parent_node.id = "507f1f77bcf86cd799439013"
-        parent_node.node_id = parent_node_id
+        parent_node.id = parent_node_id
         parent_node.parent_id = None
         parent_node.children_ids = ["existing-child-1"]  # Already has one child
         parent_node.text = "Parent Node"
@@ -104,22 +96,18 @@ class TestContextTreeService:
 
         # Mock the node instance for child
         child_node_instance = MagicMock()
+        child_node_instance.id = str(uuid.uuid4())  # Mock generated UUID
+        child_node_instance.parent_id = child_request.parent_id
+        child_node_instance.children_ids = child_request.children_ids
+        child_node_instance.text = child_request.text
+        child_node_instance.project_id = project_id
+        child_node_instance.node_type = child_request.node_type
+        child_node_instance.created_at = datetime.utcnow()
+        child_node_instance.updated_at = datetime.utcnow()
         mock_node_class.return_value = child_node_instance
 
-        # Mock the created child node
-        created_child = MagicMock()
-        created_child.id = "507f1f77bcf86cd799439014"
-        created_child.node_id = "child-uuid-456"  # Same as mocked UUID
-        created_child.parent_id = parent_node_id
-        created_child.children_ids = []
-        created_child.text = "Child Node"
-        created_child.project_id = project_id
-        created_child.node_type = "task"
-        created_child.created_at = datetime.utcnow()
-        created_child.updated_at = datetime.utcnow()
-
         # Mock repository calls
-        mock_repository.create = AsyncMock(return_value=created_child)
+        mock_repository.create = AsyncMock(side_effect=lambda node: node)  # Return the node that was created
         mock_repository.get_by_id = AsyncMock(return_value=parent_node)
         mock_repository.update = AsyncMock(return_value=parent_node)
 
@@ -130,14 +118,16 @@ class TestContextTreeService:
         assert isinstance(result, ContextTreeNodeResponse)
         assert result.parent_id == parent_node_id
         assert result.text == "Child Node"
+        # Assert that the id is a valid UUID
+        assert uuid.UUID(result.id).version == 4
 
         # Verify the parent was updated to include the child
         mock_repository.update.assert_called_once()
         # The parent's children_ids should now include the new child
         updated_parent = mock_repository.update.call_args[0][0]
         assert (
-            result.node_id in updated_parent.children_ids
-        )  # Use the actual generated node_id
+            result.id in updated_parent.children_ids
+        )  # Use the actual generated id
         assert (
             "existing-child-1" in updated_parent.children_ids
         )  # Should keep existing children
@@ -148,8 +138,7 @@ class TestContextTreeService:
         node_id = "node-1"
 
         node = MagicMock()
-        node.id = "507f1f77bcf86cd799439012"
-        node.node_id = node_id
+        node.id = node_id
         node.parent_id = "parent-node"
         node.children_ids = ["child-1"]
         node.text = "Test node"
@@ -163,7 +152,7 @@ class TestContextTreeService:
         result = await service.get_node(node_id)
 
         assert result is not None
-        assert result.node_id == node_id
+        assert result.id == node_id
         assert result.text == "Test node"
         assert result.node_type == "goal"
         mock_repository.get_by_id.assert_called_once_with(node_id)
@@ -185,8 +174,7 @@ class TestContextTreeService:
         """Test listing nodes by project."""
         project_id = "507f1f77bcf86cd799439011"
         node1 = MagicMock()
-        node1.id = "507f1f77bcf86cd799439012"
-        node1.node_id = "node-1"
+        node1.id = "node-1"
         node1.text = "Node 1"
         node1.project_id = project_id
         node1.node_type = "goal"
@@ -196,8 +184,7 @@ class TestContextTreeService:
         node1.updated_at = datetime.utcnow()
 
         node2 = MagicMock()
-        node2.id = "507f1f77bcf86cd799439013"
-        node2.node_id = "node-2"
+        node2.id = "node-2"
         node2.text = "Node 2"
         node2.project_id = project_id
         node2.node_type = "task"
@@ -213,8 +200,8 @@ class TestContextTreeService:
         result = await service.list_nodes_by_project(project_id)
 
         assert len(result) == 2
-        assert result[0].node_id == "node-1"
-        assert result[1].node_id == "node-2"
+        assert result[0].id == "node-1"
+        assert result[1].id == "node-2"
         assert all(isinstance(r, ContextTreeNodeResponse) for r in result)
         assert all(r.project_id == project_id for r in result)
         mock_repository.list_by_project.assert_called_once_with(project_id)

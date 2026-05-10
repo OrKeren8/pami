@@ -19,7 +19,6 @@ class UpdateContextTreeNodeRequest(BaseModel):
 
 class ContextTreeNodeResponse(BaseModel):
     id: str
-    node_id: str
     parent_id: Optional[str]
     children_ids: List[str]
     text: str

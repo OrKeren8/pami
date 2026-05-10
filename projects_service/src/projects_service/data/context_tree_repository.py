@@ -22,10 +22,10 @@ class ContextTreeRepository:
             raise
 
     async def get_by_id(self, node_id: str, session=None) -> Optional[ContextTreeNode]:
-        """Get a node by its node_id field."""
+        """Get a node by its id field."""
         try:
             return await ContextTreeNode.find_one(
-                ContextTreeNode.node_id == node_id, session=session
+                ContextTreeNode.id == node_id, session=session
             )
         except Exception as e:
             self._logger.error(f"Error getting node {node_id}: {e}")
@@ -49,7 +49,7 @@ class ContextTreeRepository:
         """Update a context tree node."""
         try:
             node = await ContextTreeNode.find_one(
-                ContextTreeNode.node_id == node_id, session=session
+                ContextTreeNode.id == node_id, session=session
             )
             if not node:
                 return None
