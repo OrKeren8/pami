@@ -49,3 +49,55 @@ async def receive_slack_events(request: Request):
         return {"challenge": payload.get("challenge")}
 
     return {"ok": True, "event_type": payload.get("type")}
+
+
+@router.post("/commands")
+async def receive_slack_command(request: Request):
+    body = await request.body()
+    timestamp = request.headers.get("X-Slack-Request-Timestamp")
+    signature = request.headers.get("X-Slack-Signature")
+
+    is_valid = slack_signature_service.is_valid_request(
+        timestamp=timestamp,
+        signature=signature,
+        body=body,
+    )
+
+    if not is_valid:
+        raise HTTPException(status_code=401, detail="Invalid Slack signature")
+
+    form = await request.form()
+
+    command = form.get("command", "")
+    text = form.get("text", "")
+    user_id = form.get("user_id", "")
+    channel_id = form.get("channel_id", "")
+
+    return {
+        "response_type": "ephemeral",
+        "text": f"Command received: {command} | text={text} | user={user_id} | channel={channel_id}",
+    }
+
+
+@router.post("/interactions")
+async def receive_slack_interactions(request: Request):
+    body = await request.body()
+    timestamp = request.headers.get("X-Slack-Request-Timestamp")
+    signature = request.headers.get("X-Slack-Signature")
+
+    is_valid = slack_signature_service.is_valid_request(
+        timestamp=timestamp,
+        signature=signature,
+        body=body,
+    )
+
+    if not is_valid:
+        raise HTTPException(status_code=401, detail="Invalid Slack signature")
+
+    form = await request.form()
+    payload = form.get("payload", "")
+
+    return {
+        "ok": True,
+        "payload_received": payload != "",
+    }
