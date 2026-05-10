@@ -1,3 +1,4 @@
+# Slack integration test for the PAMI project
 import os
 
 from dotenv import load_dotenv

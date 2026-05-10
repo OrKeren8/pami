@@ -39,3 +39,5 @@ python slack_test.py
 - The Slack bot token must be a Bot User OAuth Token
 - The `.env` file must not be uploaded to GitHub
 - This test was converted from Node.js to Python to match the main project language
+
+- Files were resaved in Python during the migration to keep the Slack test aligned with the project stack
