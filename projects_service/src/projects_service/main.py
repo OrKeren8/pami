@@ -14,8 +14,7 @@ from projects_service.data.task_repository import TaskRepository
 from projects_service.data.context_tree_repository import ContextTreeRepository
 from projects_service.services.project_service import ProjectService
 from projects_service.services.task_service import TaskService
-from projects_service.services.ai_conversation_service.service import AIConversationService
-from projects_service.api.v1.ai_conversations import router as ai_conversations_router
+from projects_service.services.context_tree_service import ContextTreeService
 
 
 @asynccontextmanager
@@ -52,10 +51,6 @@ async def lifespan(app: FastAPI):
     context_tree_service = ContextTreeService(context_tree_repository)
     app.state.context_tree_service = context_tree_service
 
-    # Initialize AI conversation service
-    ai_conversation_service = AIConversationService()
-    app.state.ai_conversation_service = ai_conversation_service
-
     logger.info("Database connected, repositories and services initialized")
 
     yield
@@ -85,7 +80,6 @@ app.add_middleware(
 app.include_router(projects_router)
 app.include_router(tasks_router)
 app.include_router(context_tree_router)
-app.include_router(ai_conversations_router)
 
 
 @app.get("/health")
