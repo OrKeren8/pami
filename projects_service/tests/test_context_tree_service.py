@@ -234,7 +234,12 @@ class TestContextTreeService:
     async def test_update_node_found(self, service, mock_repository):
         """Test updating a node when found."""
         node_id = "node-1"
-        request = UpdateContextTreeNodeRequest(text="Updated text", summary="Updated summary", topics=["new-topic"], node_type="task")
+        request = UpdateContextTreeNodeRequest(
+            text="Updated text",
+            summary="Updated summary",
+            topics=["new-topic"],
+            node_type="task",
+        )
 
         updated_node = MagicMock()
         updated_node.id = node_id
