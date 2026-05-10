@@ -1,0 +1,4 @@
+backend/slack-test/.gitignore text eol=lf 
+backend/slack-test/README.md text eol=lf 
+backend/slack-test/slack_test.py text eol=lf 
+backend/slack-test/requirements.txt text eol=lf 
