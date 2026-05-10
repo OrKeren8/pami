@@ -1,2 +1,5 @@
+# Local files and environments
 .env
 node_modules
+venv
+__pycache__
