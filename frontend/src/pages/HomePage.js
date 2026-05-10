@@ -1,75 +1,130 @@
 ﻿import React, { useState, useEffect } from 'react';
 import './HomePage.css';
 import pamiLogo from '../assets/pami-logo.png';
+import api from '../api/axios';
 
 const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
     const [activeModal, setActiveModal] = useState(null);
+    const [realProjects, setRealProjects] = useState([]);
 
-    // מבנה נתונים היררכי (עץ)
-    const neuralTreeData = {
-        name: 'PAMI Global Core',
-        color: '#f06292',
-        status: 'Root',
-        children: [
-            {
-                name: 'Slack Engine',
-                color: '#4caf50',
-                status: 'Active',
-                children: [
-                    { name: 'Channel Manager', color: '#4caf50', status: 'Standby' },
-                    { name: 'Bot Listener', color: '#4caf50', status: 'Active' }
-                ]
-            },
-            {
-                name: 'Jira Sync',
-                color: '#2196f3',
-                status: 'Syncing',
-                children: [
-                    { name: 'Ticket Automator', color: '#2196f3', status: 'Running' }
-                ]
-            },
-            {
-                name: 'Auth Neural',
-                color: '#ff9800',
-                status: 'Secure',
-                children: []
-            }
-        ]
+    const [emailInput, setEmailInput] = useState('');
+    const [tokenInput, setTokenInput] = useState('');
+
+    const fetchProjects = async () => {
+        setIsLoading(true);
+        try {
+            const response = await api.get('/projects/');
+            console.log("Projects fetched:", response.data);
+            setRealProjects(response.data);
+        } catch (error) {
+            console.error("Failed to fetch projects:", error);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
-    const closeModal = () => setActiveModal(null);
-    const openModal = (type) => setActiveModal(type);
+    const handleCreateProject = async (e) => {
+        e.preventDefault();
+        if (!emailInput) return alert("Please enter a project name");
+
+        setIsLoading(true);
+        try {
+            
+            const response = await api.post('/projects/', {
+                name: emailInput,
+                goal: tokenInput || "No goal defined", 
+                status: "active" 
+            });
+
+            console.log("Project created successfully:", response.data);
+            alert(`Project "${emailInput}" deployed!`);
+
+            await fetchProjects();
+            closeModal();
+        } catch (error) {
+            
+            if (error.response) {
+                console.error("Server Error Data:", error.response.data);
+                alert("Server says: " + JSON.stringify(error.response.data));
+            } else {
+                console.error("Connection Error:", error.message);
+                alert("Check if server is running at http://44.200.153.11:8000");
+            }
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setIsLoading(false);
-        }, 2000);
-        return () => clearTimeout(timer);
+        fetchProjects();
     }, []);
 
-    // פונקציה לרינדור העץ בצורה רקורסיבית
-    const renderTree = (node) => (
-        <div className="tree-branch" key={node.name}>
-            <div className="tree-node-wrapper">
-                <div className="neural-node-v2" style={{ borderColor: node.color }}>
-                    <div className="node-dot" style={{ backgroundColor: node.color }}></div>
-                    <div className="node-content-v2">
-                        <span className="node-name-v2">{node.name}</span>
-                        <span className="node-status-v2">{node.status}</span>
+    const getTreeStructure = () => {
+        if (realProjects.length === 0) return null;
+
+        return {
+            name: 'PAMI Global Core',
+            color: '#f06292',
+            status: 'Root',
+            children: realProjects.map(proj => ({
+                name: proj.name || 'Untitled Project',
+                color: '#2196f3',
+                status: proj.status || 'Active',
+                children: []
+            }))
+        };
+    };
+
+    const closeModal = () => {
+        setActiveModal(null);
+        setEmailInput('');
+        setTokenInput('');
+    };
+
+    const openModal = (type) => setActiveModal(type);
+
+    const handleConnect = async (e) => {
+        e.preventDefault();
+        setIsLoading(true);
+        try {
+            await api.post(`/integrate/${activeModal}`, {
+                email: emailInput,
+                token: tokenInput
+            });
+            alert(`Connected successfully to ${activeModal}!`);
+            closeModal();
+        } catch (error) {
+            console.error("Connection failed:", error);
+            alert("Integration endpoint not found on server yet.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const renderTree = (node) => {
+        if (!node) return null;
+        return (
+            <div className="tree-branch" key={node.name}>
+                <div className="tree-node-wrapper">
+                    <div className="neural-node-v2" style={{ borderColor: node.color }}>
+                        <div className="node-dot" style={{ backgroundColor: node.color }}></div>
+                        <div className="node-content-v2">
+                            <span className="node-name-v2">{node.name}</span>
+                            <span className="node-status-v2">{node.status}</span>
+                        </div>
                     </div>
+                    {node.children && node.children.length > 0 && <div className="tree-connector-arrow"></div>}
                 </div>
-                {/* הצגת חץ רק אם יש ילדים */}
-                {node.children && node.children.length > 0 && <div className="tree-connector-arrow"></div>}
+                {node.children && node.children.length > 0 && (
+                    <div className="tree-children">
+                        {node.children.map(child => renderTree(child))}
+                    </div>
+                )}
             </div>
-            {node.children && node.children.length > 0 && (
-                <div className="tree-children">
-                    {node.children.map(child => renderTree(child))}
-                </div>
-            )}
-        </div>
-    );
+        );
+    };
 
     return (
         <div className={`dashboard-container ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
@@ -98,7 +153,7 @@ const HomePage = () => {
                         </div>
                     </div>
                     <div className="bot-bubble">
-                        <p>Hello! I've visualized your project hierarchy.</p>
+                        <p>{realProjects.length > 0 ? `Neural network active with ${realProjects.length} nodes.` : "System ready. Initialize your first node."}</p>
                     </div>
                     <div className="bot-input-area">
                         <input type="text" placeholder="Ask PAMI anything..." />
@@ -118,7 +173,7 @@ const HomePage = () => {
                     </div>
                     <div className="header-right">
                         <span className="notification">🔔</span>
-                        <button className="new-node-btn">+ New Node</button>
+                        <button className="new-node-btn" onClick={() => openModal('createProject')}>+ New Node</button>
                     </div>
                 </header>
 
@@ -126,7 +181,7 @@ const HomePage = () => {
                     <div className="stat-box">
                         <div className="stat-icon pink-bg">💼</div>
                         <div className="stat-details">
-                            <span className="stat-number">7</span>
+                            <span className="stat-number">{realProjects.length}</span>
                             <span className="stat-label">TOTAL NODES</span>
                         </div>
                     </div>
@@ -160,18 +215,21 @@ const HomePage = () => {
                                 <span className="pulse-icon">📈</span>
                                 <h2>Project Tree</h2>
                             </div>
-                            <span className="node-count">Neural Hierarchy Active</span>
                         </div>
-
                         <div className="project-tree-canvas">
-                            {isLoading ? (
+                            {isLoading && realProjects.length === 0 ? (
                                 <div className="empty-tree-state">
                                     <div className="loading-spinner"></div>
-                                    <p>Initializing Neural Workspace...</p>
+                                    <p>Connecting to Neural Cloud...</p>
+                                </div>
+                            ) : realProjects.length > 0 ? (
+                                <div className="hierarchical-tree-container">
+                                    {renderTree(getTreeStructure())}
                                 </div>
                             ) : (
-                                <div className="hierarchical-tree-container">
-                                    {renderTree(neuralTreeData)}
+                                <div className="empty-tree-state">
+                                    <p>No active nodes found on server.</p>
+                                    <button className="create-first-btn" onClick={() => openModal('createProject')}>+ Create First Project</button>
                                 </div>
                             )}
                         </div>
@@ -190,24 +248,60 @@ const HomePage = () => {
                 </div>
             </aside>
 
+            {/* מודאלים דינמיים */}
             {activeModal && (
                 <div className="modal-overlay" onClick={closeModal} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 }}>
                     <div className="modal-content" onClick={e => e.stopPropagation()} style={{ background: 'white', padding: '40px', borderRadius: '30px', width: '400px', position: 'relative' }}>
                         <button className="close-modal-btn" onClick={closeModal} style={{ position: 'absolute', top: '20px', right: '20px', border: 'none', background: 'none', fontSize: '24px', cursor: 'pointer' }}>&times;</button>
+
                         <div className="modal-header" style={{ textAlign: 'center', marginBottom: '20px' }}>
-                            <img src={activeModal === 'slack' ? "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" : "https://cdn.worldvectorlogo.com/logos/jira-1.svg"} alt={activeModal} style={{ height: '50px', marginBottom: '10px' }} />
-                            <h2>Connect to {activeModal === 'slack' ? 'Slack' : 'Jira'}</h2>
+                            {activeModal === 'createProject' ? (
+                                <>
+                                    <span style={{ fontSize: '40px' }}>📁</span>
+                                    <h2>Initialize New Node</h2>
+                                </>
+                            ) : (
+                                <>
+                                    <img src={activeModal === 'slack' ? "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" : "https://cdn.worldvectorlogo.com/logos/jira-1.svg"} alt={activeModal} style={{ height: '50px', marginBottom: '10px' }} />
+                                    <h2>Connect to {activeModal === 'slack' ? 'Slack' : 'Jira'}</h2>
+                                </>
+                            )}
                         </div>
-                        <form className="modal-form" onSubmit={(e) => { e.preventDefault(); alert(`Connecting to ${activeModal}...`); closeModal(); }}>
+
+                        <form className="modal-form" onSubmit={activeModal === 'createProject' ? handleCreateProject : handleConnect}>
                             <div className="input-group" style={{ marginBottom: '15px' }}>
-                                <label style={{ display: 'block', marginBottom: '5px' }}>Workspace Email</label>
-                                <input type="email" placeholder="name@company.com" required style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                                <label style={{ display: 'block', marginBottom: '5px' }}>
+                                    {activeModal === 'createProject' ? 'Project Name' : 'Workspace Email'}
+                                </label>
+                                <input
+                                    type={activeModal === 'createProject' ? 'text' : 'email'}
+                                    placeholder={activeModal === 'createProject' ? "e.g. Neural Alpha" : "name@company.com"}
+                                    required
+                                    value={emailInput}
+                                    onChange={(e) => setEmailInput(e.target.value)}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+                                />
                             </div>
                             <div className="input-group" style={{ marginBottom: '20px' }}>
-                                <label style={{ display: 'block', marginBottom: '5px' }}>Password / API Token</label>
-                                <input type="password" placeholder="••••••••" required style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                                <label style={{ display: 'block', marginBottom: '5px' }}>
+                                    {activeModal === 'createProject' ? 'Description (Optional)' : 'Password / API Token'}
+                                </label>
+                                <input
+                                    type={activeModal === 'createProject' ? 'text' : 'password'}
+                                    placeholder={activeModal === 'createProject' ? "Project goals..." : "••••••••"}
+                                    value={tokenInput}
+                                    onChange={(e) => setTokenInput(e.target.value)}
+                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+                                />
                             </div>
-                            <button type="submit" className="login-submit-btn" style={{ width: '100%', padding: '12px', background: '#f06292', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}>Connect Account</button>
+                            <button
+                                type="submit"
+                                className="login-submit-btn"
+                                disabled={isLoading}
+                                style={{ width: '100%', padding: '12px', background: '#f06292', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: isLoading ? 'not-allowed' : 'pointer', opacity: isLoading ? 0.7 : 1 }}
+                            >
+                                {isLoading ? 'Processing...' : (activeModal === 'createProject' ? 'Deploy Node' : 'Connect Account')}
+                            </button>
                         </form>
                     </div>
                 </div>
