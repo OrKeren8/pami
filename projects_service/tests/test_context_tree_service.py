@@ -32,6 +32,8 @@ class TestContextTreeService:
             parent_id="parent-node",
             children_ids=["child-1", "child-2"],
             text="Test node",
+            summary="Test summary",
+            topics=["topic1", "topic2"],
             node_type="goal",
         )
 
@@ -45,6 +47,8 @@ class TestContextTreeService:
         created_node.parent_id = "parent-node"
         created_node.children_ids = ["child-1", "child-2"]
         created_node.text = "Test node"
+        created_node.summary = "Test summary"
+        created_node.topics = ["topic1", "topic2"]
         created_node.project_id = project_id
         created_node.node_type = "goal"
         created_node.created_at = datetime.utcnow()
@@ -59,6 +63,8 @@ class TestContextTreeService:
         assert result.parent_id == "parent-node"
         assert result.children_ids == ["child-1", "child-2"]
         assert result.text == "Test node"
+        assert result.summary == "Test summary"
+        assert result.topics == ["topic1", "topic2"]
         assert result.node_type == "goal"
         assert result.project_id == project_id
 
@@ -91,6 +97,8 @@ class TestContextTreeService:
             parent_id=parent_node_id,  # References the parent
             children_ids=[],
             text="Child Node",
+            summary="Child summary",
+            topics=["child-topic"],
             node_type="task",
         )
 
@@ -100,6 +108,8 @@ class TestContextTreeService:
         child_node_instance.parent_id = child_request.parent_id
         child_node_instance.children_ids = child_request.children_ids
         child_node_instance.text = child_request.text
+        child_node_instance.summary = child_request.summary
+        child_node_instance.topics = child_request.topics
         child_node_instance.project_id = project_id
         child_node_instance.node_type = child_request.node_type
         child_node_instance.created_at = datetime.utcnow()
@@ -107,7 +117,9 @@ class TestContextTreeService:
         mock_node_class.return_value = child_node_instance
 
         # Mock repository calls
-        mock_repository.create = AsyncMock(side_effect=lambda node: node)  # Return the node that was created
+        mock_repository.create = AsyncMock(
+            side_effect=lambda node: node
+        )  # Return the node that was created
         mock_repository.get_by_id = AsyncMock(return_value=parent_node)
         mock_repository.update = AsyncMock(return_value=parent_node)
 
@@ -118,6 +130,8 @@ class TestContextTreeService:
         assert isinstance(result, ContextTreeNodeResponse)
         assert result.parent_id == parent_node_id
         assert result.text == "Child Node"
+        assert result.summary == "Child summary"
+        assert result.topics == ["child-topic"]
         # Assert that the id is a valid UUID
         assert uuid.UUID(result.id).version == 4
 
@@ -125,9 +139,7 @@ class TestContextTreeService:
         mock_repository.update.assert_called_once()
         # The parent's children_ids should now include the new child
         updated_parent = mock_repository.update.call_args[0][0]
-        assert (
-            result.id in updated_parent.children_ids
-        )  # Use the actual generated id
+        assert result.id in updated_parent.children_ids  # Use the actual generated id
         assert (
             "existing-child-1" in updated_parent.children_ids
         )  # Should keep existing children
@@ -142,6 +154,8 @@ class TestContextTreeService:
         node.parent_id = "parent-node"
         node.children_ids = ["child-1"]
         node.text = "Test node"
+        node.summary = "Test summary"
+        node.topics = ["topic1"]
         node.project_id = "507f1f77bcf86cd799439011"
         node.node_type = "goal"
         node.created_at = datetime.utcnow()
@@ -154,6 +168,8 @@ class TestContextTreeService:
         assert result is not None
         assert result.id == node_id
         assert result.text == "Test node"
+        assert result.summary == "Test summary"
+        assert result.topics == ["topic1"]
         assert result.node_type == "goal"
         mock_repository.get_by_id.assert_called_once_with(node_id)
 
@@ -176,6 +192,8 @@ class TestContextTreeService:
         node1 = MagicMock()
         node1.id = "node-1"
         node1.text = "Node 1"
+        node1.summary = "Summary 1"
+        node1.topics = ["topic1"]
         node1.project_id = project_id
         node1.node_type = "goal"
         node1.parent_id = None
@@ -186,6 +204,8 @@ class TestContextTreeService:
         node2 = MagicMock()
         node2.id = "node-2"
         node2.text = "Node 2"
+        node2.summary = "Summary 2"
+        node2.topics = ["topic2"]
         node2.project_id = project_id
         node2.node_type = "task"
         node2.parent_id = None
@@ -201,7 +221,11 @@ class TestContextTreeService:
 
         assert len(result) == 2
         assert result[0].id == "node-1"
+        assert result[0].summary == "Summary 1"
+        assert result[0].topics == ["topic1"]
         assert result[1].id == "node-2"
+        assert result[1].summary == "Summary 2"
+        assert result[1].topics == ["topic2"]
         assert all(isinstance(r, ContextTreeNodeResponse) for r in result)
         assert all(r.project_id == project_id for r in result)
         mock_repository.list_by_project.assert_called_once_with(project_id)
@@ -210,14 +234,15 @@ class TestContextTreeService:
     async def test_update_node_found(self, service, mock_repository):
         """Test updating a node when found."""
         node_id = "node-1"
-        request = UpdateContextTreeNodeRequest(text="Updated text", node_type="task")
+        request = UpdateContextTreeNodeRequest(text="Updated text", summary="Updated summary", topics=["new-topic"], node_type="task")
 
         updated_node = MagicMock()
-        updated_node.id = "507f1f77bcf86cd799439012"
-        updated_node.node_id = node_id
+        updated_node.id = node_id
         updated_node.parent_id = "parent-node"
         updated_node.children_ids = ["child-1"]
         updated_node.text = "Updated text"
+        updated_node.summary = "Updated summary"
+        updated_node.topics = ["new-topic"]
         updated_node.project_id = "507f1f77bcf86cd799439011"
         updated_node.node_type = "task"
         updated_node.created_at = datetime.utcnow()
@@ -229,14 +254,20 @@ class TestContextTreeService:
 
         assert result is not None
         assert result.text == "Updated text"
+        assert result.summary == "Updated summary"
+        assert result.topics == ["new-topic"]
         assert result.node_type == "task"
         mock_repository.update.assert_called_once()
         call_args = mock_repository.update.call_args[0]
         assert call_args[0] == node_id
         assert "text" in call_args[1]
+        assert "summary" in call_args[1]
+        assert "topics" in call_args[1]
         assert "node_type" in call_args[1]
         assert "updated_at" in call_args[1]
         assert call_args[1]["text"] == "Updated text"
+        assert call_args[1]["summary"] == "Updated summary"
+        assert call_args[1]["topics"] == ["new-topic"]
         assert call_args[1]["node_type"] == "task"
 
     @pytest.mark.asyncio

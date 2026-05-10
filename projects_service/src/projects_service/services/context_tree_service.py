@@ -28,6 +28,8 @@ class ContextTreeService:
             parent_id=request.parent_id,
             children_ids=request.children_ids,
             text=request.text,
+            summary=request.summary,
+            topics=request.topics,
             project_id=project_id,
             node_type=request.node_type,
         )
@@ -49,10 +51,11 @@ class ContextTreeService:
 
         return ContextTreeNodeResponse(
             id=str(created_node.id),
-            node_id=created_node.node_id,
             parent_id=created_node.parent_id,
             children_ids=created_node.children_ids,
             text=created_node.text,
+            summary=created_node.summary,
+            topics=created_node.topics,
             project_id=created_node.project_id,
             node_type=created_node.node_type,
             created_at=created_node.created_at,
@@ -67,10 +70,11 @@ class ContextTreeService:
 
         return ContextTreeNodeResponse(
             id=str(node.id),
-            node_id=node.node_id,
             parent_id=node.parent_id,
             children_ids=node.children_ids,
             text=node.text,
+            summary=node.summary,
+            topics=node.topics,
             project_id=node.project_id,
             node_type=node.node_type,
             created_at=node.created_at,
@@ -85,10 +89,11 @@ class ContextTreeService:
         return [
             ContextTreeNodeResponse(
                 id=str(n.id),
-                node_id=n.node_id,
                 parent_id=n.parent_id,
                 children_ids=n.children_ids,
                 text=n.text,
+                summary=n.summary,
+                topics=n.topics,
                 project_id=n.project_id,
                 node_type=n.node_type,
                 created_at=n.created_at,
@@ -110,10 +115,11 @@ class ContextTreeService:
 
         return ContextTreeNodeResponse(
             id=str(node.id),
-            node_id=node.node_id,
             parent_id=node.parent_id,
             children_ids=node.children_ids,
             text=node.text,
+            summary=node.summary,
+            topics=node.topics,
             project_id=node.project_id,
             node_type=node.node_type,
             created_at=node.created_at,
