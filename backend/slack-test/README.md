@@ -13,25 +13,29 @@ The script demonstrates a working Slack API integration by:
 
 ## Files
 
-- `index.js` - the main Slack integration test script
+- `slack_test.py` - the main Slack integration test script
+- `requirements.txt` - Python dependencies
 - `.env` - contains the Slack bot token (not committed to GitHub)
 - `.gitignore` - excludes sensitive and unnecessary files
 
 ## Setup
 
-Install dependencies:
+Create and activate a virtual environment, then install dependencies:
 
-npm install
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
 
 Create a `.env` file with:
 
 SLACK_BOT_TOKEN=<paste-your-bot-token-here>
+
 ## Run
 
-node index.js
+python slack_test.py
 
 ## Notes
 
 - The Slack bot token must be a Bot User OAuth Token
 - The `.env` file must not be uploaded to GitHub
-- This test was created as part of the PAMI Slack integration task
+- This test was converted from Node.js to Python to match the main project language
