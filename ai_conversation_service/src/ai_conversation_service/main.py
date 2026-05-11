@@ -29,9 +29,18 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="PAMI AI Conversation Service",
-    description="Microservice for AI-powered conversations with AWS Bedrock and S3 storage",
+    description="Microservice for AI-powered conversations with OpenAI and S3 storage",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure appropriately for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Include routers

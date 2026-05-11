@@ -9,11 +9,13 @@ This service provides AI conversation capabilities for the PAMI system:
 - AI-powered conversations using OpenAI GPT models
 - REST API for conversation management
 - Context-aware responses linked to project context nodes
+- Persistent conversation storage using AWS S3
 
 ## Architecture
 
 - **Framework**: FastAPI
 - **AI Services**: OpenAI GPT models for conversational AI
+- **Storage**: AWS S3 for conversation persistence
 - **Models**: Pydantic for data validation
 
 ## AWS Services Integration
@@ -22,7 +24,7 @@ This service provides AI conversation capabilities for the PAMI system:
 
 The service integrates with AWS services for AI-powered conversations:
 
-- **AWS Bedrock**: Provides access to Anthropic Claude for natural language processing
+- **OpenAI API**: Provides access to GPT models for natural language processing
 - **AWS S3**: Stores conversation history and metadata for persistence and scalability
 
 Conversations are stored in S3 with the following structure:

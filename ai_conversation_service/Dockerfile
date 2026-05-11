@@ -1,23 +1,19 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
+# Use Python 3.9 slim image (matching projects service)
+FROM python:3.9-slim
 
-# Set working directory
+# Install git (required for git dependencies if any)
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+COPY . /app
+
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+# Install dependencies
+RUN uv sync --frozen --no-cache
 
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
-
-# Install Python dependencies
-RUN pip install --no-cache-dir uv && \
-    uv sync --frozen --no-install-project --no-dev
-
-# Copy source code
-COPY src/ ./src/
+CMD ["/app/.venv/bin/uvicorn", "src.ai_conversation_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
 # Install the project
 RUN uv sync --frozen --no-dev
