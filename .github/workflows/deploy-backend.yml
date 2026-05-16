@@ -3,9 +3,6 @@ name: Deploy Backend Services
 on:
   push:
     branches: [main]
-    paths:
-      - 'projects_service/**' # Runs when projects service code changes
-      - 'ai_conversation_service/**' # Runs when AI conversation service code changes
 
 jobs:
   deploy-projects-service:
