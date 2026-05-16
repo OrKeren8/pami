@@ -49,7 +49,7 @@ app.include_router(ai_conversations_router)
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy", "service": "ai-conversation-service"}
+    return {"status": "healthy", "service": "ai-conversation-service", "version": "0.1.0"}
 
 
 if __name__ == "__main__":
