@@ -34,11 +34,11 @@ jobs:
           IMAGE_TAG=${{ github.sha }}
 
           docker build -t pami-slack-service:$IMAGE_TAG .
-          docker tag pami-slack-service:$IMAGE_TAG 374850831945.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
-          docker tag pami-slack-service:$IMAGE_TAG 374850831945.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
+          docker tag pami-slack-service:$IMAGE_TAG 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
+          docker tag pami-slack-service:$IMAGE_TAG 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
 
-          docker push 374850831945.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
-          docker push 374850831945.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
+          docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
+          docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
 
       - name: Update ECS Service
         run: |
