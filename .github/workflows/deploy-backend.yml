@@ -9,7 +9,6 @@ on:
 
 jobs:
   deploy-projects-service:
-    if: contains(github.event.head_commit.modified, 'projects_service/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -55,7 +54,6 @@ jobs:
             --region us-east-1
 
   deploy-ai-conversation-service:
-    if: contains(github.event.head_commit.modified, 'ai_conversation_service/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
