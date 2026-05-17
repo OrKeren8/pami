@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import './HomePage.css';
 import pamiLogo from '../assets/pami-logo.png';
-import api from '../api/axios';
+import { projectsApi, aiApi } from '../api/axios'; // ייבוא החיבורים החדשים מתוך אקסיוס
 
 const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -9,13 +9,19 @@ const HomePage = () => {
     const [activeModal, setActiveModal] = useState(null);
     const [realProjects, setRealProjects] = useState([]);
 
+    // States של הבוט PAMI
+    const [botInput, setBotInput] = useState('');
+    const [botResponse, setBotResponse] = useState("Hello! I'm PAMI and I'm ready!!!!");
+    const [isBotLoading, setIsBotLoading] = useState(false);
+    const [currentConversationId, setCurrentConversationId] = useState(null); // שומר את ה-ID של השיחה הנוכחית
+
     const [emailInput, setEmailInput] = useState('');
     const [tokenInput, setTokenInput] = useState('');
 
     const fetchProjects = async () => {
         setIsLoading(true);
         try {
-            const response = await api.get('/projects/');
+            const response = await projectsApi.get('/projects/'); // שימוש ב-projectsApi
             console.log("Projects fetched:", response.data);
             setRealProjects(response.data);
         } catch (error) {
@@ -31,11 +37,10 @@ const HomePage = () => {
 
         setIsLoading(true);
         try {
-            
-            const response = await api.post('/projects/', {
+            const response = await projectsApi.post('/projects/', { // שימוש ב-projectsApi
                 name: emailInput,
-                goal: tokenInput || "No goal defined", 
-                status: "active" 
+                goal: tokenInput || "No goal defined",
+                status: "active"
             });
 
             console.log("Project created successfully:", response.data);
@@ -44,16 +49,67 @@ const HomePage = () => {
             await fetchProjects();
             closeModal();
         } catch (error) {
-            
             if (error.response) {
                 console.error("Server Error Data:", error.response.data);
                 alert("Server says: " + JSON.stringify(error.response.data));
             } else {
                 console.error("Connection Error:", error.message);
-                alert("Check if server is running at http://44.200.153.11:8000");
+                alert("Check if server is running correctly.");
             }
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    // פונקציה חדשה וחכמה לשליחת הודעות לצ'אט ה-AI של אור
+    const handleSendMessageToAI = async (e) => {
+        e.preventDefault();
+        if (!botInput.trim()) return;
+
+        const userMessage = botInput;
+        setBotInput(''); // ניקוי התיבה מיד לחוויית משתמש טובה
+        setIsBotLoading(true);
+        setBotResponse("Thinking...");
+
+        try {
+            let conversationId = currentConversationId;
+
+            // שלב 1: אם זו הודעה ראשונה בשיחה ואין לנו עדיין קשר לחדר, ניצור אחד
+            if (!conversationId) {
+                // נשתמש בפרויקט הראשון ברשימה כברירת מחדל כדי לחבר את הנתונים
+                const defaultProj = realProjects[0] || { id: "default_id", name: "General" };
+
+                console.log("Initializing new AI conversation room...");
+                const convResponse = await aiApi.post('/ai-conversations/', { // שימוש ב-aiApi
+                    context_node_id: defaultProj.id || "root_node",
+                    project_id: defaultProj.id || "default_project",
+                    title: `Session: ${defaultProj.name || "General Workspace"}`
+                });
+
+                conversationId = convResponse.data.conversation_id;
+                setCurrentConversationId(conversationId); // שמירה ב-State להודעות הבאות
+                console.log("Conversation room created with ID:", conversationId);
+            }
+
+            // שלב 2: שליחת הודעת המשתמש לתוך חדר השיחה הקיים
+            console.log(`Sending message to chat session: ${conversationId}`);
+            const messageResponse = await aiApi.post(`/ai-conversations/${conversationId}/messages`, { // שימוש ב-aiApi
+                message: userMessage,
+                context_snapshot: {},
+                additionalProp1: {}
+            });
+
+            console.log("AI response data:", messageResponse.data);
+
+            // בדיקה אם חזרה מחרוזת פשוטה או אובייקט (לפי ה-Swagger של אור)
+            const aiText = typeof messageResponse.data === 'string' ? messageResponse.data : JSON.stringify(messageResponse.data);
+            setBotResponse(aiText);
+
+        } catch (error) {
+            console.error("AI Assistant connection failed:", error.response?.data || error.message);
+            setBotResponse("Error: Couldn't connect to PAMI AI engine.");
+        } finally {
+            setIsBotLoading(false);
         }
     };
 
@@ -89,7 +145,8 @@ const HomePage = () => {
         e.preventDefault();
         setIsLoading(true);
         try {
-            await api.post(`/integrate/${activeModal}`, {
+            // כאן בעתיד נחליף ל-slackApi בהתאם לצורך
+            await projectsApi.post(`/integrate/${activeModal}`, {
                 email: emailInput,
                 token: tokenInput
             });
@@ -149,16 +206,23 @@ const HomePage = () => {
                         <span className="bot-avatar">🤖</span>
                         <div className="bot-info">
                             <strong>PAMI</strong>
-                            <span className="status-dot"></span>
+                            <span className="status-dot" style={{ backgroundColor: isBotLoading ? '#ffa000' : '#4caf50' }}></span>
                         </div>
                     </div>
                     <div className="bot-bubble">
-                        <p>{realProjects.length > 0 ? `Neural network active with ${realProjects.length} nodes.` : "System ready. Initialize your first node."}</p>
+                        <p>{botResponse}</p>
                     </div>
-                    <div className="bot-input-area">
-                        <input type="text" placeholder="Ask PAMI anything..." />
-                        <button className="send-btn">➔</button>
-                    </div>
+                    {/* חיבור הטופס לפונקציית ה-AI החדשה */}
+                    <form className="bot-input-area" onSubmit={handleSendMessageToAI}>
+                        <input
+                            type="text"
+                            placeholder={isBotLoading ? "AI Processing..." : "Ask PAMI anything..."}
+                            value={botInput}
+                            onChange={(e) => setBotInput(e.target.value)}
+                            disabled={isBotLoading}
+                        />
+                        <button type="submit" className="send-btn" disabled={isBotLoading}>➔</button>
+                    </form>
                 </div>
             </aside>
 
@@ -248,7 +312,6 @@ const HomePage = () => {
                 </div>
             </aside>
 
-            {/* מודאלים דינמיים */}
             {activeModal && (
                 <div className="modal-overlay" onClick={closeModal} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 }}>
                     <div className="modal-content" onClick={e => e.stopPropagation()} style={{ background: 'white', padding: '40px', borderRadius: '30px', width: '400px', position: 'relative' }}>
