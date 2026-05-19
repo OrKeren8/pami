@@ -34,19 +34,78 @@ jobs:
           IMAGE_TAG=${{ github.sha }}
 
           docker build -t pami-slack-service:$IMAGE_TAG .
-          docker tag pami-slack-service:$IMAGE_TAG 374850831945.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
-          docker tag pami-slack-service:$IMAGE_TAG 374850831945.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
+          docker tag pami-slack-service:$IMAGE_TAG 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
+          docker tag pami-slack-service:$IMAGE_TAG 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
 
-          docker push 374850831945.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
-          docker push 374850831945.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
+          docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
+          docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
 
-      - name: Update ECS Service
+      - name: Register Task Definition
         run: |
-          aws ecs update-service \
-            --cluster pami-cluster \
-            --service pami-slack-service \
-            --force-new-deployment \
-            --region us-east-1
+          cat > task-def.json << 'EOF'
+          {
+            "family": "pami-slack-service",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "512",
+            "memory": "1024",
+            "executionRoleArn": "arn:aws:iam::669954808028:role/LabRole",
+            "containerDefinitions": [
+              {
+                "name": "slack-service",
+                "image": "669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest",
+                "portMappings": [
+                  {
+                    "containerPort": 8002,
+                    "protocol": "tcp",
+                    "appProtocol": "http"
+                  }
+                ],
+                "essential": true,
+                "environment": [
+                  {
+                    "name": "MONGODB_URL",
+                    "value": "mongodb+srv://orkeren8_db_user:oQMCNIcDq9lNXfFV@pami.yucpykf.mongodb.net/pami?appName=pami"
+                  }
+                ],
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/pami-slack-service",
+                    "awslogs-create-group": "true",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs"
+                  }
+                }
+              }
+            ]
+          }
+          EOF
+          
+          aws ecs register-task-definition --cli-input-json file://task-def.json
+
+      - name: Create or Update ECS Service
+        run: |
+          # Check if service exists
+          if aws ecs describe-services --cluster pami-cluster --services pami-slack-service --region us-east-1 | grep -q "ACTIVE\|DRAINING"; then
+            echo "Service exists, updating..."
+            aws ecs update-service \
+              --cluster pami-cluster \
+              --service pami-slack-service \
+              --force-new-deployment \
+              --region us-east-1
+          else
+            echo "Service doesn't exist, creating..."
+            aws ecs create-service \
+              --cluster pami-cluster \
+              --service-name pami-slack-service \
+              --task-definition pami-slack-service \
+              --desired-count 1 \
+              --launch-type FARGATE \
+              --network-configuration "awsvpcConfiguration={subnets=[subnet-065ce43c3f6e16d41,subnet-0b0e96bd3e6f30151],securityGroups=[sg-0479a02a0d7531feb],assignPublicIp=ENABLED}" \
+              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:669954808028:targetgroup/slack-service-tg/REPLACE_WITH_ACTUAL_ARN,containerName=slack-service,containerPort=8002" \
+              --region us-east-1
+          fi
 
       - name: Wait for deployment to complete
         run: |

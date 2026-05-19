@@ -9,7 +9,6 @@ This service handles all project-related operations including:
 - Project CRUD operations
 - Task management
 - Context-tree indexing and management
-- Integration with MongoDB
 
 ## Architecture
 
@@ -48,24 +47,21 @@ This service handles all project-related operations including:
 - `PUT /context-tree/nodes/{id}` - Update a node
 - `DELETE /context-tree/nodes/{id}` - Delete a node
 
-## Running the Service
+## Configuration
 
-1. Install dependencies:
+### Environment Variables
 
-   ```bash
-   pip install -e .
-   ```
+Copy `.env.example` to `.env` and configure the following variables:
 
-2. Set environment variables (see .env.example)
+- `MONGODB_URL`: MongoDB connection string
+- `DATABASE_NAME`: MongoDB database name
 
-3. Run the service:
-   ```bash
-   uvicorn src.projects_service.main:app --reload
-   ```
+### AWS Permissions Required
 
 ## Testing
 
 ```bash
 pytest
 ```
-# CI/CD Test - Fri, May  8, 2026  1:01:15 PM
+
+## Development

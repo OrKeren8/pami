@@ -8,6 +8,7 @@ from slack_service.core.config import settings
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
+    root_path="/slack",
 )
 
 app.add_middleware(

@@ -1,0 +1,47 @@
+[project]
+name = "pami-ai-conversation-service"
+version = "0.1.0"
+description = "PAMI AI Conversation Microservice"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Or Keren", email = "or.keren@example.com" },
+    { name = "Roy Kalfon", email = "roy.kalfon@example.com" },
+    { name = "Osher Atias", email = "osher.atias@example.com" }
+]
+dependencies = [
+    "fastapi[standard]>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "loguru>=0.7.0",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "httpx>=0.25.0",
+    "openai>=1.0.0",
+    "boto3>=1.34.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_conversation_service"]
+
+[dependency-groups]
+dev = [
+    "black>=25.9.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+]

@@ -1,13 +1,11 @@
-name: Deploy Projects Service
+name: Deploy Backend Services
 
 on:
   push:
     branches: [main]
-    paths:
-      - 'projects_service/**' # Only runs when projects service code changes
 
 jobs:
-  deploy:
+  deploy-projects-service:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -24,7 +22,7 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and Push Image
+      - name: Build and Push Projects Service Image
         run: |
           cd projects_service
           # Generate a unique tag based on commit SHA
@@ -35,7 +33,7 @@ jobs:
           docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:$IMAGE_TAG
           docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
 
-      - name: Update ECS Service
+      - name: Update Projects Service ECS
         run: |
           # Update the service to use the new image
           aws ecs update-service \
@@ -44,7 +42,7 @@ jobs:
             --force-new-deployment \
             --region us-east-1
 
-      - name: Wait for deployment to complete
+      - name: Wait for Projects Service deployment
         run: |
           # Wait for the service to stabilize
           aws ecs wait services-stable \
@@ -52,12 +50,57 @@ jobs:
             --services pami-projects-service \
             --region us-east-1
 
-      - name: Get service status
+  deploy-ai-conversation-service:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push AI Conversation Service Image
         run: |
-          echo "Deployment completed successfully!"
+          cd ai_conversation_service
+          # Generate a unique tag based on commit SHA
+          IMAGE_TAG=${{ github.sha }}
+          docker build -t pami-ai-conversation-service:$IMAGE_TAG .
+          docker tag pami-ai-conversation-service:$IMAGE_TAG 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:$IMAGE_TAG
+          docker tag pami-ai-conversation-service:$IMAGE_TAG 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest
+          docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:$IMAGE_TAG
+          docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest
+
+      - name: Update AI Conversation Service ECS
+        run: |
+          # Update the service to use the new image
+          aws ecs update-service \
+            --cluster pami-cluster \
+            --service pami-ai-conversation-service \
+            --force-new-deployment \
+            --region us-east-1
+
+      - name: Wait for AI Conversation Service deployment
+        run: |
+          # Wait for the service to stabilize
+          aws ecs wait services-stable \
+            --cluster pami-cluster \
+            --services pami-ai-conversation-service \
+            --region us-east-1
+
+      - name: Get AI Conversation Service status
+        run: |
+          echo "AI Conversation Service deployment completed successfully!"
           aws ecs describe-services \
             --cluster pami-cluster \
-            --services pami-projects-service \
+            --services pami-ai-conversation-service \
             --region us-east-1 \
             --query 'services[0].taskDefinition' \
             --output text
