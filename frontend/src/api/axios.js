@@ -1,19 +1,8 @@
 import axios from 'axios';
 
-
-export const projectsApi = axios.create({
-    baseURL: process.env.REACT_APP_PROJECTS_API_URL,
+const api = axios.create({
+    baseURL: 'http://127.0.0.1:8001',
     timeout: 5000,
 });
 
-
-export const aiApi = axios.create({
-    baseURL: process.env.REACT_APP_AI_API_URL,
-    timeout: 10000, 
-});
-
-
-export const slackApi = axios.create({
-    baseURL: process.env.REACT_APP_SLACK_API_URL,
-    timeout: 5000,
-});
+export default api;

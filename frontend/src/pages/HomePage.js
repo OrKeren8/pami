@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import './HomePage.css';
 import pamiLogo from '../assets/pami-logo.png';
-import { projectsApi, aiApi } from '../api/axios'; // ייבוא החיבורים החדשים מתוך אקסיוס
+import api from '../api/axios';
 
 const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -9,19 +9,13 @@ const HomePage = () => {
     const [activeModal, setActiveModal] = useState(null);
     const [realProjects, setRealProjects] = useState([]);
 
-    // States של הבוט PAMI
-    const [botInput, setBotInput] = useState('');
-    const [botResponse, setBotResponse] = useState("Hello! I'm PAMI and I'm ready!!!!");
-    const [isBotLoading, setIsBotLoading] = useState(false);
-    const [currentConversationId, setCurrentConversationId] = useState(null); // שומר את ה-ID של השיחה הנוכחית
-
     const [emailInput, setEmailInput] = useState('');
     const [tokenInput, setTokenInput] = useState('');
 
     const fetchProjects = async () => {
         setIsLoading(true);
         try {
-            const response = await projectsApi.get('/projects/'); // שימוש ב-projectsApi
+            const response = await api.get('/projects/');
             console.log("Projects fetched:", response.data);
             setRealProjects(response.data);
         } catch (error) {
@@ -33,11 +27,16 @@ const HomePage = () => {
 
     const handleCreateProject = async (e) => {
         e.preventDefault();
-        if (!emailInput) return alert("Please enter a project name");
+
+        if (!emailInput) {
+            alert("Please enter a project name");
+            return;
+        }
 
         setIsLoading(true);
+
         try {
-            const response = await projectsApi.post('/projects/', { // שימוש ב-projectsApi
+            const response = await api.post('/projects/', {
                 name: emailInput,
                 goal: tokenInput || "No goal defined",
                 status: "active"
@@ -54,62 +53,10 @@ const HomePage = () => {
                 alert("Server says: " + JSON.stringify(error.response.data));
             } else {
                 console.error("Connection Error:", error.message);
-                alert("Check if server is running correctly.");
+                alert("Check if server is running at http://127.0.0.1:8001");
             }
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    // פונקציה חדשה וחכמה לשליחת הודעות לצ'אט ה-AI של אור
-    const handleSendMessageToAI = async (e) => {
-        e.preventDefault();
-        if (!botInput.trim()) return;
-
-        const userMessage = botInput;
-        setBotInput(''); // ניקוי התיבה מיד לחוויית משתמש טובה
-        setIsBotLoading(true);
-        setBotResponse("Thinking...");
-
-        try {
-            let conversationId = currentConversationId;
-
-            // שלב 1: אם זו הודעה ראשונה בשיחה ואין לנו עדיין קשר לחדר, ניצור אחד
-            if (!conversationId) {
-                // נשתמש בפרויקט הראשון ברשימה כברירת מחדל כדי לחבר את הנתונים
-                const defaultProj = realProjects[0] || { id: "default_id", name: "General" };
-
-                console.log("Initializing new AI conversation room...");
-                const convResponse = await aiApi.post('/ai-conversations/', { // שימוש ב-aiApi
-                    context_node_id: defaultProj.id || "root_node",
-                    project_id: defaultProj.id || "default_project",
-                    title: `Session: ${defaultProj.name || "General Workspace"}`
-                });
-
-                conversationId = convResponse.data.conversation_id;
-                setCurrentConversationId(conversationId); // שמירה ב-State להודעות הבאות
-                console.log("Conversation room created with ID:", conversationId);
-            }
-
-            // שלב 2: שליחת הודעת המשתמש לתוך חדר השיחה הקיים
-            console.log(`Sending message to chat session: ${conversationId}`);
-            const messageResponse = await aiApi.post(`/ai-conversations/${conversationId}/messages`, { // שימוש ב-aiApi
-                message: userMessage,
-                context_snapshot: {},
-                additionalProp1: {}
-            });
-
-            console.log("AI response data:", messageResponse.data);
-
-            // בדיקה אם חזרה מחרוזת פשוטה או אובייקט (לפי ה-Swagger של אור)
-            const aiText = typeof messageResponse.data === 'string' ? messageResponse.data : JSON.stringify(messageResponse.data);
-            setBotResponse(aiText);
-
-        } catch (error) {
-            console.error("AI Assistant connection failed:", error.response?.data || error.message);
-            setBotResponse("Error: Couldn't connect to PAMI AI engine.");
-        } finally {
-            setIsBotLoading(false);
         }
     };
 
@@ -118,13 +65,15 @@ const HomePage = () => {
     }, []);
 
     const getTreeStructure = () => {
-        if (realProjects.length === 0) return null;
+        if (realProjects.length === 0) {
+            return null;
+        }
 
         return {
             name: 'PAMI Global Core',
             color: '#f06292',
             status: 'Root',
-            children: realProjects.map(proj => ({
+            children: realProjects.map((proj) => ({
                 name: proj.name || 'Untitled Project',
                 color: '#2196f3',
                 status: proj.status || 'Active',
@@ -139,29 +88,42 @@ const HomePage = () => {
         setTokenInput('');
     };
 
-    const openModal = (type) => setActiveModal(type);
+    const openModal = (type) => {
+        setActiveModal(type);
+    };
 
     const handleConnect = async (e) => {
         e.preventDefault();
         setIsLoading(true);
+
         try {
-            // כאן בעתיד נחליף ל-slackApi בהתאם לצורך
-            await projectsApi.post(`/integrate/${activeModal}`, {
+            if (activeModal === 'slack') {
+                await api.post('/slack/test-connection');
+                alert('Connected successfully to Slack!');
+                closeModal();
+                return;
+            }
+
+            await api.post(`/integrate/${activeModal}`, {
                 email: emailInput,
                 token: tokenInput
             });
+
             alert(`Connected successfully to ${activeModal}!`);
             closeModal();
         } catch (error) {
             console.error("Connection failed:", error);
-            alert("Integration endpoint not found on server yet.");
+            alert("Connection failed.");
         } finally {
             setIsLoading(false);
         }
     };
 
     const renderTree = (node) => {
-        if (!node) return null;
+        if (!node) {
+            return null;
+        }
+
         return (
             <div className="tree-branch" key={node.name}>
                 <div className="tree-node-wrapper">
@@ -172,11 +134,14 @@ const HomePage = () => {
                             <span className="node-status-v2">{node.status}</span>
                         </div>
                     </div>
-                    {node.children && node.children.length > 0 && <div className="tree-connector-arrow"></div>}
+                    {node.children && node.children.length > 0 && (
+                        <div className="tree-connector-arrow"></div>
+                    )}
                 </div>
+
                 {node.children && node.children.length > 0 && (
                     <div className="tree-children">
-                        {node.children.map(child => renderTree(child))}
+                        {node.children.map((child) => renderTree(child))}
                     </div>
                 )}
             </div>
@@ -189,6 +154,7 @@ const HomePage = () => {
                 <div className="sidebar-logo">
                     <img src={pamiLogo} alt="Pami Logo" className="logo-img" />
                 </div>
+
                 <nav className="sidebar-nav">
                     <ul>
                         <li className="active">Neural Dashboard</li>
@@ -201,43 +167,55 @@ const HomePage = () => {
                         </li>
                     </ul>
                 </nav>
+
                 <div className="sidebar-bot">
                     <div className="bot-header">
                         <span className="bot-avatar">🤖</span>
                         <div className="bot-info">
                             <strong>PAMI</strong>
-                            <span className="status-dot" style={{ backgroundColor: isBotLoading ? '#ffa000' : '#4caf50' }}></span>
+                            <span className="status-dot"></span>
                         </div>
                     </div>
+
                     <div className="bot-bubble">
-                        <p>{botResponse}</p>
+                        <p>
+                            {realProjects.length > 0
+                                ? `Neural network active with ${realProjects.length} nodes.`
+                                : "System ready. Initialize your first node."}
+                        </p>
                     </div>
-                    {/* חיבור הטופס לפונקציית ה-AI החדשה */}
-                    <form className="bot-input-area" onSubmit={handleSendMessageToAI}>
-                        <input
-                            type="text"
-                            placeholder={isBotLoading ? "AI Processing..." : "Ask PAMI anything..."}
-                            value={botInput}
-                            onChange={(e) => setBotInput(e.target.value)}
-                            disabled={isBotLoading}
-                        />
-                        <button type="submit" className="send-btn" disabled={isBotLoading}>➔</button>
-                    </form>
+
+                    <div className="bot-input-area">
+                        <input type="text" placeholder="Ask PAMI anything..." />
+                        <button className="send-btn">➔</button>
+                    </div>
                 </div>
             </aside>
 
             <main className="main-content">
                 <header className="top-header">
                     <div className="header-left">
-                        <button className="menu-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>☰</button>
+                        <button
+                            className="menu-toggle"
+                            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        >
+                            ☰
+                        </button>
+
                         <div className="search-bar">
                             <span className="search-icon">🔍</span>
                             <input type="text" placeholder="Search the machine memory..." />
                         </div>
                     </div>
+
                     <div className="header-right">
                         <span className="notification">🔔</span>
-                        <button className="new-node-btn" onClick={() => openModal('createProject')}>+ New Node</button>
+                        <button
+                            className="new-node-btn"
+                            onClick={() => openModal('createProject')}
+                        >
+                            + New Node
+                        </button>
                     </div>
                 </header>
 
@@ -249,6 +227,7 @@ const HomePage = () => {
                             <span className="stat-label">TOTAL NODES</span>
                         </div>
                     </div>
+
                     <div className="stat-box">
                         <div className="stat-icon purple-bg">👥</div>
                         <div className="stat-details">
@@ -256,6 +235,7 @@ const HomePage = () => {
                             <span className="stat-label">ACTIVE WORKERS</span>
                         </div>
                     </div>
+
                     <div className="stat-box">
                         <div className="stat-icon green-bg">📈</div>
                         <div className="stat-details">
@@ -263,6 +243,7 @@ const HomePage = () => {
                             <span className="stat-label">TASK VELOCITY</span>
                         </div>
                     </div>
+
                     <div className="stat-box">
                         <div className="stat-icon blue-bg">⚙️</div>
                         <div className="stat-details">
@@ -280,6 +261,7 @@ const HomePage = () => {
                                 <h2>Project Tree</h2>
                             </div>
                         </div>
+
                         <div className="project-tree-canvas">
                             {isLoading && realProjects.length === 0 ? (
                                 <div className="empty-tree-state">
@@ -293,7 +275,12 @@ const HomePage = () => {
                             ) : (
                                 <div className="empty-tree-state">
                                     <p>No active nodes found on server.</p>
-                                    <button className="create-first-btn" onClick={() => openModal('createProject')}>+ Create First Project</button>
+                                    <button
+                                        className="create-first-btn"
+                                        onClick={() => openModal('createProject')}
+                                    >
+                                        + Create First Project
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -301,21 +288,107 @@ const HomePage = () => {
                 </div>
             </main>
 
-            <aside className="integrations-fixed-container" style={{ position: 'fixed', right: '30px', top: '200px', zIndex: 9999 }}>
-                <div className="integrations-stack" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <button type="button" className="integration-icon-btn slack-btn" onClick={() => openModal('slack')} style={{ cursor: 'pointer', background: 'white', border: '1px solid #eee', borderRadius: '18px', width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                        <img src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" alt="Slack" style={{ width: '40px' }} />
+            <aside
+                className="integrations-fixed-container"
+                style={{ position: 'fixed', right: '30px', top: '200px', zIndex: 9999 }}
+            >
+                <div
+                    className="integrations-stack"
+                    style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}
+                >
+                    <button
+                        type="button"
+                        className="integration-icon-btn slack-btn"
+                        onClick={() => openModal('slack')}
+                        style={{
+                            cursor: 'pointer',
+                            background: 'white',
+                            border: '1px solid #eee',
+                            borderRadius: '18px',
+                            width: '70px',
+                            height: '70px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        }}
+                    >
+                        <img
+                            src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+                            alt="Slack"
+                            style={{ width: '40px' }}
+                        />
                     </button>
-                    <button type="button" className="integration-icon-btn jira-btn" onClick={() => openModal('jira')} style={{ cursor: 'pointer', background: 'white', border: '1px solid #eee', borderRadius: '18px', width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                        <img src="https://cdn.worldvectorlogo.com/logos/jira-1.svg" alt="Jira" style={{ width: '40px' }} />
+
+                    <button
+                        type="button"
+                        className="integration-icon-btn jira-btn"
+                        onClick={() => openModal('jira')}
+                        style={{
+                            cursor: 'pointer',
+                            background: 'white',
+                            border: '1px solid #eee',
+                            borderRadius: '18px',
+                            width: '70px',
+                            height: '70px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        }}
+                    >
+                        <img
+                            src="https://cdn.worldvectorlogo.com/logos/jira-1.svg"
+                            alt="Jira"
+                            style={{ width: '40px' }}
+                        />
                     </button>
                 </div>
             </aside>
 
             {activeModal && (
-                <div className="modal-overlay" onClick={closeModal} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 }}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ background: 'white', padding: '40px', borderRadius: '30px', width: '400px', position: 'relative' }}>
-                        <button className="close-modal-btn" onClick={closeModal} style={{ position: 'absolute', top: '20px', right: '20px', border: 'none', background: 'none', fontSize: '24px', cursor: 'pointer' }}>&times;</button>
+                <div
+                    className="modal-overlay"
+                    onClick={closeModal}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        background: 'rgba(0,0,0,0.5)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 10000
+                    }}
+                >
+                    <div
+                        className="modal-content"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            background: 'white',
+                            padding: '40px',
+                            borderRadius: '30px',
+                            width: '400px',
+                            position: 'relative'
+                        }}
+                    >
+                        <button
+                            className="close-modal-btn"
+                            onClick={closeModal}
+                            style={{
+                                position: 'absolute',
+                                top: '20px',
+                                right: '20px',
+                                border: 'none',
+                                background: 'none',
+                                fontSize: '24px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            &times;
+                        </button>
 
                         <div className="modal-header" style={{ textAlign: 'center', marginBottom: '20px' }}>
                             {activeModal === 'createProject' ? (
@@ -325,13 +398,24 @@ const HomePage = () => {
                                 </>
                             ) : (
                                 <>
-                                    <img src={activeModal === 'slack' ? "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" : "https://cdn.worldvectorlogo.com/logos/jira-1.svg"} alt={activeModal} style={{ height: '50px', marginBottom: '10px' }} />
+                                    <img
+                                        src={
+                                            activeModal === 'slack'
+                                                ? "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+                                                : "https://cdn.worldvectorlogo.com/logos/jira-1.svg"
+                                        }
+                                        alt={activeModal}
+                                        style={{ height: '50px', marginBottom: '10px' }}
+                                    />
                                     <h2>Connect to {activeModal === 'slack' ? 'Slack' : 'Jira'}</h2>
                                 </>
                             )}
                         </div>
 
-                        <form className="modal-form" onSubmit={activeModal === 'createProject' ? handleCreateProject : handleConnect}>
+                        <form
+                            className="modal-form"
+                            onSubmit={activeModal === 'createProject' ? handleCreateProject : handleConnect}
+                        >
                             <div className="input-group" style={{ marginBottom: '15px' }}>
                                 <label style={{ display: 'block', marginBottom: '5px' }}>
                                     {activeModal === 'createProject' ? 'Project Name' : 'Workspace Email'}
@@ -342,9 +426,15 @@ const HomePage = () => {
                                     required
                                     value={emailInput}
                                     onChange={(e) => setEmailInput(e.target.value)}
-                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #ddd'
+                                    }}
                                 />
                             </div>
+
                             <div className="input-group" style={{ marginBottom: '20px' }}>
                                 <label style={{ display: 'block', marginBottom: '5px' }}>
                                     {activeModal === 'createProject' ? 'Description (Optional)' : 'Password / API Token'}
@@ -354,16 +444,34 @@ const HomePage = () => {
                                     placeholder={activeModal === 'createProject' ? "Project goals..." : "••••••••"}
                                     value={tokenInput}
                                     onChange={(e) => setTokenInput(e.target.value)}
-                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #ddd'
+                                    }}
                                 />
                             </div>
+
                             <button
                                 type="submit"
                                 className="login-submit-btn"
                                 disabled={isLoading}
-                                style={{ width: '100%', padding: '12px', background: '#f06292', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: isLoading ? 'not-allowed' : 'pointer', opacity: isLoading ? 0.7 : 1 }}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px',
+                                    background: '#f06292',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '12px',
+                                    fontWeight: 'bold',
+                                    cursor: isLoading ? 'not-allowed' : 'pointer',
+                                    opacity: isLoading ? 0.7 : 1
+                                }}
                             >
-                                {isLoading ? 'Processing...' : (activeModal === 'createProject' ? 'Deploy Node' : 'Connect Account')}
+                                {isLoading
+                                    ? 'Processing...'
+                                    : (activeModal === 'createProject' ? 'Deploy Node' : 'Connect Account')}
                             </button>
                         </form>
                     </div>
