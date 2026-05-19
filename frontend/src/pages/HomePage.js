@@ -27,9 +27,14 @@ const HomePage = () => {
 
     const handleCreateProject = async (e) => {
         e.preventDefault();
-        if (!emailInput) return alert("Please enter a project name");
+
+        if (!emailInput) {
+            alert("Please enter a project name");
+            return;
+        }
 
         setIsLoading(true);
+
         try {
             const response = await api.post('/projects/', {
                 name: emailInput,
@@ -60,13 +65,15 @@ const HomePage = () => {
     }, []);
 
     const getTreeStructure = () => {
-        if (realProjects.length === 0) return null;
+        if (realProjects.length === 0) {
+            return null;
+        }
 
         return {
             name: 'PAMI Global Core',
             color: '#f06292',
             status: 'Root',
-            children: realProjects.map(proj => ({
+            children: realProjects.map((proj) => ({
                 name: proj.name || 'Untitled Project',
                 color: '#2196f3',
                 status: proj.status || 'Active',
@@ -81,37 +88,42 @@ const HomePage = () => {
         setTokenInput('');
     };
 
-    const openModal = (type) => setActiveModal(type);
+    const openModal = (type) => {
+        setActiveModal(type);
+    };
 
-const handleConnect = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
+    const handleConnect = async (e) => {
+        e.preventDefault();
+        setIsLoading(true);
 
-    try {
-        if (activeModal === 'slack') {
-            await api.post('/slack/test-connection');
-            alert('Connected successfully to Slack!');
+        try {
+            if (activeModal === 'slack') {
+                await api.post('/slack/test-connection');
+                alert('Connected successfully to Slack!');
+                closeModal();
+                return;
+            }
+
+            await api.post(`/integrate/${activeModal}`, {
+                email: emailInput,
+                token: tokenInput
+            });
+
+            alert(`Connected successfully to ${activeModal}!`);
             closeModal();
-            return;
+        } catch (error) {
+            console.error("Connection failed:", error);
+            alert("Connection failed.");
+        } finally {
+            setIsLoading(false);
         }
-
-        await api.post(`/integrate/${activeModal}`, {
-            email: emailInput,
-            token: tokenInput
-        });
-
-        alert(`Connected successfully to ${activeModal}!`);
-        closeModal();
-    } catch (error) {
-        console.error("Connection failed:", error);
-        alert("Connection failed.");
-    } finally {
-        setIsLoading(false);
-    }
-};
+    };
 
     const renderTree = (node) => {
-        if (!node) return null;
+        if (!node) {
+            return null;
+        }
+
         return (
             <div className="tree-branch" key={node.name}>
                 <div className="tree-node-wrapper">
@@ -122,11 +134,14 @@ const handleConnect = async (e) => {
                             <span className="node-status-v2">{node.status}</span>
                         </div>
                     </div>
-                    {node.children && node.children.length > 0 && <div className="tree-connector-arrow"></div>}
+                    {node.children && node.children.length > 0 && (
+                        <div className="tree-connector-arrow"></div>
+                    )}
                 </div>
+
                 {node.children && node.children.length > 0 && (
                     <div className="tree-children">
-                        {node.children.map(child => renderTree(child))}
+                        {node.children.map((child) => renderTree(child))}
                     </div>
                 )}
             </div>
@@ -139,6 +154,7 @@ const handleConnect = async (e) => {
                 <div className="sidebar-logo">
                     <img src={pamiLogo} alt="Pami Logo" className="logo-img" />
                 </div>
+
                 <nav className="sidebar-nav">
                     <ul>
                         <li className="active">Neural Dashboard</li>
@@ -151,6 +167,7 @@ const handleConnect = async (e) => {
                         </li>
                     </ul>
                 </nav>
+
                 <div className="sidebar-bot">
                     <div className="bot-header">
                         <span className="bot-avatar">🤖</span>
@@ -159,9 +176,15 @@ const handleConnect = async (e) => {
                             <span className="status-dot"></span>
                         </div>
                     </div>
+
                     <div className="bot-bubble">
-                        <p>{realProjects.length > 0 ? `Neural network active with ${realProjects.length} nodes.` : "System ready. Initialize your first node."}</p>
+                        <p>
+                            {realProjects.length > 0
+                                ? `Neural network active with ${realProjects.length} nodes.`
+                                : "System ready. Initialize your first node."}
+                        </p>
                     </div>
+
                     <div className="bot-input-area">
                         <input type="text" placeholder="Ask PAMI anything..." />
                         <button className="send-btn">➔</button>
@@ -172,15 +195,27 @@ const handleConnect = async (e) => {
             <main className="main-content">
                 <header className="top-header">
                     <div className="header-left">
-                        <button className="menu-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>☰</button>
+                        <button
+                            className="menu-toggle"
+                            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        >
+                            ☰
+                        </button>
+
                         <div className="search-bar">
                             <span className="search-icon">🔍</span>
                             <input type="text" placeholder="Search the machine memory..." />
                         </div>
                     </div>
+
                     <div className="header-right">
                         <span className="notification">🔔</span>
-                        <button className="new-node-btn" onClick={() => openModal('createProject')}>+ New Node</button>
+                        <button
+                            className="new-node-btn"
+                            onClick={() => openModal('createProject')}
+                        >
+                            + New Node
+                        </button>
                     </div>
                 </header>
 
@@ -192,6 +227,7 @@ const handleConnect = async (e) => {
                             <span className="stat-label">TOTAL NODES</span>
                         </div>
                     </div>
+
                     <div className="stat-box">
                         <div className="stat-icon purple-bg">👥</div>
                         <div className="stat-details">
@@ -199,6 +235,7 @@ const handleConnect = async (e) => {
                             <span className="stat-label">ACTIVE WORKERS</span>
                         </div>
                     </div>
+
                     <div className="stat-box">
                         <div className="stat-icon green-bg">📈</div>
                         <div className="stat-details">
@@ -206,6 +243,7 @@ const handleConnect = async (e) => {
                             <span className="stat-label">TASK VELOCITY</span>
                         </div>
                     </div>
+
                     <div className="stat-box">
                         <div className="stat-icon blue-bg">⚙️</div>
                         <div className="stat-details">
@@ -223,6 +261,7 @@ const handleConnect = async (e) => {
                                 <h2>Project Tree</h2>
                             </div>
                         </div>
+
                         <div className="project-tree-canvas">
                             {isLoading && realProjects.length === 0 ? (
                                 <div className="empty-tree-state">
@@ -236,7 +275,12 @@ const handleConnect = async (e) => {
                             ) : (
                                 <div className="empty-tree-state">
                                     <p>No active nodes found on server.</p>
-                                    <button className="create-first-btn" onClick={() => openModal('createProject')}>+ Create First Project</button>
+                                    <button
+                                        className="create-first-btn"
+                                        onClick={() => openModal('createProject')}
+                                    >
+                                        + Create First Project
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -244,21 +288,107 @@ const handleConnect = async (e) => {
                 </div>
             </main>
 
-            <aside className="integrations-fixed-container" style={{ position: 'fixed', right: '30px', top: '200px', zIndex: 9999 }}>
-                <div className="integrations-stack" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                    <button type="button" className="integration-icon-btn slack-btn" onClick={() => openModal('slack')} style={{ cursor: 'pointer', background: 'white', border: '1px solid #eee', borderRadius: '18px', width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                        <img src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" alt="Slack" style={{ width: '40px' }} />
+            <aside
+                className="integrations-fixed-container"
+                style={{ position: 'fixed', right: '30px', top: '200px', zIndex: 9999 }}
+            >
+                <div
+                    className="integrations-stack"
+                    style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}
+                >
+                    <button
+                        type="button"
+                        className="integration-icon-btn slack-btn"
+                        onClick={() => openModal('slack')}
+                        style={{
+                            cursor: 'pointer',
+                            background: 'white',
+                            border: '1px solid #eee',
+                            borderRadius: '18px',
+                            width: '70px',
+                            height: '70px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        }}
+                    >
+                        <img
+                            src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+                            alt="Slack"
+                            style={{ width: '40px' }}
+                        />
                     </button>
-                    <button type="button" className="integration-icon-btn jira-btn" onClick={() => openModal('jira')} style={{ cursor: 'pointer', background: 'white', border: '1px solid #eee', borderRadius: '18px', width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                        <img src="https://cdn.worldvectorlogo.com/logos/jira-1.svg" alt="Jira" style={{ width: '40px' }} />
+
+                    <button
+                        type="button"
+                        className="integration-icon-btn jira-btn"
+                        onClick={() => openModal('jira')}
+                        style={{
+                            cursor: 'pointer',
+                            background: 'white',
+                            border: '1px solid #eee',
+                            borderRadius: '18px',
+                            width: '70px',
+                            height: '70px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        }}
+                    >
+                        <img
+                            src="https://cdn.worldvectorlogo.com/logos/jira-1.svg"
+                            alt="Jira"
+                            style={{ width: '40px' }}
+                        />
                     </button>
                 </div>
             </aside>
 
             {activeModal && (
-                <div className="modal-overlay" onClick={closeModal} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 }}>
-                    <div className="modal-content" onClick={e => e.stopPropagation()} style={{ background: 'white', padding: '40px', borderRadius: '30px', width: '400px', position: 'relative' }}>
-                        <button className="close-modal-btn" onClick={closeModal} style={{ position: 'absolute', top: '20px', right: '20px', border: 'none', background: 'none', fontSize: '24px', cursor: 'pointer' }}>&times;</button>
+                <div
+                    className="modal-overlay"
+                    onClick={closeModal}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        background: 'rgba(0,0,0,0.5)',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        zIndex: 10000
+                    }}
+                >
+                    <div
+                        className="modal-content"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            background: 'white',
+                            padding: '40px',
+                            borderRadius: '30px',
+                            width: '400px',
+                            position: 'relative'
+                        }}
+                    >
+                        <button
+                            className="close-modal-btn"
+                            onClick={closeModal}
+                            style={{
+                                position: 'absolute',
+                                top: '20px',
+                                right: '20px',
+                                border: 'none',
+                                background: 'none',
+                                fontSize: '24px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            &times;
+                        </button>
 
                         <div className="modal-header" style={{ textAlign: 'center', marginBottom: '20px' }}>
                             {activeModal === 'createProject' ? (
@@ -268,13 +398,24 @@ const handleConnect = async (e) => {
                                 </>
                             ) : (
                                 <>
-                                    <img src={activeModal === 'slack' ? "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" : "https://cdn.worldvectorlogo.com/logos/jira-1.svg"} alt={activeModal} style={{ height: '50px', marginBottom: '10px' }} />
+                                    <img
+                                        src={
+                                            activeModal === 'slack'
+                                                ? "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+                                                : "https://cdn.worldvectorlogo.com/logos/jira-1.svg"
+                                        }
+                                        alt={activeModal}
+                                        style={{ height: '50px', marginBottom: '10px' }}
+                                    />
                                     <h2>Connect to {activeModal === 'slack' ? 'Slack' : 'Jira'}</h2>
                                 </>
                             )}
                         </div>
 
-                        <form className="modal-form" onSubmit={activeModal === 'createProject' ? handleCreateProject : handleConnect}>
+                        <form
+                            className="modal-form"
+                            onSubmit={activeModal === 'createProject' ? handleCreateProject : handleConnect}
+                        >
                             <div className="input-group" style={{ marginBottom: '15px' }}>
                                 <label style={{ display: 'block', marginBottom: '5px' }}>
                                     {activeModal === 'createProject' ? 'Project Name' : 'Workspace Email'}
@@ -285,9 +426,15 @@ const handleConnect = async (e) => {
                                     required
                                     value={emailInput}
                                     onChange={(e) => setEmailInput(e.target.value)}
-                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #ddd'
+                                    }}
                                 />
                             </div>
+
                             <div className="input-group" style={{ marginBottom: '20px' }}>
                                 <label style={{ display: 'block', marginBottom: '5px' }}>
                                     {activeModal === 'createProject' ? 'Description (Optional)' : 'Password / API Token'}
@@ -297,16 +444,34 @@ const handleConnect = async (e) => {
                                     placeholder={activeModal === 'createProject' ? "Project goals..." : "••••••••"}
                                     value={tokenInput}
                                     onChange={(e) => setTokenInput(e.target.value)}
-                                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #ddd'
+                                    }}
                                 />
                             </div>
+
                             <button
                                 type="submit"
                                 className="login-submit-btn"
                                 disabled={isLoading}
-                                style={{ width: '100%', padding: '12px', background: '#f06292', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: isLoading ? 'not-allowed' : 'pointer', opacity: isLoading ? 0.7 : 1 }}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px',
+                                    background: '#f06292',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '12px',
+                                    fontWeight: 'bold',
+                                    cursor: isLoading ? 'not-allowed' : 'pointer',
+                                    opacity: isLoading ? 0.7 : 1
+                                }}
                             >
-                                {isLoading ? 'Processing...' : (activeModal === 'createProject' ? 'Deploy Node' : 'Connect Account')}
+                                {isLoading
+                                    ? 'Processing...'
+                                    : (activeModal === 'createProject' ? 'Deploy Node' : 'Connect Account')}
                             </button>
                         </form>
                     </div>
