@@ -31,11 +31,10 @@ const HomePage = () => {
 
         setIsLoading(true);
         try {
-            
             const response = await api.post('/projects/', {
                 name: emailInput,
-                goal: tokenInput || "No goal defined", 
-                status: "active" 
+                goal: tokenInput || "No goal defined",
+                status: "active"
             });
 
             console.log("Project created successfully:", response.data);
@@ -44,13 +43,12 @@ const HomePage = () => {
             await fetchProjects();
             closeModal();
         } catch (error) {
-            
             if (error.response) {
                 console.error("Server Error Data:", error.response.data);
                 alert("Server says: " + JSON.stringify(error.response.data));
             } else {
                 console.error("Connection Error:", error.message);
-                alert("Check if server is running at http://44.200.153.11:8000");
+                alert("Check if server is running at http://127.0.0.1:8001");
             }
         } finally {
             setIsLoading(false);
@@ -85,23 +83,32 @@ const HomePage = () => {
 
     const openModal = (type) => setActiveModal(type);
 
-    const handleConnect = async (e) => {
-        e.preventDefault();
-        setIsLoading(true);
-        try {
-            await api.post(`/integrate/${activeModal}`, {
-                email: emailInput,
-                token: tokenInput
-            });
-            alert(`Connected successfully to ${activeModal}!`);
+const handleConnect = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+        if (activeModal === 'slack') {
+            await api.post('/slack/test-connection');
+            alert('Connected successfully to Slack!');
             closeModal();
-        } catch (error) {
-            console.error("Connection failed:", error);
-            alert("Integration endpoint not found on server yet.");
-        } finally {
-            setIsLoading(false);
+            return;
         }
-    };
+
+        await api.post(`/integrate/${activeModal}`, {
+            email: emailInput,
+            token: tokenInput
+        });
+
+        alert(`Connected successfully to ${activeModal}!`);
+        closeModal();
+    } catch (error) {
+        console.error("Connection failed:", error);
+        alert("Connection failed.");
+    } finally {
+        setIsLoading(false);
+    }
+};
 
     const renderTree = (node) => {
         if (!node) return null;
@@ -248,7 +255,6 @@ const HomePage = () => {
                 </div>
             </aside>
 
-            {/* מודאלים דינמיים */}
             {activeModal && (
                 <div className="modal-overlay" onClick={closeModal} style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 10000 }}>
                     <div className="modal-content" onClick={e => e.stopPropagation()} style={{ background: 'white', padding: '40px', borderRadius: '30px', width: '400px', position: 'relative' }}>
