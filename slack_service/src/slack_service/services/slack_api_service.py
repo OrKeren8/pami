@@ -1,3 +1,5 @@
+import re
+
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -21,22 +23,59 @@ class SlackApiService:
         except SlackApiError as error:
             return {
                 "ok": False,
-                "error": error.response["error"],
+                "error": self._get_slack_error(error),
             }
 
     def create_channel(self, name: str):
+        normalized_name = self._normalize_channel_name(name)
+
+        if normalized_name == "":
+            return {
+                "ok": False,
+                "error": "invalid_channel_name",
+                "message": "Channel name is empty after normalization.",
+            }
+
+        existing_channel = self._find_channel_by_name(normalized_name)
+
+        if existing_channel is not None:
+            return {
+                "ok": True,
+                "channel_id": existing_channel["id"],
+                "channel_name": existing_channel["name"],
+                "already_exists": True,
+                "created": False,
+            }
+
         try:
-            result = self.client.conversations_create(name=name)
+            result = self.client.conversations_create(name=normalized_name)
 
             return {
                 "ok": True,
                 "channel_id": result["channel"]["id"],
                 "channel_name": result["channel"]["name"],
+                "already_exists": False,
+                "created": True,
             }
+
         except SlackApiError as error:
+            slack_error = self._get_slack_error(error)
+
+            if slack_error == "name_taken":
+                existing_channel = self._find_channel_by_name(normalized_name)
+
+                if existing_channel is not None:
+                    return {
+                        "ok": True,
+                        "channel_id": existing_channel["id"],
+                        "channel_name": existing_channel["name"],
+                        "already_exists": True,
+                        "created": False,
+                    }
+
             return {
                 "ok": False,
-                "error": error.response["error"],
+                "error": slack_error,
             }
 
     def send_message(self, channel: str, text: str):
@@ -54,14 +93,50 @@ class SlackApiService:
         except SlackApiError as error:
             return {
                 "ok": False,
-                "error": error.response["error"],
+                "error": self._get_slack_error(error),
             }
 
     def list_channels(self):
         try:
-            result = self.client.conversations_list(types="public_channel")
+            channels = self._get_all_public_channels()
 
-            channels = []
+            return {
+                "ok": True,
+                "channels": channels,
+            }
+        except SlackApiError as error:
+            return {
+                "ok": False,
+                "error": self._get_slack_error(error),
+            }
+
+    def _find_channel_by_name(self, name: str):
+        channels = self._get_all_public_channels()
+
+        for channel in channels:
+            if channel["name"] == name:
+                return channel
+
+        return None
+
+    def _get_all_public_channels(self):
+        channels = []
+        cursor = ""
+
+        while True:
+            if cursor == "":
+                result = self.client.conversations_list(
+                    types="public_channel",
+                    exclude_archived=True,
+                    limit=200,
+                )
+            else:
+                result = self.client.conversations_list(
+                    types="public_channel",
+                    exclude_archived=True,
+                    limit=200,
+                    cursor=cursor,
+                )
 
             for channel in result["channels"]:
                 channels.append(
@@ -71,15 +146,29 @@ class SlackApiService:
                     }
                 )
 
-            return {
-                "ok": True,
-                "channels": channels,
-            }
-        except SlackApiError as error:
-            return {
-                "ok": False,
-                "error": error.response["error"],
-            }
+            response_metadata = result.get("response_metadata", {})
+            cursor = response_metadata.get("next_cursor", "")
+
+            if cursor == "":
+                break
+
+        return channels
+
+    def _normalize_channel_name(self, name: str):
+        normalized_name = name.strip().lower()
+        normalized_name = normalized_name.replace(" ", "-")
+        normalized_name = re.sub(r"[^a-z0-9_-]", "-", normalized_name)
+        normalized_name = re.sub(r"-+", "-", normalized_name)
+        normalized_name = normalized_name.strip("-_")
+        normalized_name = normalized_name[:80]
+
+        return normalized_name
+
+    def _get_slack_error(self, error: SlackApiError):
+        if error.response is not None and "error" in error.response:
+            return error.response["error"]
+
+        return "unknown_slack_error"
 
 
 slack_api_service = SlackApiService()
