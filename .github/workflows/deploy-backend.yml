@@ -33,12 +33,58 @@ jobs:
           docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:$IMAGE_TAG
           docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
 
+      - name: Register Projects Service Task Definition
+        run: |
+          cat > task-def.json << EOF
+          {
+            "family": "pami-projects-service",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "512",
+            "memory": "1024",
+            "executionRoleArn": "arn:aws:iam::669954808028:role/LabRole",
+            "taskRoleArn": "arn:aws:iam::669954808028:role/LabRole",
+            "containerDefinitions": [
+              {
+                "name": "projects-service",
+                "image": "669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest",
+                "portMappings": [
+                  {
+                    "containerPort": 8000,
+                    "protocol": "tcp",
+                    "appProtocol": "http"
+                  }
+                ],
+                "essential": true,
+                "environment": [
+                  {
+                    "name": "MONGODB_URL",
+                    "value": "${{ secrets.MONGODB_URL }}"
+                  }
+                ],
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/pami-projects-service",
+                    "awslogs-create-group": "true",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs"
+                  }
+                }
+              }
+            ]
+          }
+          EOF
+          
+          aws ecs register-task-definition --cli-input-json file://task-def.json
+
       - name: Update Projects Service ECS
         run: |
-          # Update the service to use the new image
+          # Update the service to use the new task definition
           aws ecs update-service \
             --cluster pami-cluster \
             --service pami-projects-service \
+            --task-definition pami-projects-service \
             --force-new-deployment \
             --region us-east-1
 
@@ -78,12 +124,62 @@ jobs:
           docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:$IMAGE_TAG
           docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest
 
+      - name: Register AI Conversation Service Task Definition
+        run: |
+          cat > task-def.json << EOF
+          {
+            "family": "pami-ai-conversation-service",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "512",
+            "memory": "1024",
+            "executionRoleArn": "arn:aws:iam::669954808028:role/LabRole",
+            "taskRoleArn": "arn:aws:iam::669954808028:role/LabRole",
+            "containerDefinitions": [
+              {
+                "name": "ai-conversation-service",
+                "image": "669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest",
+                "portMappings": [
+                  {
+                    "containerPort": 8001,
+                    "protocol": "tcp",
+                    "appProtocol": "http"
+                  }
+                ],
+                "essential": true,
+                "environment": [
+                  {
+                    "name": "MONGODB_URL",
+                    "value": "${{ secrets.MONGODB_URL }}"
+                  },
+                  {
+                    "name": "OPENAI_API_KEY",
+                    "value": "${{ secrets.OPENAI_API_KEY }}"
+                  }
+                ],
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/pami-ai-conversation-service",
+                    "awslogs-create-group": "true",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs"
+                  }
+                }
+              }
+            ]
+          }
+          EOF
+          
+          aws ecs register-task-definition --cli-input-json file://task-def.json
+
       - name: Update AI Conversation Service ECS
         run: |
-          # Update the service to use the new image
+          # Update the service to use the new task definition
           aws ecs update-service \
             --cluster pami-cluster \
             --service pami-ai-conversation-service \
+            --task-definition pami-ai-conversation-service \
             --force-new-deployment \
             --region us-east-1
 

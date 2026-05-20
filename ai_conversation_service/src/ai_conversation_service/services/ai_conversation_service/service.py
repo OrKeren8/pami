@@ -42,16 +42,26 @@ class AIConversationService:
         self.s3_client = None
         self.bucket_name = f"pami-ai-conversations-{settings.aws_region}"
         try:
-            self.s3_client = boto3.client(
-                "s3",
-                region_name=settings.aws_region,
-                aws_access_key_id=settings.aws_access_key_id,
-                aws_secret_access_key=settings.aws_secret_access_key,
-                aws_session_token=settings.aws_session_token,
-                config=Config(
+            # Use IAM role credentials when running on ECS (credentials will be None)
+            # Use explicit credentials only when provided (for local development)
+            client_kwargs = {
+                "region_name": settings.aws_region,
+                "config": Config(
                     read_timeout=300, retries={"max_attempts": 3, "mode": "standard"}
                 ),
-            )
+            }
+            
+            # Only add explicit credentials if they're provided
+            if settings.aws_access_key_id and settings.aws_secret_access_key:
+                client_kwargs["aws_access_key_id"] = settings.aws_access_key_id
+                client_kwargs["aws_secret_access_key"] = settings.aws_secret_access_key
+                if settings.aws_session_token:
+                    client_kwargs["aws_session_token"] = settings.aws_session_token
+                self._logger.info("Using explicit AWS credentials")
+            else:
+                self._logger.info("Using IAM role credentials (ECS task role)")
+            
+            self.s3_client = boto3.client("s3", **client_kwargs)
             self._ensure_bucket_exists()
             self._logger.info("S3 client initialized successfully")
         except Exception as e:

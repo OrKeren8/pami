@@ -42,7 +42,7 @@ jobs:
 
       - name: Register Task Definition
         run: |
-          cat > task-def.json << 'EOF'
+          cat > task-def.json << EOF
           {
             "family": "pami-slack-service",
             "networkMode": "awsvpc",
@@ -50,6 +50,7 @@ jobs:
             "cpu": "512",
             "memory": "1024",
             "executionRoleArn": "arn:aws:iam::669954808028:role/LabRole",
+            "taskRoleArn": "arn:aws:iam::669954808028:role/LabRole",
             "containerDefinitions": [
               {
                 "name": "slack-service",
@@ -66,6 +67,14 @@ jobs:
                   {
                     "name": "MONGODB_URL",
                     "value": "mongodb+srv://orkeren8_db_user:oQMCNIcDq9lNXfFV@pami.yucpykf.mongodb.net/pami?appName=pami"
+                  },
+                  {
+                    "name": "SLACK_BOT_TOKEN",
+                    "value": "${{ secrets.SLACK_BOT_TOKEN }}"
+                  },
+                  {
+                    "name": "SLACK_SIGNING_SECRET",
+                    "value": "${{ secrets.SLACK_SIGNING_SECRET }}"
                   }
                 ],
                 "logConfiguration": {

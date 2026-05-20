@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     openai_project: str = ""  # Optional: Project ID for project-specific usage
 
     # AWS Configuration for S3 storage
+    # Leave empty to use ECS task IAM role (recommended for production)
+    # Only set these for local development with AWS Learner Lab credentials
     aws_region: str = "us-east-1"
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
