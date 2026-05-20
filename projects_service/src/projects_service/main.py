@@ -15,6 +15,9 @@ from projects_service.data.context_tree_repository import ContextTreeRepository
 from projects_service.services.project_service import ProjectService
 from projects_service.services.task_service import TaskService
 from projects_service.services.context_tree_service import ContextTreeService
+from projects_service.api.v1.projects import router as projects_router
+from projects_service.api.v1.tasks import router as tasks_router
+from projects_service.api.v1.context_tree import router as context_tree_router
 
 
 @asynccontextmanager
