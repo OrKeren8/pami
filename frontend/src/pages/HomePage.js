@@ -12,6 +12,12 @@ const HomePage = () => {
     const [emailInput, setEmailInput] = useState('');
     const [tokenInput, setTokenInput] = useState('');
 
+    const [slackConnected, setSlackConnected] = useState(false);
+    const [slackChannels, setSlackChannels] = useState([]);
+    const [channelNameInput, setChannelNameInput] = useState('');
+    const [messageChannelInput, setMessageChannelInput] = useState('');
+    const [messageTextInput, setMessageTextInput] = useState('');
+
     const fetchProjects = async () => {
         setIsLoading(true);
         try {
@@ -53,7 +59,7 @@ const HomePage = () => {
                 alert("Server says: " + JSON.stringify(error.response.data));
             } else {
                 console.error("Connection Error:", error.message);
-                alert("Check if server is running at http://127.0.0.1:8001");
+                alert("Check your frontend .env.local and backend server.");
             }
         } finally {
             setIsLoading(false);
@@ -86,10 +92,32 @@ const HomePage = () => {
         setActiveModal(null);
         setEmailInput('');
         setTokenInput('');
+        setChannelNameInput('');
+        setMessageChannelInput('');
+        setMessageTextInput('');
     };
 
     const openModal = (type) => {
+        if (type === 'slack') {
+            setActiveModal(slackConnected ? 'slackActions' : 'slack');
+            return;
+        }
+
         setActiveModal(type);
+    };
+
+    const fetchSlackChannels = async () => {
+        const response = await api.get('/slack/list-channels');
+
+        if (!response.data || response.data.ok !== true) {
+            throw new Error(
+                response.data && response.data.error
+                    ? response.data.error
+                    : 'Failed to fetch Slack channels.'
+            );
+        }
+
+        return response.data.channels || [];
     };
 
     const handleConnect = async (e) => {
@@ -98,9 +126,12 @@ const HomePage = () => {
 
         try {
             if (activeModal === 'slack') {
-                await api.post('/slack/test-connection');
+                const channels = await fetchSlackChannels();
+
+                setSlackConnected(true);
+                setSlackChannels(channels);
                 alert('Connected successfully to Slack!');
-                closeModal();
+                setActiveModal('slackActions');
                 return;
             }
 
@@ -114,6 +145,125 @@ const HomePage = () => {
         } catch (error) {
             console.error("Connection failed:", error);
             alert("Connection failed.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSlackTestConnection = async () => {
+        setIsLoading(true);
+
+        try {
+            const response = await api.post('/slack/connection-check');
+
+            if (!response.data || response.data.ok !== true) {
+                throw new Error(
+                    response.data && response.data.error
+                        ? response.data.error
+                        : 'Slack connection check failed.'
+                );
+            }
+
+            alert('Slack connection is healthy.');
+        } catch (error) {
+            console.error("Slack test connection failed:", error);
+            alert("Slack test connection failed.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleListChannels = async () => {
+        setIsLoading(true);
+
+        try {
+            const channels = await fetchSlackChannels();
+
+            setSlackChannels(channels);
+
+            if (channels.length === 0) {
+                alert('No channels found.');
+            }
+        } catch (error) {
+            console.error("Failed to fetch channels:", error);
+            alert("Failed to fetch Slack channels.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleCreateSlackChannel = async (e) => {
+        e.preventDefault();
+
+        if (!channelNameInput) {
+            alert("Please enter a channel name.");
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const response = await api.post('/slack/channels', {
+                name: channelNameInput
+            });
+
+            if (!response.data || response.data.ok !== true) {
+                throw new Error(
+                    response.data && response.data.error
+                        ? response.data.error
+                        : 'Failed to create Slack channel.'
+                );
+            }
+
+            const channelName = response.data.channel_name
+                ? response.data.channel_name
+                : channelNameInput;
+
+            alert(`Channel created successfully: #${channelName}`);
+            setChannelNameInput('');
+            setActiveModal('slackActions');
+
+            const channels = await fetchSlackChannels();
+            setSlackChannels(channels);
+        } catch (error) {
+            console.error("Failed to create channel:", error);
+            alert("Failed to create Slack channel.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSendSlackMessage = async (e) => {
+        e.preventDefault();
+
+        if (!messageChannelInput || !messageTextInput) {
+            alert("Please enter both channel and message.");
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const response = await api.post('/slack/messages', {
+                channel: messageChannelInput,
+                text: messageTextInput
+            });
+
+            if (!response.data || response.data.ok !== true) {
+                throw new Error(
+                    response.data && response.data.error
+                        ? response.data.error
+                        : 'Failed to send Slack message.'
+                );
+            }
+
+            alert(`Message sent successfully to ${messageChannelInput}`);
+            setMessageChannelInput('');
+            setMessageTextInput('');
+            setActiveModal('slackActions');
+        } catch (error) {
+            console.error("Failed to send message:", error);
+            alert("Failed to send Slack message.");
         } finally {
             setIsLoading(false);
         }
@@ -134,6 +284,7 @@ const HomePage = () => {
                             <span className="node-status-v2">{node.status}</span>
                         </div>
                     </div>
+
                     {node.children && node.children.length > 0 && (
                         <div className="tree-connector-arrow"></div>
                     )}
@@ -146,6 +297,499 @@ const HomePage = () => {
                 )}
             </div>
         );
+    };
+
+    const renderSlackConnectModal = () => {
+        return (
+            <>
+                <div className="modal-header" style={{ textAlign: 'center', marginBottom: '20px' }}>
+                    <img
+                        src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+                        alt="Slack"
+                        style={{ height: '50px', marginBottom: '10px' }}
+                    />
+                    <h2>Connect to Slack</h2>
+                    <p style={{ color: '#666', marginTop: '10px' }}>
+                        Use the server-side Slack bot credentials to connect once, then continue to Slack actions.
+                    </p>
+                </div>
+
+                <button
+                    type="button"
+                    className="login-submit-btn"
+                    disabled={isLoading}
+                    onClick={handleConnect}
+                    style={{
+                        width: '100%',
+                        padding: '12px',
+                        background: '#4a154b',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '12px',
+                        fontWeight: 'bold',
+                        cursor: isLoading ? 'not-allowed' : 'pointer',
+                        opacity: isLoading ? 0.7 : 1
+                    }}
+                >
+                    {isLoading ? 'Processing...' : 'Connect to Slack'}
+                </button>
+            </>
+        );
+    };
+
+    const renderSlackActionsModal = () => {
+        return (
+            <>
+                <div className="modal-header" style={{ textAlign: 'center', marginBottom: '20px' }}>
+                    <img
+                        src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+                        alt="Slack"
+                        style={{ height: '50px', marginBottom: '10px' }}
+                    />
+                    <h2>Slack Actions</h2>
+                    <p style={{ color: '#666', marginTop: '10px' }}>
+                        Choose the Slack action you want to perform.
+                    </p>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <button
+                        type="button"
+                        onClick={handleSlackTestConnection}
+                        disabled={isLoading}
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: '#4a154b',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            opacity: isLoading ? 0.7 : 1
+                        }}
+                    >
+                        {isLoading ? 'Processing...' : 'Test Connection'}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={handleListChannels}
+                        disabled={isLoading}
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: '#2f6fed',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            opacity: isLoading ? 0.7 : 1
+                        }}
+                    >
+                        {isLoading ? 'Loading...' : 'List Channels'}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setActiveModal('slackCreateChannel')}
+                        disabled={isLoading}
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: '#0f9d58',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            opacity: isLoading ? 0.7 : 1
+                        }}
+                    >
+                        Create Channel
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setActiveModal('slackSendMessage')}
+                        disabled={isLoading}
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: '#f06292',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            opacity: isLoading ? 0.7 : 1
+                        }}
+                    >
+                        Send Message
+                    </button>
+                </div>
+
+                {slackChannels.length > 0 && (
+                    <div style={{ marginTop: '20px' }}>
+                        <h3 style={{ marginBottom: '10px' }}>Channels</h3>
+                        <div
+                            style={{
+                                maxHeight: '180px',
+                                overflowY: 'auto',
+                                border: '1px solid #eee',
+                                borderRadius: '12px',
+                                padding: '12px',
+                                background: '#fafafa'
+                            }}
+                        >
+                            {slackChannels.map((channel) => (
+                                <div
+                                    key={channel.id}
+                                    style={{
+                                        padding: '8px 0',
+                                        borderBottom: '1px solid #eee'
+                                    }}
+                                >
+                                    #{channel.name}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </>
+        );
+    };
+
+    const renderSlackCreateChannelModal = () => {
+        return (
+            <>
+                <div className="modal-header" style={{ textAlign: 'center', marginBottom: '20px' }}>
+                    <img
+                        src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+                        alt="Slack"
+                        style={{ height: '50px', marginBottom: '10px' }}
+                    />
+                    <h2>Create Slack Channel</h2>
+                </div>
+
+                <form className="modal-form" onSubmit={handleCreateSlackChannel}>
+                    <div className="input-group" style={{ marginBottom: '20px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px' }}>
+                            Channel Name
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="e.g. pami-demo-channel"
+                            required
+                            value={channelNameInput}
+                            onChange={(e) => setChannelNameInput(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '10px',
+                                borderRadius: '8px',
+                                border: '1px solid #ddd'
+                            }}
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        className="login-submit-btn"
+                        disabled={isLoading}
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: '#0f9d58',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            opacity: isLoading ? 0.7 : 1,
+                            marginBottom: '10px'
+                        }}
+                    >
+                        {isLoading ? 'Processing...' : 'Create Channel'}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setActiveModal('slackActions')}
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: '#ddd',
+                            color: '#333',
+                            border: 'none',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Back
+                    </button>
+                </form>
+            </>
+        );
+    };
+
+    const renderSlackSendMessageModal = () => {
+        return (
+            <>
+                <div className="modal-header" style={{ textAlign: 'center', marginBottom: '20px' }}>
+                    <img
+                        src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+                        alt="Slack"
+                        style={{ height: '50px', marginBottom: '10px' }}
+                    />
+                    <h2>Send Slack Message</h2>
+                </div>
+
+                <form className="modal-form" onSubmit={handleSendSlackMessage}>
+                    <div className="input-group" style={{ marginBottom: '15px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px' }}>
+                            Channel
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="e.g. social or #social"
+                            required
+                            value={messageChannelInput}
+                            onChange={(e) => setMessageChannelInput(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '10px',
+                                borderRadius: '8px',
+                                border: '1px solid #ddd'
+                            }}
+                        />
+                    </div>
+
+                    <div className="input-group" style={{ marginBottom: '20px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px' }}>
+                            Message
+                        </label>
+                        <input
+                            type="text"
+                            placeholder="Write a Slack message..."
+                            required
+                            value={messageTextInput}
+                            onChange={(e) => setMessageTextInput(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '10px',
+                                borderRadius: '8px',
+                                border: '1px solid #ddd'
+                            }}
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        className="login-submit-btn"
+                        disabled={isLoading}
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: '#f06292',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            opacity: isLoading ? 0.7 : 1,
+                            marginBottom: '10px'
+                        }}
+                    >
+                        {isLoading ? 'Processing...' : 'Send Message'}
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setActiveModal('slackActions')}
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: '#ddd',
+                            color: '#333',
+                            border: 'none',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Back
+                    </button>
+                </form>
+            </>
+        );
+    };
+
+    const renderDefaultIntegrationModal = () => {
+        return (
+            <>
+                <div className="modal-header" style={{ textAlign: 'center', marginBottom: '20px' }}>
+                    <img
+                        src={
+                            activeModal === 'slack'
+                                ? "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+                                : "https://cdn.worldvectorlogo.com/logos/jira-1.svg"
+                        }
+                        alt={activeModal}
+                        style={{ height: '50px', marginBottom: '10px' }}
+                    />
+                    <h2>Connect to {activeModal === 'slack' ? 'Slack' : 'Jira'}</h2>
+                </div>
+
+                <form className="modal-form" onSubmit={handleConnect}>
+                    <div className="input-group" style={{ marginBottom: '15px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px' }}>
+                            Workspace Email
+                        </label>
+                        <input
+                            type="email"
+                            placeholder="name@company.com"
+                            required
+                            value={emailInput}
+                            onChange={(e) => setEmailInput(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '10px',
+                                borderRadius: '8px',
+                                border: '1px solid #ddd'
+                            }}
+                        />
+                    </div>
+
+                    <div className="input-group" style={{ marginBottom: '20px' }}>
+                        <label style={{ display: 'block', marginBottom: '5px' }}>
+                            Password / API Token
+                        </label>
+                        <input
+                            type="password"
+                            placeholder="••••••••"
+                            value={tokenInput}
+                            onChange={(e) => setTokenInput(e.target.value)}
+                            style={{
+                                width: '100%',
+                                padding: '10px',
+                                borderRadius: '8px',
+                                border: '1px solid #ddd'
+                            }}
+                        />
+                    </div>
+
+                    <button
+                        type="submit"
+                        className="login-submit-btn"
+                        disabled={isLoading}
+                        style={{
+                            width: '100%',
+                            padding: '12px',
+                            background: '#f06292',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '12px',
+                            fontWeight: 'bold',
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            opacity: isLoading ? 0.7 : 1
+                        }}
+                    >
+                        {isLoading ? 'Processing...' : 'Connect Account'}
+                    </button>
+                </form>
+            </>
+        );
+    };
+
+    const renderModalContent = () => {
+        if (activeModal === 'createProject') {
+            return (
+                <>
+                    <div className="modal-header" style={{ textAlign: 'center', marginBottom: '20px' }}>
+                        <span style={{ fontSize: '40px' }}>📁</span>
+                        <h2>Initialize New Node</h2>
+                    </div>
+
+                    <form className="modal-form" onSubmit={handleCreateProject}>
+                        <div className="input-group" style={{ marginBottom: '15px' }}>
+                            <label style={{ display: 'block', marginBottom: '5px' }}>
+                                Project Name
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="e.g. Neural Alpha"
+                                required
+                                value={emailInput}
+                                onChange={(e) => setEmailInput(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #ddd'
+                                }}
+                            />
+                        </div>
+
+                        <div className="input-group" style={{ marginBottom: '20px' }}>
+                            <label style={{ display: 'block', marginBottom: '5px' }}>
+                                Description (Optional)
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="Project goals..."
+                                value={tokenInput}
+                                onChange={(e) => setTokenInput(e.target.value)}
+                                style={{
+                                    width: '100%',
+                                    padding: '10px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #ddd'
+                                }}
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            className="login-submit-btn"
+                            disabled={isLoading}
+                            style={{
+                                width: '100%',
+                                padding: '12px',
+                                background: '#f06292',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '12px',
+                                fontWeight: 'bold',
+                                cursor: isLoading ? 'not-allowed' : 'pointer',
+                                opacity: isLoading ? 0.7 : 1
+                            }}
+                        >
+                            {isLoading ? 'Processing...' : 'Deploy Node'}
+                        </button>
+                    </form>
+                </>
+            );
+        }
+
+        if (activeModal === 'slack') {
+            return renderSlackConnectModal();
+        }
+
+        if (activeModal === 'slackActions') {
+            return renderSlackActionsModal();
+        }
+
+        if (activeModal === 'slackCreateChannel') {
+            return renderSlackCreateChannelModal();
+        }
+
+        if (activeModal === 'slackSendMessage') {
+            return renderSlackSendMessageModal();
+        }
+
+        return renderDefaultIntegrationModal();
     };
 
     return (
@@ -390,90 +1034,7 @@ const HomePage = () => {
                             &times;
                         </button>
 
-                        <div className="modal-header" style={{ textAlign: 'center', marginBottom: '20px' }}>
-                            {activeModal === 'createProject' ? (
-                                <>
-                                    <span style={{ fontSize: '40px' }}>📁</span>
-                                    <h2>Initialize New Node</h2>
-                                </>
-                            ) : (
-                                <>
-                                    <img
-                                        src={
-                                            activeModal === 'slack'
-                                                ? "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
-                                                : "https://cdn.worldvectorlogo.com/logos/jira-1.svg"
-                                        }
-                                        alt={activeModal}
-                                        style={{ height: '50px', marginBottom: '10px' }}
-                                    />
-                                    <h2>Connect to {activeModal === 'slack' ? 'Slack' : 'Jira'}</h2>
-                                </>
-                            )}
-                        </div>
-
-                        <form
-                            className="modal-form"
-                            onSubmit={activeModal === 'createProject' ? handleCreateProject : handleConnect}
-                        >
-                            <div className="input-group" style={{ marginBottom: '15px' }}>
-                                <label style={{ display: 'block', marginBottom: '5px' }}>
-                                    {activeModal === 'createProject' ? 'Project Name' : 'Workspace Email'}
-                                </label>
-                                <input
-                                    type={activeModal === 'createProject' ? 'text' : 'email'}
-                                    placeholder={activeModal === 'createProject' ? "e.g. Neural Alpha" : "name@company.com"}
-                                    required
-                                    value={emailInput}
-                                    onChange={(e) => setEmailInput(e.target.value)}
-                                    style={{
-                                        width: '100%',
-                                        padding: '10px',
-                                        borderRadius: '8px',
-                                        border: '1px solid #ddd'
-                                    }}
-                                />
-                            </div>
-
-                            <div className="input-group" style={{ marginBottom: '20px' }}>
-                                <label style={{ display: 'block', marginBottom: '5px' }}>
-                                    {activeModal === 'createProject' ? 'Description (Optional)' : 'Password / API Token'}
-                                </label>
-                                <input
-                                    type={activeModal === 'createProject' ? 'text' : 'password'}
-                                    placeholder={activeModal === 'createProject' ? "Project goals..." : "••••••••"}
-                                    value={tokenInput}
-                                    onChange={(e) => setTokenInput(e.target.value)}
-                                    style={{
-                                        width: '100%',
-                                        padding: '10px',
-                                        borderRadius: '8px',
-                                        border: '1px solid #ddd'
-                                    }}
-                                />
-                            </div>
-
-                            <button
-                                type="submit"
-                                className="login-submit-btn"
-                                disabled={isLoading}
-                                style={{
-                                    width: '100%',
-                                    padding: '12px',
-                                    background: '#f06292',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '12px',
-                                    fontWeight: 'bold',
-                                    cursor: isLoading ? 'not-allowed' : 'pointer',
-                                    opacity: isLoading ? 0.7 : 1
-                                }}
-                            >
-                                {isLoading
-                                    ? 'Processing...'
-                                    : (activeModal === 'createProject' ? 'Deploy Node' : 'Connect Account')}
-                            </button>
-                        </form>
+                        {renderModalContent()}
                     </div>
                 </div>
             )}
