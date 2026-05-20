@@ -8,9 +8,7 @@ class Settings(BaseSettings):
 
     # OpenAI Configuration
     openai_api_key: str = ""
-    openai_model: str = (
-        "gpt-4o-mini"  # Using gpt-4o-mini as it's similar to gpt-4.1-mini
-    )
+    openai_model: str = "gpt-4.1-mini"  # Academic/research model provided by professor
     openai_organization: str = ""  # Optional: Organization ID for multi-org accounts
     openai_project: str = ""  # Optional: Project ID for project-specific usage
 
