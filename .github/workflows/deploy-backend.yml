@@ -46,7 +46,7 @@ jobs:
             "taskRoleArn": "arn:aws:iam::669954808028:role/LabRole",
             "containerDefinitions": [
               {
-                "name": "projects-service",
+                "name": "pami-projects-service",
                 "image": "669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest",
                 "portMappings": [
                   {
