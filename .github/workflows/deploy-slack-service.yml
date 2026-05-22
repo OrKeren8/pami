@@ -39,7 +39,6 @@ jobs:
 
           docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
           docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
-
       - name: Register Task Definition
         run: |
           cat > task-def.json << 'EOF'
@@ -65,7 +64,7 @@ jobs:
                 "environment": [
                   {
                     "name": "MONGODB_URL",
-                    "value": "mongodb+srv://orkeren8_db_user:oQMCNIcDq9lNXfFV@pami.yucpykf.mongodb.net/pami?appName=pami"
+                    "value": "${{ secrets.MONGODB_URL }}"
                   }
                 ],
                 "logConfiguration": {
