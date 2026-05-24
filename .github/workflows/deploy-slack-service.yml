@@ -42,7 +42,7 @@ jobs:
 
       - name: Register Task Definition
         run: |
-          cat > task-def.json << EOF
+          cat > task-def.json << 'EOF'
           {
             "family": "pami-slack-service",
             "networkMode": "awsvpc",
@@ -66,7 +66,7 @@ jobs:
                 "environment": [
                   {
                     "name": "MONGODB_URL",
-                    "value": "mongodb+srv://orkeren8_db_user:oQMCNIcDq9lNXfFV@pami.yucpykf.mongodb.net/pami?appName=pami"
+                    "value": "${{ secrets.MONGODB_URL }}"
                   },
                   {
                     "name": "SLACK_BOT_TOKEN",
@@ -90,7 +90,7 @@ jobs:
             ]
           }
           EOF
-          
+
           aws ecs register-task-definition --cli-input-json file://task-def.json
 
       - name: Create or Update ECS Service

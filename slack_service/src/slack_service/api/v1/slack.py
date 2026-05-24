@@ -8,7 +8,7 @@ from slack_service.services.slack_signature_service import slack_signature_servi
 router = APIRouter(prefix="/slack", tags=["slack"])
 
 
-@router.post("/test-connection")
+@router.post("/connection-check")
 def test_slack_connection():
     return slack_api_service.test_connection()
 
@@ -18,7 +18,7 @@ def create_channel(request: CreateChannelRequest):
     return slack_api_service.create_channel(request.name)
 
 
-@router.get("/channels")
+@router.get("/list-channels")
 def list_channels():
     return slack_api_service.list_channels()
 
