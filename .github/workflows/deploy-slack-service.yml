@@ -39,6 +39,7 @@ jobs:
 
           docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
           docker push 669954808028.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
+
       - name: Register Task Definition
         run: |
           cat > task-def.json << 'EOF'
@@ -49,6 +50,7 @@ jobs:
             "cpu": "512",
             "memory": "1024",
             "executionRoleArn": "arn:aws:iam::669954808028:role/LabRole",
+            "taskRoleArn": "arn:aws:iam::669954808028:role/LabRole",
             "containerDefinitions": [
               {
                 "name": "slack-service",
@@ -65,6 +67,14 @@ jobs:
                   {
                     "name": "MONGODB_URL",
                     "value": "${{ secrets.MONGODB_URL }}"
+                  },
+                  {
+                    "name": "SLACK_BOT_TOKEN",
+                    "value": "${{ secrets.SLACK_BOT_TOKEN }}"
+                  },
+                  {
+                    "name": "SLACK_SIGNING_SECRET",
+                    "value": "${{ secrets.SLACK_SIGNING_SECRET }}"
                   }
                 ],
                 "logConfiguration": {
@@ -80,7 +90,7 @@ jobs:
             ]
           }
           EOF
-          
+
           aws ecs register-task-definition --cli-input-json file://task-def.json
 
       - name: Create or Update ECS Service
