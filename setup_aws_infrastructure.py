@@ -37,6 +37,7 @@ elbv2 = boto3.client("elbv2", region_name=REGION)
 logs = boto3.client("logs", region_name=REGION)
 s3 = boto3.client("s3", region_name=REGION)
 amplify = boto3.client("amplify", region_name=REGION)
+cloudfront = boto3.client("cloudfront", region_name=REGION)
 
 
 def print_header(text: str):
@@ -457,8 +458,100 @@ def create_alb_listeners(lb_arn: str, target_groups: Dict[str, str]):
         print_error(f"Failed to setup listeners: {e}")
 
 
+def create_cloudfront_distribution(lb_dns: str) -> Optional[str]:
+    """Create CloudFront distribution for HTTPS support."""
+    print_header("Setting up CloudFront for HTTPS")
+
+    distribution_id = f"pami-{ACCOUNT_ID}"
+
+    try:
+        # Check if distribution exists by looking at all distributions
+        response = cloudfront.list_distributions()
+        for dist in response.get("DistributionList", {}).get("Items", []):
+            origins = dist.get("Origins", {}).get("Items", [])
+            if origins and lb_dns in origins[0].get("DomainName", ""):
+                domain = dist["DomainName"]
+                print_success(f"CloudFront distribution already exists")
+                print_info(f"HTTPS URL: https://{domain}")
+                return f"https://{domain}"
+
+        # Create new distribution
+        import time
+
+        caller_reference = f"pami-{int(time.time())}"
+
+        distribution_config = {
+            "CallerReference": caller_reference,
+            "Comment": "PAMI API Distribution with HTTPS",
+            "Enabled": True,
+            "Origins": {
+                "Quantity": 1,
+                "Items": [
+                    {
+                        "Id": "pami-alb-origin",
+                        "DomainName": lb_dns,
+                        "CustomOriginConfig": {
+                            "HTTPPort": 80,
+                            "HTTPSPort": 443,
+                            "OriginProtocolPolicy": "http-only",
+                            "OriginSslProtocols": {"Quantity": 1, "Items": ["TLSv1.2"]},
+                            "OriginReadTimeout": 60,
+                            "OriginKeepaliveTimeout": 5,
+                        },
+                    }
+                ],
+            },
+            "DefaultCacheBehavior": {
+                "TargetOriginId": "pami-alb-origin",
+                "ViewerProtocolPolicy": "redirect-to-https",
+                "AllowedMethods": {
+                    "Quantity": 7,
+                    "Items": [
+                        "GET",
+                        "HEAD",
+                        "OPTIONS",
+                        "PUT",
+                        "POST",
+                        "PATCH",
+                        "DELETE",
+                    ],
+                    "CachedMethods": {"Quantity": 2, "Items": ["GET", "HEAD"]},
+                },
+                "ForwardedValues": {
+                    "QueryString": True,
+                    "Cookies": {"Forward": "all"},
+                    "Headers": {"Quantity": 1, "Items": ["*"]},
+                },
+                "TrustedSigners": {"Enabled": False, "Quantity": 0},
+                "MinTTL": 0,
+                "DefaultTTL": 0,
+                "MaxTTL": 0,
+                "Compress": True,
+            },
+        }
+
+        response = cloudfront.create_distribution(
+            DistributionConfig=distribution_config
+        )
+        domain = response["Distribution"]["DomainName"]
+
+        print_success(f"Created CloudFront distribution")
+        print_info(f"HTTPS URL: https://{domain}")
+        print_info("⚠️  NOTE: Distribution takes 15-20 minutes to fully deploy")
+        print_info("You can proceed, but wait for deployment before testing")
+
+        return f"https://{domain}"
+
+    except Exception as e:
+        print_error(f"Failed to create CloudFront distribution: {e}")
+        print_info(
+            "Continuing without HTTPS. You can set up CloudFront manually later."
+        )
+        return None
+
+
 def create_amplify_app(
-    lb_dns: str, github_token: Optional[str] = None
+    api_base_url: str, github_token: Optional[str] = None
 ) -> Optional[str]:
     """Create or update AWS Amplify app for frontend."""
     print_header("Setting up AWS Amplify for Frontend")
@@ -496,8 +589,8 @@ def create_amplify_app(
             "platform": "WEB",
             "oauthToken": github_token,
             "environmentVariables": {
-                "REACT_APP_PROJECTS_API_BASE_URL": f"http://{lb_dns}",
-                "REACT_APP_SLACK_API_BASE_URL": f"http://{lb_dns}/slack",
+                "REACT_APP_PROJECTS_API_BASE_URL": api_base_url,
+                "REACT_APP_SLACK_API_BASE_URL": f"{api_base_url}/slack",
                 "_LIVE_UPDATES": '[{"pkg":"@aws-amplify/cli","type":"npm","version":"latest"}]',
             },
             "buildSpec": """version: 1
@@ -549,6 +642,7 @@ def print_summary(
     target_groups: Dict[str, str],
     s3_bucket: Optional[str],
     amplify_url: Optional[str] = None,
+    cloudfront_url: Optional[str] = None,
 ):
     """Print setup summary and next steps."""
     print_header("Setup Summary")
@@ -572,6 +666,9 @@ def print_summary(
             print(f"  • Load Balancer DNS: {dns_name}")
         except Exception:
             pass
+
+    if cloudfront_url:
+        print(f"  • CloudFront (HTTPS): {cloudfront_url}")
 
     if amplify_url:
         print(f"  • Frontend URL (Amplify): {amplify_url}")
@@ -703,7 +800,7 @@ def main():
         if lb_arn and target_groups:
             create_alb_listeners(lb_arn, target_groups)
 
-        # Get load balancer DNS for Amplify setup
+        # Get load balancer DNS
         lb_dns = None
         if lb_arn:
             try:
@@ -712,10 +809,18 @@ def main():
             except Exception:
                 pass
 
+        # Create CloudFront distribution for HTTPS
+        cloudfront_url = None
+        if lb_dns:
+            cloudfront_url = create_cloudfront_distribution(lb_dns)
+
+        # Use CloudFront URL for Amplify if available, otherwise use ALB
+        api_base_url = cloudfront_url if cloudfront_url else f"http://{lb_dns}"
+
         # Setup Amplify for frontend (optional - will skip if no GitHub token)
         amplify_url = None
-        if lb_dns:
-            amplify_url = create_amplify_app(lb_dns)
+        if api_base_url:
+            amplify_url = create_amplify_app(api_base_url)
 
         # Print summary
         print_summary(
@@ -726,6 +831,7 @@ def main():
             target_groups,
             s3_bucket,
             amplify_url,
+            cloudfront_url,
         )
 
         print_success("Setup completed successfully!")
