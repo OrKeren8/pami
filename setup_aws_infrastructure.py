@@ -36,6 +36,7 @@ ecr = boto3.client("ecr", region_name=REGION)
 elbv2 = boto3.client("elbv2", region_name=REGION)
 logs = boto3.client("logs", region_name=REGION)
 s3 = boto3.client("s3", region_name=REGION)
+amplify = boto3.client("amplify", region_name=REGION)
 
 
 def print_header(text: str):
@@ -456,6 +457,90 @@ def create_alb_listeners(lb_arn: str, target_groups: Dict[str, str]):
         print_error(f"Failed to setup listeners: {e}")
 
 
+def create_amplify_app(
+    lb_dns: str, github_token: Optional[str] = None
+) -> Optional[str]:
+    """Create or update AWS Amplify app for frontend."""
+    print_header("Setting up AWS Amplify for Frontend")
+
+    app_name = "pami-frontend"
+
+    try:
+        # Check if app exists
+        response = amplify.list_apps()
+        existing_app = None
+        for app in response.get("apps", []):
+            if app["name"] == app_name:
+                existing_app = app
+                break
+
+        if existing_app:
+            app_id = existing_app["appId"]
+            default_domain = existing_app["defaultDomain"]
+            print_success(f"Amplify app already exists: {app_name}")
+            print_info(f"App ID: {app_id}")
+            print_info(f"URL: https://main.{default_domain}")
+            return f"https://main.{default_domain}"
+
+        # Create new app
+        if not github_token:
+            print_error("Cannot create Amplify app: GitHub token required")
+            print_info(
+                "You can create it manually in AWS Console or provide GitHub token"
+            )
+            return None
+
+        app_config = {
+            "name": app_name,
+            "repository": "https://github.com/OrKeren8/pami",
+            "platform": "WEB",
+            "oauthToken": github_token,
+            "environmentVariables": {
+                "REACT_APP_PROJECTS_API_BASE_URL": f"http://{lb_dns}",
+                "REACT_APP_SLACK_API_BASE_URL": f"http://{lb_dns}/slack",
+                "_LIVE_UPDATES": '[{"pkg":"@aws-amplify/cli","type":"npm","version":"latest"}]',
+            },
+            "buildSpec": """version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - cd frontend
+        - npm install
+    build:
+      commands:
+        - npm run build
+  artifacts:
+    baseDirectory: frontend/build
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - frontend/node_modules/**/*
+""",
+        }
+
+        response = amplify.create_app(**app_config)
+        app = response["app"]
+        app_id = app["appId"]
+        default_domain = app["defaultDomain"]
+
+        # Create branch
+        amplify.create_branch(appId=app_id, branchName="main", enableAutoBuild=True)
+
+        print_success(f"Created Amplify app: {app_name}")
+        print_info(f"App ID: {app_id}")
+        print_info(f"URL: https://main.{default_domain}")
+        print_info("Amplify will auto-deploy on every push to main branch")
+
+        return f"https://main.{default_domain}"
+
+    except Exception as e:
+        print_error(f"Failed to create Amplify app: {e}")
+        print_info("You can set it up manually in AWS Console → Amplify")
+        return None
+
+
 def print_summary(
     vpc_id: str,
     subnet_ids: List[str],
@@ -463,6 +548,7 @@ def print_summary(
     lb_arn: Optional[str],
     target_groups: Dict[str, str],
     s3_bucket: Optional[str],
+    amplify_url: Optional[str] = None,
 ):
     """Print setup summary and next steps."""
     print_header("Setup Summary")
@@ -486,6 +572,9 @@ def print_summary(
             print(f"  • Load Balancer DNS: {dns_name}")
         except Exception:
             pass
+
+    if amplify_url:
+        print(f"  • Frontend URL (Amplify): {amplify_url}")
 
     print()
     print("ECR Repositories:")
@@ -528,16 +617,35 @@ def print_summary(
         print()
 
     print("File: .github/workflows/deploy-backend.yml")
-    print("⚠️  WARNING: Your backend services workflows don't include network")
-    print("configuration or service creation. After first deployment, you may need")
-    print("to manually create the ECS services or add network-configuration to the")
-    print("create-service commands similar to the slack-service workflow.")
+    print("✓ Backend services now have auto-create logic")
     print()
-    print("Network configuration to add (if needed):")
-    print(
-        f"   --network-configuration \"awsvpcConfiguration={{subnets=[{','.join(subnet_ids[:2])}],securityGroups=[{security_group_id}],assignPublicIp=ENABLED}}\""
-    )
-    print()
+
+    if not amplify_url:
+        print_header("⚠️  Frontend (Amplify) - Manual Setup Required")
+        print()
+        print("Amplify app was not created automatically.")
+        print("To deploy your frontend, either:")
+        print()
+        print("Option 1: Manual setup in AWS Console")
+        print("  1. Go to AWS Console → Amplify")
+        print("  2. Click 'New app' → 'Host web app'")
+        print("  3. Connect to GitHub repository: OrKeren8/pami")
+        print("  4. Branch: main")
+        print("  5. Build settings → Base directory: frontend")
+        print("  6. Add environment variables:")
+        if lb_arn:
+            try:
+                response = elbv2.describe_load_balancers(LoadBalancerArns=[lb_arn])
+                lb_dns = response["LoadBalancers"][0]["DNSName"]
+                print(f"     REACT_APP_PROJECTS_API_BASE_URL = http://{lb_dns}")
+                print(f"     REACT_APP_SLACK_API_BASE_URL = http://{lb_dns}/slack")
+            except Exception:
+                pass
+        print()
+        print("Option 2: Re-run this script with GitHub token")
+        print("  Set environment variable: GITHUB_TOKEN=<your-token>")
+        print()
+
     print_header("Next Steps")
     print("1. Update GitHub Secrets (see above)")
     print("2. Update workflow files with new subnets and security groups")
@@ -595,9 +703,29 @@ def main():
         if lb_arn and target_groups:
             create_alb_listeners(lb_arn, target_groups)
 
+        # Get load balancer DNS for Amplify setup
+        lb_dns = None
+        if lb_arn:
+            try:
+                response = elbv2.describe_load_balancers(LoadBalancerArns=[lb_arn])
+                lb_dns = response["LoadBalancers"][0]["DNSName"]
+            except Exception:
+                pass
+
+        # Setup Amplify for frontend (optional - will skip if no GitHub token)
+        amplify_url = None
+        if lb_dns:
+            amplify_url = create_amplify_app(lb_dns)
+
         # Print summary
         print_summary(
-            vpc_id, subnet_ids, security_group_id, lb_arn, target_groups, s3_bucket
+            vpc_id,
+            subnet_ids,
+            security_group_id,
+            lb_arn,
+            target_groups,
+            s3_bucket,
+            amplify_url,
         )
 
         print_success("Setup completed successfully!")
