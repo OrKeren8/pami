@@ -27,18 +27,18 @@ class TreeAnalysisService:
         self, request: AnalyzeTreeRequest
     ) -> NodeOrganizationResponse:
         """Analyze conversation and tree to suggest optimal node organization."""
-        
+
         # Get conversation history
         conversation = await self._ai_conversation_service.get_conversation(
             request.conversation_id
         )
-        
+
         if not conversation:
             raise ValueError(f"Conversation {request.conversation_id} not found")
 
         # Build tree context description
         tree_context = self._build_tree_context(request.current_tree)
-        
+
         # Get conversation messages
         conversation_history = "\n".join(
             [f"{msg['role']}: {msg['content']}" for msg in conversation.messages[-10:]]
@@ -89,7 +89,7 @@ Suggest where this node should be placed in the tree, provide a summary, extract
 
             # Parse AI response
             ai_response = json.loads(response.choices[0].message.content)
-            
+
             return NodeOrganizationResponse(
                 node_id=request.node_id,
                 suggested_parent_id=ai_response.get("suggested_parent_id"),
@@ -110,17 +110,17 @@ Suggest where this node should be placed in the tree, provide a summary, extract
         # Build tree structure representation
         tree_lines = ["Project Tree Structure:"]
         tree_lines.append("=" * 50)
-        
+
         # Create a map of nodes by ID
         node_map = {node.id: node for node in nodes}
-        
+
         # Find root nodes (no parent)
         root_nodes = [node for node in nodes if not node.parent_id]
-        
+
         # Build tree representation recursively
         for root in root_nodes:
             self._add_node_to_tree(root, node_map, tree_lines, level=0)
-        
+
         return "\n".join(tree_lines)
 
     def _add_node_to_tree(
@@ -132,15 +132,19 @@ Suggest where this node should be placed in the tree, provide a summary, extract
     ):
         """Recursively add node and children to tree representation."""
         indent = "  " * level
-        summary_preview = (node.summary[:50] + "...") if node.summary and len(node.summary) > 50 else (node.summary or "")
+        summary_preview = (
+            (node.summary[:50] + "...")
+            if node.summary and len(node.summary) > 50
+            else (node.summary or "")
+        )
         topics_str = f" [{', '.join(node.topics)}]" if node.topics else ""
-        
+
         lines.append(
             f"{indent}- [{node.node_type}] {node.id[:8]}... : {node.text[:60]}{topics_str}"
         )
         if summary_preview:
             lines.append(f"{indent}  Summary: {summary_preview}")
-        
+
         # Find and add children
         children = [n for n in node_map.values() if n.parent_id == node.id]
         for child in children:

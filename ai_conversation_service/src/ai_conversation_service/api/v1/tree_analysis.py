@@ -7,7 +7,6 @@ from ai_conversation_service.schemas.tree_analysis_schemas import (
 from ai_conversation_service.services.tree_analysis_service import TreeAnalysisService
 from ai_conversation_service.dependencies import get_tree_analysis_service
 
-
 router = APIRouter(prefix="/tree-analysis", tags=["tree-analysis"])
 
 
@@ -18,7 +17,7 @@ async def organize_node(
 ):
     """
     Analyze conversation and existing tree to suggest optimal node organization.
-    
+
     AI will:
     - Read the conversation about this node
     - Analyze the existing tree structure

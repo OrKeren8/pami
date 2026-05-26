@@ -10,6 +10,6 @@ COPY . /app
 WORKDIR /app
 
 # Install dependencies
-RUN uv sync --frozen --no-cache
+RUN uv sync --no-cache
 
 CMD ["/app/.venv/bin/uvicorn", "src.projects_service.main:app", "--host", "0.0.0.0", "--port", "8000"]

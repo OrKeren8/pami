@@ -47,7 +47,7 @@ class ContextTreeService:
             self._logger.info(
                 f"Created AI conversation {conversation_id} for node {created_node.id}"
             )
-            
+
             # Let AI organize the node in the tree
             await self._ai_organize_node(created_node, project_id, conversation_id)
 
@@ -112,7 +112,7 @@ class ContextTreeService:
         try:
             # Get all nodes in the project for context
             all_nodes = await self._context_tree_repository.list_by_project(project_id)
-            
+
             # Build tree context (exclude the current node since it's new)
             tree_context = [
                 {
@@ -141,30 +141,42 @@ class ContextTreeService:
                         self._logger.info(
                             f"AI suggested organization for node {node.id}: {ai_suggestion.get('reasoning')}"
                         )
-                        
+
                         # Update node with AI suggestions
                         node.summary = ai_suggestion.get("summary", node.summary)
                         node.topics = ai_suggestion.get("topics", node.topics)
                         suggested_parent = ai_suggestion.get("suggested_parent_id")
-                        
+
                         # Update parent if AI suggests a different one
                         if suggested_parent and suggested_parent != node.parent_id:
                             # Remove from old parent's children
                             if node.parent_id:
-                                old_parent = await self._context_tree_repository.get_by_id(node.parent_id)
-                                if old_parent and str(node.id) in old_parent.children_ids:
+                                old_parent = (
+                                    await self._context_tree_repository.get_by_id(
+                                        node.parent_id
+                                    )
+                                )
+                                if (
+                                    old_parent
+                                    and str(node.id) in old_parent.children_ids
+                                ):
                                     old_parent.children_ids.remove(str(node.id))
                                     await old_parent.save()
-                            
+
                             # Set new parent
                             node.parent_id = suggested_parent
-                            
+
                             # Add to new parent's children
-                            new_parent = await self._context_tree_repository.get_by_id(suggested_parent)
-                            if new_parent and str(node.id) not in new_parent.children_ids:
+                            new_parent = await self._context_tree_repository.get_by_id(
+                                suggested_parent
+                            )
+                            if (
+                                new_parent
+                                and str(node.id) not in new_parent.children_ids
+                            ):
                                 new_parent.children_ids.append(str(node.id))
                                 await new_parent.save()
-                        
+
                         await node.save()
                         self._logger.info(f"Updated node {node.id} with AI suggestions")
                     else:

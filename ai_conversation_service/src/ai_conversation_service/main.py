@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     # Initialize AI conversation service
     ai_conversation_service = AIConversationService()
     app.state.ai_conversation_service = ai_conversation_service
-    
+
     # Initialize tree analysis service
     tree_analysis_service = TreeAnalysisService(
         ai_conversation_service,

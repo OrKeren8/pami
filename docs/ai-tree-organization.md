@@ -1,11 +1,13 @@
 # AI-Powered Tree Organization
 
 ## Overview
+
 The AI service now automatically analyzes and organizes nodes in the project tree based on conversation context and existing tree structure.
 
 ## How It Works
 
 ### Flow Diagram
+
 ```
 1. User creates a new node in projects service
 2. Projects service creates the node in database
@@ -21,9 +23,11 @@ The AI service now automatically analyzes and organizes nodes in the project tre
 ```
 
 ### API Endpoint
+
 **POST** `/ai/tree-analysis/organize-node`
 
 **Request:**
+
 ```json
 {
   "node_id": "uuid-of-new-node",
@@ -50,6 +54,7 @@ The AI service now automatically analyzes and organizes nodes in the project tre
 ```
 
 **Response:**
+
 ```json
 {
   "node_id": "uuid-of-new-node",
@@ -63,12 +68,14 @@ The AI service now automatically analyzes and organizes nodes in the project tre
 ## AI Analysis Process
 
 The AI analyzes:
+
 1. **Conversation Content**: What was discussed about this node
 2. **Tree Structure**: Existing hierarchy and relationships
 3. **Node Types**: Whether this should be a goal, task, milestone, etc.
 4. **Thematic Similarity**: Which existing nodes are topically related
 
 The AI then suggests:
+
 - **Parent Node**: Best hierarchical placement
 - **Summary**: Concise description of the node's purpose
 - **Topics**: Relevant tags for categorization
@@ -77,14 +84,17 @@ The AI then suggests:
 ## Configuration
 
 ### AI Service
+
 No additional configuration needed - uses existing OpenAI setup.
 
 ### Projects Service
+
 The AI organization happens automatically after node creation. No configuration required.
 
 ## Error Handling
 
 The system is designed with graceful degradation:
+
 - If AI service is unavailable: Node is still created with manual parent/summary
 - If AI analysis fails: Node keeps its original values
 - If conversation has no messages: AI uses only tree structure for analysis
@@ -92,6 +102,7 @@ The system is designed with graceful degradation:
 ## Lean Implementation
 
 This is a **single-endpoint, single-call** solution:
+
 1. One HTTP request from projects → AI service
 2. AI returns complete organization suggestion
 3. Projects service applies the suggestions
@@ -102,6 +113,7 @@ No polling, webhooks, or complex state management needed.
 ## Testing
 
 ### Manual Test Flow
+
 1. Create a project
 2. Create a root node (e.g., "Build mobile app")
 3. Have a conversation about it
@@ -111,6 +123,7 @@ No polling, webhooks, or complex state management needed.
 7. Verify summary and topics were auto-generated
 
 ### API Test
+
 ```bash
 # Create a node and let AI organize it
 curl -X POST http://localhost:8000/projects/{project_id}/context-tree \
@@ -127,6 +140,7 @@ curl -X POST http://localhost:8000/projects/{project_id}/context-tree \
 ## Future Enhancements
 
 Possible improvements:
+
 - Allow user to override AI suggestions
 - Support for bulk reorganization of existing trees
 - AI-powered tree refactoring suggestions

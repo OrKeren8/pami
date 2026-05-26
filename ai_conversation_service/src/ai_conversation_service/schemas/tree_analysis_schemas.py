@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 
 class TreeNodeData(BaseModel):
     """Simplified node data for tree analysis."""
+
     id: str
     parent_id: Optional[str]
     text: str
@@ -14,6 +15,7 @@ class TreeNodeData(BaseModel):
 
 class AnalyzeTreeRequest(BaseModel):
     """Request to analyze and organize a node in the project tree."""
+
     node_id: str
     conversation_id: str
     current_tree: List[TreeNodeData]  # All nodes in the project
@@ -21,6 +23,7 @@ class AnalyzeTreeRequest(BaseModel):
 
 class NodeOrganizationResponse(BaseModel):
     """AI's recommendation for node organization and metadata."""
+
     node_id: str
     suggested_parent_id: Optional[str]
     summary: str
