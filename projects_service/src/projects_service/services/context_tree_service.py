@@ -47,6 +47,9 @@ class ContextTreeService:
             self._logger.info(
                 f"Created AI conversation {conversation_id} for node {created_node.id}"
             )
+            
+            # Let AI organize the node in the tree
+            await self._ai_organize_node(created_node, project_id, conversation_id)
 
         # If the node has a parent, update the parent's children list
         if request.parent_id:
@@ -101,6 +104,77 @@ class ContextTreeService:
         except Exception as e:
             self._logger.error(f"Error calling AI service: {e}")
             return None
+
+    async def _ai_organize_node(
+        self, node: ContextTreeNode, project_id: str, conversation_id: str
+    ) -> None:
+        """Request AI to analyze and organize node in the tree."""
+        try:
+            # Get all nodes in the project for context
+            all_nodes = await self._context_tree_repository.list_by_project(project_id)
+            
+            # Build tree context (exclude the current node since it's new)
+            tree_context = [
+                {
+                    "id": str(n.id),
+                    "parent_id": n.parent_id,
+                    "text": n.text,
+                    "summary": n.summary,
+                    "topics": n.topics,
+                    "node_type": n.node_type,
+                }
+                for n in all_nodes
+                if str(n.id) != str(node.id)
+            ]
+
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{settings.ai_service_url}/ai/tree-analysis/organize-node",
+                    json={
+                        "node_id": str(node.id),
+                        "conversation_id": conversation_id,
+                        "current_tree": tree_context,
+                    },
+                ) as response:
+                    if response.status == 200:
+                        ai_suggestion = await response.json()
+                        self._logger.info(
+                            f"AI suggested organization for node {node.id}: {ai_suggestion.get('reasoning')}"
+                        )
+                        
+                        # Update node with AI suggestions
+                        node.summary = ai_suggestion.get("summary", node.summary)
+                        node.topics = ai_suggestion.get("topics", node.topics)
+                        suggested_parent = ai_suggestion.get("suggested_parent_id")
+                        
+                        # Update parent if AI suggests a different one
+                        if suggested_parent and suggested_parent != node.parent_id:
+                            # Remove from old parent's children
+                            if node.parent_id:
+                                old_parent = await self._context_tree_repository.get_by_id(node.parent_id)
+                                if old_parent and str(node.id) in old_parent.children_ids:
+                                    old_parent.children_ids.remove(str(node.id))
+                                    await old_parent.save()
+                            
+                            # Set new parent
+                            node.parent_id = suggested_parent
+                            
+                            # Add to new parent's children
+                            new_parent = await self._context_tree_repository.get_by_id(suggested_parent)
+                            if new_parent and str(node.id) not in new_parent.children_ids:
+                                new_parent.children_ids.append(str(node.id))
+                                await new_parent.save()
+                        
+                        await node.save()
+                        self._logger.info(f"Updated node {node.id} with AI suggestions")
+                    else:
+                        text = await response.text()
+                        self._logger.error(
+                            f"Failed to get AI organization: {response.status} - {text}"
+                        )
+        except Exception as e:
+            self._logger.error(f"Error requesting AI organization: {e}")
+            # Don't fail the whole operation if AI organization fails
 
     async def get_node(self, node_id: str) -> Optional[ContextTreeNodeResponse]:
         """Get a context tree node by its node_id."""

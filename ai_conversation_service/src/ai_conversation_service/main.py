@@ -7,8 +7,12 @@ from ai_conversation_service.core.config import settings
 from ai_conversation_service.services.ai_conversation_service.service import (
     AIConversationService,
 )
+from ai_conversation_service.services.tree_analysis_service import TreeAnalysisService
 from ai_conversation_service.api.v1.ai_conversations import (
     router as ai_conversations_router,
+)
+from ai_conversation_service.api.v1.tree_analysis import (
+    router as tree_analysis_router,
 )
 
 
@@ -19,6 +23,13 @@ async def lifespan(app: FastAPI):
     # Initialize AI conversation service
     ai_conversation_service = AIConversationService()
     app.state.ai_conversation_service = ai_conversation_service
+    
+    # Initialize tree analysis service
+    tree_analysis_service = TreeAnalysisService(
+        ai_conversation_service,
+        ai_conversation_service.openai_client,
+    )
+    app.state.tree_analysis_service = tree_analysis_service
 
     logger.info("AI Conversation Service initialized")
 
@@ -46,6 +57,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(ai_conversations_router)
+app.include_router(tree_analysis_router)
 
 
 @app.get("/health")
