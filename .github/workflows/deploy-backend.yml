@@ -60,6 +60,10 @@ jobs:
                   {
                     "name": "MONGODB_URL",
                     "value": "${{ secrets.MONGODB_URL }}"
+                  },
+                  {
+                    "name": "AI_SERVICE_URL",
+                    "value": "http://pami-alb-550898099.us-east-1.elb.amazonaws.com/ai"
                   }
                 ],
                 "logConfiguration": {

@@ -2,6 +2,7 @@ from typing import List, Optional
 from datetime import datetime
 from loguru import logger
 import uuid
+import aiohttp
 
 from projects_service.data.context_tree_repository import ContextTreeRepository
 from projects_service.models.context_tree import ContextTreeNode
@@ -10,6 +11,7 @@ from projects_service.schemas.context_tree_schemas import (
     UpdateContextTreeNodeRequest,
     ContextTreeNodeResponse,
 )
+from projects_service.core.config import settings
 
 
 class ContextTreeService:
@@ -35,6 +37,17 @@ class ContextTreeService:
         )
         created_node = await self._context_tree_repository.create(node)
 
+        # Create AI conversation for this node
+        conversation_id = await self._create_ai_conversation(
+            str(created_node.id), project_id
+        )
+        if conversation_id:
+            created_node.conversation_id = conversation_id
+            await created_node.save()
+            self._logger.info(
+                f"Created AI conversation {conversation_id} for node {created_node.id}"
+            )
+
         # If the node has a parent, update the parent's children list
         if request.parent_id:
             parent_node = await self._context_tree_repository.get_by_id(
@@ -44,7 +57,7 @@ class ContextTreeService:
                 # Add the new child to parent's children_ids if not already present
                 if created_node.id not in parent_node.children_ids:
                     parent_node.children_ids.append(created_node.id)
-                    await self._context_tree_repository.update(parent_node)
+                    await parent_node.save()
                     self._logger.info(
                         f"Updated parent {request.parent_id} to include child {created_node.id}"
                     )
@@ -58,9 +71,36 @@ class ContextTreeService:
             topics=created_node.topics,
             project_id=created_node.project_id,
             node_type=created_node.node_type,
+            conversation_id=created_node.conversation_id,
             created_at=created_node.created_at,
             updated_at=created_node.updated_at,
         )
+
+    async def _create_ai_conversation(
+        self, context_node_id: str, project_id: str
+    ) -> Optional[str]:
+        """Create an AI conversation for a context node."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{settings.ai_service_url}/ai/ai-conversations/",
+                    json={
+                        "context_node_id": context_node_id,
+                        "project_id": project_id,
+                        "title": f"AI Discussion - Node {context_node_id[:8]}",
+                    },
+                ) as response:
+                    if response.status == 200:
+                        return (await response.json()).get("conversation_id")
+                    else:
+                        text = await response.text()
+                        self._logger.error(
+                            f"Failed to create AI conversation: {response.status} - {text}"
+                        )
+                        return None
+        except Exception as e:
+            self._logger.error(f"Error calling AI service: {e}")
+            return None
 
     async def get_node(self, node_id: str) -> Optional[ContextTreeNodeResponse]:
         """Get a context tree node by its node_id."""
@@ -77,6 +117,7 @@ class ContextTreeService:
             topics=node.topics,
             project_id=node.project_id,
             node_type=node.node_type,
+            conversation_id=node.conversation_id,
             created_at=node.created_at,
             updated_at=node.updated_at,
         )
@@ -96,6 +137,7 @@ class ContextTreeService:
                 topics=n.topics,
                 project_id=n.project_id,
                 node_type=n.node_type,
+                conversation_id=n.conversation_id,
                 created_at=n.created_at,
                 updated_at=n.updated_at,
             )
@@ -122,6 +164,7 @@ class ContextTreeService:
             topics=node.topics,
             project_id=node.project_id,
             node_type=node.node_type,
+            conversation_id=node.conversation_id,
             created_at=node.created_at,
             updated_at=node.updated_at,
         )

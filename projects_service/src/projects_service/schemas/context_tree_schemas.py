@@ -30,5 +30,6 @@ class ContextTreeNodeResponse(BaseModel):
     topics: List[str]
     project_id: str
     node_type: str
+    conversation_id: Optional[str]
     created_at: datetime
     updated_at: datetime
