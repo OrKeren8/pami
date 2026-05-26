@@ -37,7 +37,7 @@ elbv2 = boto3.client("elbv2", region_name=REGION)
 logs = boto3.client("logs", region_name=REGION)
 s3 = boto3.client("s3", region_name=REGION)
 amplify = boto3.client("amplify", region_name=REGION)
-cloudfront = boto3.client("cloudfront", region_name=REGION)
+apigateway = boto3.client("apigatewayv2", region_name=REGION)
 
 
 def print_header(text: str):
@@ -458,95 +458,70 @@ def create_alb_listeners(lb_arn: str, target_groups: Dict[str, str]):
         print_error(f"Failed to setup listeners: {e}")
 
 
-def create_cloudfront_distribution(lb_dns: str) -> Optional[str]:
-    """Create CloudFront distribution for HTTPS support."""
-    print_header("Setting up CloudFront for HTTPS")
+def create_api_gateway(lb_dns: str) -> Optional[str]:
+    """Create API Gateway HTTP API for HTTPS support."""
+    print_header("Setting up API Gateway for HTTPS")
 
-    distribution_id = f"pami-{ACCOUNT_ID}"
+    api_name = "pami-api"
 
     try:
-        # Check if distribution exists by looking at all distributions
-        response = cloudfront.list_distributions()
-        for dist in response.get("DistributionList", {}).get("Items", []):
-            origins = dist.get("Origins", {}).get("Items", [])
-            if origins and lb_dns in origins[0].get("DomainName", ""):
-                domain = dist["DomainName"]
-                print_success(f"CloudFront distribution already exists")
-                print_info(f"HTTPS URL: https://{domain}")
-                return f"https://{domain}"
+        # Check if API already exists
+        response = apigateway.get_apis()
+        for api in response.get("Items", []):
+            if api.get("Name") == api_name:
+                api_id = api["ApiId"]
+                api_endpoint = api["ApiEndpoint"]
+                print_success(f"API Gateway already exists: {api_name}")
+                print_info(f"HTTPS URL: {api_endpoint}")
+                return api_endpoint
 
-        # Create new distribution
-        import time
-
-        caller_reference = f"pami-{int(time.time())}"
-
-        distribution_config = {
-            "CallerReference": caller_reference,
-            "Comment": "PAMI API Distribution with HTTPS",
-            "Enabled": True,
-            "Origins": {
-                "Quantity": 1,
-                "Items": [
-                    {
-                        "Id": "pami-alb-origin",
-                        "DomainName": lb_dns,
-                        "CustomOriginConfig": {
-                            "HTTPPort": 80,
-                            "HTTPSPort": 443,
-                            "OriginProtocolPolicy": "http-only",
-                            "OriginSslProtocols": {"Quantity": 1, "Items": ["TLSv1.2"]},
-                            "OriginReadTimeout": 60,
-                            "OriginKeepaliveTimeout": 5,
-                        },
-                    }
-                ],
-            },
-            "DefaultCacheBehavior": {
-                "TargetOriginId": "pami-alb-origin",
-                "ViewerProtocolPolicy": "redirect-to-https",
-                "AllowedMethods": {
-                    "Quantity": 7,
-                    "Items": [
-                        "GET",
-                        "HEAD",
-                        "OPTIONS",
-                        "PUT",
-                        "POST",
-                        "PATCH",
-                        "DELETE",
-                    ],
-                    "CachedMethods": {"Quantity": 2, "Items": ["GET", "HEAD"]},
-                },
-                "ForwardedValues": {
-                    "QueryString": True,
-                    "Cookies": {"Forward": "all"},
-                    "Headers": {"Quantity": 1, "Items": ["*"]},
-                },
-                "TrustedSigners": {"Enabled": False, "Quantity": 0},
-                "MinTTL": 0,
-                "DefaultTTL": 0,
-                "MaxTTL": 0,
-                "Compress": True,
-            },
-        }
-
-        response = cloudfront.create_distribution(
-            DistributionConfig=distribution_config
+        # Create new HTTP API
+        response = apigateway.create_api(
+            Name=api_name,
+            ProtocolType="HTTP",
+            Description="PAMI API Gateway with HTTPS for Amplify frontend",
         )
-        domain = response["Distribution"]["DomainName"]
+        api_id = response["ApiId"]
+        api_endpoint = response["ApiEndpoint"]
 
-        print_success(f"Created CloudFront distribution")
-        print_info(f"HTTPS URL: https://{domain}")
-        print_info("⚠️  NOTE: Distribution takes 15-20 minutes to fully deploy")
-        print_info("You can proceed, but wait for deployment before testing")
+        print_success(f"Created API Gateway: {api_name}")
+        print_info(f"API ID: {api_id}")
 
-        return f"https://{domain}"
+        # Create integration with ALB
+        integration_response = apigateway.create_integration(
+            ApiId=api_id,
+            IntegrationType="HTTP_PROXY",
+            IntegrationUri=f"http://{lb_dns}",
+            IntegrationMethod="ANY",
+            PayloadFormatVersion="1.0",
+        )
+        integration_id = integration_response["IntegrationId"]
+        print_success(f"Created integration with ALB")
+
+        # Create default route that forwards all requests
+        apigateway.create_route(
+            ApiId=api_id,
+            RouteKey="$default",
+            Target=f"integrations/{integration_id}",
+        )
+        print_success(f"Created default route (forwards all paths)")
+
+        # Create $default stage (auto-deploy)
+        apigateway.create_stage(
+            ApiId=api_id,
+            StageName="$default",
+            AutoDeploy=True,
+        )
+        print_success(f"Created auto-deploy stage")
+
+        print_info(f"HTTPS URL: {api_endpoint}")
+        print_info("✓ API Gateway is ready immediately (no waiting required)")
+
+        return api_endpoint
 
     except Exception as e:
-        print_error(f"Failed to create CloudFront distribution: {e}")
-        print_info(
-            "Continuing without HTTPS. You can set up CloudFront manually later."
-        )
+        print_error(f"Failed to create API Gateway: {e}")
+        print_info("Continuing without HTTPS. You can set up API Gateway manually.")
         return None
 
 
@@ -572,6 +547,36 @@ def create_amplify_app(
             default_domain = existing_app["defaultDomain"]
             print_success(f"Amplify app already exists: {app_name}")
             print_info(f"App ID: {app_id}")
+            
+            # Update environment variables
+            try:
+                amplify.update_app(
+                    appId=app_id,
+                    environmentVariables={
+                        "REACT_APP_PROJECTS_API_BASE_URL": api_base_url,
+                        "REACT_APP_SLACK_API_BASE_URL": f"{api_base_url}/slack",
+                        "_LIVE_UPDATES": '[{"pkg":"@aws-amplify/cli","type":"npm","version":"latest"}]',
+                    }
+                )
+                print_success(f"Updated environment variables with new API URL")
+                print_info(f"  REACT_APP_PROJECTS_API_BASE_URL = {api_base_url}")
+                print_info(f"  REACT_APP_SLACK_API_BASE_URL = {api_base_url}/slack")
+                
+                # Trigger a new build
+                try:
+                    amplify.start_job(
+                        appId=app_id,
+                        branchName="main",
+                        jobType="RELEASE"
+                    )
+                    print_success(f"Triggered new deployment with updated configuration")
+                except Exception as deploy_error:
+                    print_info(f"Note: Could not trigger auto-deploy: {deploy_error}")
+                    print_info("You can manually redeploy from AWS Console → Amplify → Deployments")
+                    
+            except Exception as update_error:
+                print_error(f"Failed to update environment variables: {update_error}")
+            
             print_info(f"URL: https://main.{default_domain}")
             return f"https://main.{default_domain}"
 
@@ -642,7 +647,7 @@ def print_summary(
     target_groups: Dict[str, str],
     s3_bucket: Optional[str],
     amplify_url: Optional[str] = None,
-    cloudfront_url: Optional[str] = None,
+    api_gateway_url: Optional[str] = None,
 ):
     """Print setup summary and next steps."""
     print_header("Setup Summary")
@@ -667,8 +672,8 @@ def print_summary(
         except Exception:
             pass
 
-    if cloudfront_url:
-        print(f"  • CloudFront (HTTPS): {cloudfront_url}")
+    if api_gateway_url:
+        print(f"  • API Gateway (HTTPS): {api_gateway_url}")
 
     if amplify_url:
         print(f"  • Frontend URL (Amplify): {amplify_url}")
@@ -809,13 +814,13 @@ def main():
             except Exception:
                 pass
 
-        # Create CloudFront distribution for HTTPS
-        cloudfront_url = None
+        # Create API Gateway for HTTPS
+        api_gateway_url = None
         if lb_dns:
-            cloudfront_url = create_cloudfront_distribution(lb_dns)
+            api_gateway_url = create_api_gateway(lb_dns)
 
-        # Use CloudFront URL for Amplify if available, otherwise use ALB
-        api_base_url = cloudfront_url if cloudfront_url else f"http://{lb_dns}"
+        # Use API Gateway URL for Amplify if available, otherwise use ALB
+        api_base_url = api_gateway_url if api_gateway_url else f"http://{lb_dns}"
 
         # Setup Amplify for frontend (optional - will skip if no GitHub token)
         amplify_url = None
@@ -831,7 +836,7 @@ def main():
             target_groups,
             s3_bucket,
             amplify_url,
-            cloudfront_url,
+            api_gateway_url,
         )
 
         print_success("Setup completed successfully!")
