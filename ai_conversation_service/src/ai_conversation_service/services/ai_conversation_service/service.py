@@ -50,7 +50,7 @@ class AIConversationService:
                     read_timeout=300, retries={"max_attempts": 3, "mode": "standard"}
                 ),
             }
-            
+
             # Only add explicit credentials if they're provided
             if settings.aws_access_key_id and settings.aws_secret_access_key:
                 client_kwargs["aws_access_key_id"] = settings.aws_access_key_id
@@ -60,7 +60,7 @@ class AIConversationService:
                 self._logger.info("Using explicit AWS credentials")
             else:
                 self._logger.info("Using IAM role credentials (ECS task role)")
-            
+
             self.s3_client = boto3.client("s3", **client_kwargs)
             self._ensure_bucket_exists()
             self._logger.info("S3 client initialized successfully")
@@ -73,29 +73,6 @@ class AIConversationService:
             self._logger.warning(
                 "AI Conversation Service initialized with limited functionality"
             )
-
-    async def create_conversation(
-        self, context_node_id: str, project_id: str, title: Optional[str] = None
-    ) -> Conversation:
-        """Create a new conversation and save it to S3."""
-        conversation_id = str(uuid.uuid4())
-
-        conversation = Conversation(
-            conversation_id=conversation_id,
-            context_node_id=context_node_id,
-            project_id=project_id,
-        )
-
-        if title:
-            conversation.title = title
-
-        # Save to S3
-        await self._save_conversation(conversation)
-
-        self._logger.info(
-            f"Created conversation {conversation_id} for node {context_node_id}"
-        )
-        return conversation
 
     def _ensure_bucket_exists(self):
         """Ensure the S3 bucket exists, create it if it doesn't."""
@@ -171,9 +148,6 @@ class AIConversationService:
         self, context_node_id: str, project_id: str, title: Optional[str] = None
     ) -> Conversation:
         """Create a new conversation for a context node."""
-        if not self.openai_client:
-            raise Exception("OpenAI client not initialized")
-
         # Validate input parameters
         if not context_node_id or not project_id:
             raise ValueError("context_node_id and project_id are required")
