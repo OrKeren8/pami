@@ -379,15 +379,20 @@ const HomePage = () => {
             const endX = cRect.left + cRect.width / 2 - containerRect.left;
             const endY = cRect.top - containerRect.top; // top of visual child
 
-            // ensure svg has correct coordinate system
-            svg.setAttribute('viewBox', `0 0 ${Math.max(1, containerRect.width)} ${Math.max(1, containerRect.height)}`);
+            // ensure svg has correct coordinate system and explicit pixel sizing
+            const vw = Math.max(1, Math.round(containerRect.width));
+            const vh = Math.max(1, Math.round(containerRect.height));
+            svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
             svg.setAttribute('preserveAspectRatio', 'none');
+            svg.setAttribute('width', `${vw}`);
+            svg.setAttribute('height', `${vh}`);
 
-            const deltaX = Math.max(40, Math.abs(endX - startX) * 0.3);
+            const deltaX = Math.max(30, Math.abs(endX - startX) * 0.28);
             const control1X = startX + (endX > startX ? deltaX : -deltaX);
-            const control1Y = startY + 40;
             const control2X = endX - (endX > startX ? deltaX : -deltaX);
-            const control2Y = endY - 40;
+            const verticalGap = Math.max(30, (endY - startY) * 0.25);
+            const control1Y = startY + verticalGap;
+            const control2Y = endY - verticalGap;
 
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             const d = `M ${startX} ${startY} C ${control1X} ${control1Y} ${control2X} ${control2Y} ${endX} ${endY}`;
