@@ -609,12 +609,38 @@ const HomePage = () => {
     // מודאל פרטי נוד משופר - מציג את המשימות ותתי-הנודים המחוברים בלייב מהשרת
     const renderNodeDetailsModal = () => {
         if (!selectedNode) return null;
+        const handleDelete = async () => {
+            const ok = window.confirm(
+                `Delete node "${selectedNode.name}"? This will reparent its children.`
+            );
+            if (!ok) return;
+            try {
+                // call projects service to delete context tree node
+                await projectsApi.delete(`/context-tree/nodes/${selectedNode.id}`);
+                alert(`Node ${selectedNode.name} deleted.`);
+                closeModal();
+                // refresh projects and redraw tree
+                await fetchProjects();
+                // small delay to ensure DOM updated
+                setTimeout(() => drawConnections(), 120);
+            } catch (err) {
+                console.error("Failed to delete node:", err);
+                alert("Failed to delete node. See console for details.");
+            }
+        };
 
         return (
             <>
-                <div style={{ textAlign: "center", marginBottom: "15px" }}>
-                    <span style={{ fontSize: "40px" }}>🧠</span>
-                    <h2 style={{ marginTop: "5px", color: "#333" }}>Node Blueprint Context</h2>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <span style={{ fontSize: "40px" }}>🧠</span>
+                        <h2 style={{ marginTop: "5px", color: "#333" }}>Node Blueprint Context</h2>
+                    </div>
+                    <div>
+                        <button onClick={handleDelete} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "20px" }} title="Delete node">
+                            🗑️
+                        </button>
+                    </div>
                 </div>
 
                 <div style={{ background: "#f9f9f9", padding: "15px", borderRadius: "16px", border: `2px solid ${selectedNode.color}`, maxHeight: "400px", overflowY: "auto", marginBottom: "20px" }}>
