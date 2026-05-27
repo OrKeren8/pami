@@ -122,9 +122,11 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
 
 const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [activePane, setActivePane] = useState("tree"); // 'tree' or 'chat'
     const [isLoading, setIsLoading] = useState(true);
     const [activeModal, setActiveModal] = useState(null);
     const [realProjects, setRealProjects] = useState([]);
+    const [contextNodesMap, setContextNodesMap] = useState({});
 
     // סטייט מורחב לנוד שנבחר - כולל המשימות ותתי-הנודים שלו מהשרת
     const [selectedNode, setSelectedNode] = useState(null);
@@ -146,7 +148,9 @@ const HomePage = () => {
     const [chatInput, setChatInput] = useState("");
     const [conversationId, setConversationId] = useState(null);
     const [isChatLoading, setIsChatLoading] = useState(false);
+    const [assistantAvatarUrl, setAssistantAvatarUrl] = useState(null);
     const treeContainerRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     const fetchProjects = async () => {
         setIsLoading(true);
@@ -154,10 +158,28 @@ const HomePage = () => {
             const response = await projectsApi.get("/projects/");
             console.log("Projects fetched:", response.data);
             setRealProjects(response.data);
+            // fetch context nodes for the first project (and cache)
+            if (response.data && response.data.length > 0) {
+                const pid = response.data[0].id || response.data[0]._id || (response.data[0]._id && response.data[0]._id.$oid) || null;
+                if (pid) fetchContextNodes(pid);
+            }
         } catch (error) {
             console.error("Failed to fetch projects:", error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const fetchContextNodes = async (projectId) => {
+        if (!projectId) return;
+        try {
+            const resp = await projectsApi.get(`/context-tree/projects/${projectId}/nodes`);
+            if (resp && resp.data) {
+                console.log('Fetched context nodes for', projectId, resp.data);
+                setContextNodesMap((m) => ({ ...m, [projectId]: resp.data }));
+            }
+        } catch (err) {
+            console.error('Failed to fetch context nodes for', projectId, err);
         }
     };
 
@@ -193,7 +215,20 @@ const HomePage = () => {
 
     useEffect(() => {
         fetchProjects();
+        // load avatar from localStorage
+        try {
+            const saved = localStorage.getItem('pami.assistantAvatar');
+            if (saved) setAssistantAvatarUrl(saved);
+        } catch (e) { /* ignore */ }
     }, []);
+
+    // whenever projects change, refresh context nodes for the first project
+    useEffect(() => {
+        if (realProjects && realProjects.length > 0) {
+            const pid = realProjects[0].id || realProjects[0]._id || (realProjects[0]._id && realProjects[0]._id.$oid) || realProjects[0]._id || null;
+            if (pid) fetchContextNodes(pid);
+        }
+    }, [realProjects]);
 
     // AI Chat functions
     const createAIConversation = async () => {
@@ -247,22 +282,55 @@ const HomePage = () => {
         }
     };
 
+    const handleAvatarFile = (file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const data = ev.target.result;
+            try { localStorage.setItem('pami.assistantAvatar', data); } catch (e) {}
+            setAssistantAvatarUrl(data);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const triggerAvatarUpload = () => fileInputRef.current && fileInputRef.current.click();
+
+    const clearAssistantAvatar = () => {
+        try { localStorage.removeItem('pami.assistantAvatar'); } catch (e) {}
+        setAssistantAvatarUrl(null);
+    };
+
     const getTreeStructure = () => {
         if (realProjects.length === 0) return null;
-        return {
-            id: "root",
-            name: "PAMI Global Core",
-            color: "#f06292",
-            status: "Root",
-            goal: "Central orchestration engine",
-            children: realProjects.map((proj) => ({
-                id: proj.id || proj._id || "unknown",
-                name: proj.name || "Untitled Project",
-                color: "#2196f3",
-                status: proj.status || "Active",
-                goal: proj.goal || "No goal defined",
+        const rootChildren = realProjects.map((proj) => {
+            const pid = proj.id || proj._id || (proj._id && proj._id.$oid) || proj._id || 'unknown';
+            const ctxNodes = contextNodesMap[pid] || [];
+            const children = ctxNodes.map((n) => ({
+                id: n.id || n._id || (n._id && n._id.$oid) || String(n._id),
+                name: n.text ? (n.text.length > 40 ? n.text.slice(0, 40) + '…' : n.text) : (n.summary || 'Context Node'),
+                color: '#8b5cf6',
+                status: n.node_type || 'context',
+                goal: n.summary || n.text || '',
                 children: [],
-            })),
+            }));
+
+            return {
+                id: pid,
+                name: proj.name || 'Untitled Project',
+                color: '#2196f3',
+                status: proj.status || 'Active',
+                goal: proj.goal || 'No goal defined',
+                children,
+            };
+        });
+
+        return {
+            id: 'root',
+            name: 'PAMI Global Core',
+            color: '#f06292',
+            status: 'Root',
+            goal: 'Central orchestration engine',
+            children: rootChildren,
         };
     };
 
@@ -375,6 +443,64 @@ const HomePage = () => {
             alert("Failed to fetch Slack channels.");
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const normalizeProjectId = (proj) => {
+        if (!proj) return null;
+        if (typeof proj === 'string') return proj;
+        if (proj.id) return proj.id;
+        if (proj._id) return proj._id && (proj._id.$oid || proj._id) ? (proj._id.$oid || proj._id) : proj._id;
+        if (proj._id && proj._id.$oid) return proj._id.$oid;
+        return null;
+    };
+
+    const handleCreateNodeFromConversation = async () => {
+        console.log('Create node from conversation triggered');
+        try {
+            if (realProjects.length === 0) {
+                alert('No project available to attach node to.');
+                return;
+            }
+            const projectRaw = realProjects[0];
+            const projectId = normalizeProjectId(projectRaw);
+            console.log('Using project id:', projectId, projectRaw);
+            if (!projectId) {
+                alert('Could not determine project id for node creation.');
+                return;
+            }
+
+            const recent = chatMessages.slice(-10).map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+            const body = {
+                parent_id: null,
+                children_ids: [],
+                text: recent || 'Conversation snapshot',
+                summary: (chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].content : '').slice(0, 300),
+                topics: [],
+                node_type: 'conversation',
+            };
+
+            console.log('POST body for create-node:', body);
+            const resp = await projectsApi.post(`/context-tree/projects/${projectId}/nodes`, body);
+            console.log('Create node response:', resp && resp.data ? resp.data : resp);
+            if (resp && resp.data && resp.data.id) {
+                alert('Node created from conversation: ' + (resp.data.name || resp.data.id));
+                await fetchProjects();
+                setTimeout(() => {
+                    try {
+                        drawConnections();
+                    } catch (e) {}
+                }, 200);
+            } else if (resp && resp.status && resp.status >= 200 && resp.status < 300) {
+                alert('Node created (no id returned).');
+                await fetchProjects();
+            } else {
+                alert('Unexpected response from server. See console.');
+            }
+        } catch (err) {
+            console.error('Failed to create node from conversation', err);
+            if (err && err.response) console.error('Response data:', err.response.data);
+            alert('Failed to create node from conversation. Check console/network for details.');
         }
     };
 
@@ -785,59 +911,7 @@ const HomePage = () => {
                         </li>
                     </ul>
                 </nav>
-                <div className="sidebar-bot">
-                    <div className="bot-header">
-                        <span className="bot-avatar">🤖</span>
-                        <div className="bot-info">
-                            <strong>PAMI</strong>
-                            <span className="status-dot"></span>
-                        </div>
-                    </div>
-                    <div className="bot-bubble">
-                        <p>{realProjects.length > 0 ? `Neural network active with ${realProjects.length} nodes.` : "System ready. Initialize your first node."}</p>
-                    </div>
-
-                    <div className="chat-messages">
-                        {chatMessages.length === 0 ? (
-                            <div className="chat-empty-state">
-                                <p>💬 Start chatting with PAMI AI</p>
-                            </div>
-                        ) : (
-                            chatMessages.map((msg, idx) => (
-                                <div key={idx} className={`chat-message ${msg.role}`}>
-                                    <div className="message-avatar">{msg.role === 'user' ? '👤' : '🤖'}</div>
-                                    <div className="message-content"><p>{msg.content}</p></div>
-                                </div>
-                            ))
-                        )}
-                        {isChatLoading && (
-                            <div className="chat-message assistant">
-                                <div className="message-avatar">🤖</div>
-                                <div className="message-content">
-                                    <div className="typing-indicator"><span></span><span></span><span></span></div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="bot-input-area">
-                        <input
-                            type="text"
-                            placeholder="Ask PAMI anything..."
-                            value={chatInput}
-                            onChange={(e) => setChatInput(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                            disabled={isChatLoading}
-                        />
-                        <button
-                            className="send-btn"
-                            onClick={handleSendMessage}
-                            disabled={isChatLoading || !chatInput.trim()}
-                        >
-                            ➔
-                        </button>
-                    </div>
-                </div>
+                    
             </aside>
 
             <main className="main-content">
@@ -889,27 +963,75 @@ const HomePage = () => {
                 <div className="dashboard-grid">
                     <div className="project-tree-container">
                         <div className="project-tree-header">
-                            <div className="tree-title-group">
-                                <h2>Project Tree</h2>
-                            </div>
-                        </div>
-                        <div className="project-tree-canvas">
-                            {isLoading && realProjects.length === 0 ? (
+                                    <div className="tree-title-group tabs">
+                                        <button className={`tab-btn ${activePane === 'tree' ? 'active' : ''}`} onClick={() => setActivePane('tree')}>Project Tree</button>
+                                        <button className={`tab-btn ${activePane === 'chat' ? 'active' : ''}`} onClick={() => setActivePane('chat')}>AI Chat</button>
+                                    </div>
+                                </div>
+                                <div className="project-tree-canvas">
+                                    {activePane === 'tree' ? (
+                                        isLoading && realProjects.length === 0 ? (
                                 <div className="empty-tree-state">
                                     <div className="loading-spinner"></div>
                                     <p>Connecting to Neural Cloud...</p>
                                 </div>
-                            ) : realProjects.length > 0 ? (
-                                <div ref={treeContainerRef} className="hierarchical-tree-container" style={{ position: 'relative' }}>
-                                    <svg className="tree-svg-overlay" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 5 }} />
-                                    {renderTree(getTreeStructure())}
-                                </div>
-                            ) : (
-                                <div className="empty-tree-state">
-                                    <p>No active nodes found on server.</p>
-                                    <button className="create-first-btn" onClick={() => openModal("createProject")}>+ Create First Project</button>
-                                </div>
-                            )}
+                                        ) : realProjects.length > 0 ? (
+                                            <div ref={treeContainerRef} className="hierarchical-tree-container" style={{ position: 'relative' }}>
+                                                <svg className="tree-svg-overlay" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 5 }} />
+                                                {renderTree(getTreeStructure())}
+                                            </div>
+                                        ) : (
+                                            <div className="empty-tree-state">
+                                                <p>No active nodes found on server.</p>
+                                                <button className="create-first-btn" onClick={() => openModal("createProject")}>+ Create First Project</button>
+                                            </div>
+                                        )
+                                    ) : (
+                                        // Chat pane
+                                        <div className="pami-chat-pane" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                            <div className="chat-header" style={{ padding: '12px 16px', borderBottom: '1px solid #eee', justifyContent: 'space-between' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <strong>PAMI Conversation</strong>
+                                                    <span style={{ marginLeft: 12, color: '#666' }}>AI channel</span>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                    <button title="Upload assistant avatar" onClick={triggerAvatarUpload} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>📤</button>
+                                                    {assistantAvatarUrl && <button title="Clear avatar" onClick={clearAssistantAvatar} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>✖️</button>}
+                                                    <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleAvatarFile(e.target.files && e.target.files[0])} />
+                                                    <button type="button" className="create-node-btn" title="Create node from conversation" onClick={handleCreateNodeFromConversation} style={{ marginLeft: 6 }} disabled={realProjects.length===0 || chatMessages.length===0}>➕ Create Node</button>
+                                                </div>
+                                            </div>
+                                            <div className="chat-body" style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
+                                                {chatMessages.length === 0 ? (
+                                                    <div className="chat-empty-state"><p>💬 Start chatting with PAMI AI</p></div>
+                                                ) : (
+                                                    chatMessages.map((msg, idx) => {
+                                                        const isUser = (msg.role === 'user');
+                                                        const roleClass = isUser ? 'user' : 'assistant';
+                                                        return (
+                                                            <div key={idx} className={`chat-message ${roleClass}`}>
+                                                                {isUser ? (
+                                                                    <div className={`message-avatar user-avatar`}>
+                                                                        <img src="/mario.png" alt="user" />
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className={`message-avatar assistant`} style={{ backgroundImage: `url(${assistantAvatarUrl || '/pami_ai_avatar.png'})` }} />
+                                                                )}
+                                                                <div className="message-content"><p>{msg.content}</p></div>
+                                                            </div>
+                                                        );
+                                                    })
+                                                )}
+                                                {isChatLoading && (
+                                                    <div className="chat-message assistant"><div className="message-avatar">🤖</div><div className="message-content"><div className="typing-indicator"><span></span><span></span><span></span></div></div></div>
+                                                )}
+                                            </div>
+                                            <div className="chat-input" style={{ padding: '12px', borderTop: '1px solid #eee', display: 'flex', gap: '8px' }}>
+                                                <input type="text" placeholder="Ask PAMI anything..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} disabled={isChatLoading} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                                                <button onClick={handleSendMessage} disabled={isChatLoading || !chatInput.trim()} style={{ padding: '10px 14px', borderRadius: '8px', background: '#2f6fed', color: 'white', border: 'none' }}>Send</button>
+                                            </div>
+                                        </div>
+                                    )}
                         </div>
                     </div>
                 </div>

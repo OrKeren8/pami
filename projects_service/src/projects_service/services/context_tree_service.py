@@ -36,6 +36,9 @@ class ContextTreeService:
             node_type=request.node_type,
         )
         created_node = await self._context_tree_repository.create(node)
+        self._logger.info(
+            f"Created node in DB with id={created_node.id} (type={type(created_node.id)})"
+        )
 
         # Create AI conversation for this node
         conversation_id = await self._create_ai_conversation(
@@ -58,11 +61,12 @@ class ContextTreeService:
             )
             if parent_node:
                 # Add the new child to parent's children_ids if not already present
-                if created_node.id not in parent_node.children_ids:
-                    parent_node.children_ids.append(created_node.id)
+                child_id_str = str(created_node.id)
+                if child_id_str not in parent_node.children_ids:
+                    parent_node.children_ids.append(child_id_str)
                     await parent_node.save()
                     self._logger.info(
-                        f"Updated parent {request.parent_id} to include child {created_node.id}"
+                        f"Updated parent {request.parent_id} to include child {child_id_str}"
                     )
 
         return ContextTreeNodeResponse(
@@ -280,7 +284,9 @@ class ContextTreeService:
             if not child:
                 continue
             child.parent_id = parent_id
-            await self._context_tree_repository.update(child_id, {"parent_id": parent_id})
+            await self._context_tree_repository.update(
+                child_id, {"parent_id": parent_id}
+            )
             self._logger.info(f"Reparented child {child_id} to parent {parent_id}")
 
         # Update parent children list: remove this node, add the children
@@ -296,8 +302,12 @@ class ContextTreeService:
                 for cid in children_ids:
                     if str(cid) not in parent.children_ids:
                         parent.children_ids.append(str(cid))
-                await self._context_tree_repository.update(parent_id, {"children_ids": parent.children_ids})
-                self._logger.info(f"Updated parent {parent_id} children list after deleting {node_id}")
+                await self._context_tree_repository.update(
+                    parent_id, {"children_ids": parent.children_ids}
+                )
+                self._logger.info(
+                    f"Updated parent {parent_id} children list after deleting {node_id}"
+                )
 
         # Ask AI service to delete conversation if exists
         conv_id = getattr(node, "conversation_id", None)
@@ -305,9 +315,13 @@ class ContextTreeService:
             try:
                 deleted_ai = await self._delete_ai_conversation(conv_id)
                 if deleted_ai:
-                    self._logger.info(f"Deleted AI conversation {conv_id} for node {node_id}")
+                    self._logger.info(
+                        f"Deleted AI conversation {conv_id} for node {node_id}"
+                    )
                 else:
-                    self._logger.warning(f"AI conversation {conv_id} deletion returned false for node {node_id}")
+                    self._logger.warning(
+                        f"AI conversation {conv_id} deletion returned false for node {node_id}"
+                    )
             except Exception as e:
                 self._logger.error(f"Failed to delete AI conversation {conv_id}: {e}")
 
@@ -323,7 +337,9 @@ class ContextTreeService:
         """Request AI service to delete a conversation by id."""
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.delete(f"{settings.ai_service_url}/ai/ai-conversations/{conversation_id}") as response:
+                async with session.delete(
+                    f"{settings.ai_service_url}/ai/ai-conversations/{conversation_id}"
+                ) as response:
                     if 200 <= response.status < 300:
                         return True
                     text = await response.text()
