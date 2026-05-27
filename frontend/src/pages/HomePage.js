@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
-import api, { projectsApi, slackApi } from "../api/axios";
+import api, { projectsApi, slackApi, aiApi } from "../api/axios";
 
 const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -23,6 +23,12 @@ const HomePage = () => {
     const [channelNameInput, setChannelNameInput] = useState("");
     const [messageChannelInput, setMessageChannelInput] = useState("");
     const [messageTextInput, setMessageTextInput] = useState("");
+
+    // AI Chat states
+    const [chatMessages, setChatMessages] = useState([]);
+    const [chatInput, setChatInput] = useState("");
+    const [conversationId, setConversationId] = useState(null);
+    const [isChatLoading, setIsChatLoading] = useState(false);
 
     const fetchProjects = async () => {
         setIsLoading(true);
@@ -70,6 +76,58 @@ const HomePage = () => {
     useEffect(() => {
         fetchProjects();
     }, []);
+
+    // AI Chat functions
+    const createAIConversation = async () => {
+        try {
+            const projectId = realProjects.length > 0 ? realProjects[0].id || realProjects[0]._id : "general";
+            const contextNodeId = "chat-session-" + Date.now();
+            const response = await aiApi.post(`/ai-conversations/`, {
+                context_node_id: contextNodeId,
+                project_id: projectId,
+                title: "PAMI Chat Session",
+            });
+            if (response.data && (response.data.conversation_id || response.data.id)) {
+                const id = response.data.conversation_id || response.data.id;
+                setConversationId(id);
+                return id;
+            }
+        } catch (err) {
+            console.error("Failed to create AI conversation:", err);
+        }
+        return null;
+    };
+
+    const handleSendMessage = async () => {
+        if (!chatInput || !chatInput.trim() || isChatLoading) return;
+        const userMessage = chatInput.trim();
+        setChatInput("");
+        setChatMessages((p) => [...p, { role: "user", content: userMessage }]);
+        setIsChatLoading(true);
+        try {
+            let convId = conversationId;
+            if (!convId) {
+                convId = await createAIConversation();
+                if (!convId) throw new Error("Could not create conversation");
+            }
+
+            const resp = await aiApi.post(`/ai-conversations/${convId}/messages`, {
+                message: userMessage,
+                context_snapshot: {
+                    projects: realProjects.map((p) => ({ id: p.id || p._id, name: p.name })),
+                    project_count: realProjects.length,
+                },
+            });
+
+            const aiText = resp.data && (resp.data.response || resp.data.text || resp.data.message);
+            setChatMessages((p) => [...p, { role: "assistant", content: aiText || "(no response)" }]);
+        } catch (err) {
+            console.error("Failed to send message to AI:", err);
+            setChatMessages((p) => [...p, { role: "assistant", content: "I'm having trouble connecting right now. Please try again." }]);
+        } finally {
+            setIsChatLoading(false);
+        }
+    };
 
     const getTreeStructure = () => {
         if (realProjects.length === 0) return null;
