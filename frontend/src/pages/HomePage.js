@@ -326,7 +326,7 @@ const HomePage = () => {
                     <div
                         className="neural-node-v2"
                         style={{ borderColor: node.color, cursor: node.id === "root" ? "default" : "pointer" }}
-                        onClick={() => handleNodeClick(node)}
+                        onDoubleClick={() => handleNodeClick(node)}
                     >
                         <div className="node-dot" style={{ backgroundColor: node.color }}></div>
                         <div className="node-content-v2">
