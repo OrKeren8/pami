@@ -5,9 +5,17 @@
     --connector-color: #d1d9e2;
 }
 
+/* Ensure the app fits the viewport and prevent body scrolling */
+html, body, #root {
+    height: 100%;
+    margin: 0;
+    overflow: hidden; /* prevent global scrolling */
+}
+
 .dashboard-container {
     display: flex;
-    min-height: 100vh;
+    height: 100vh; /* fixed viewport height */
+    overflow: hidden; /* keep scrolling inside components */
     background-color: var(--bg-color);
     font-family: 'Inter', sans-serif;
 }
@@ -37,6 +45,13 @@
     margin-left: var(--sidebar-width);
     padding: 20px;
     transition: margin-left 0.3s ease-in-out;
+}
+
+/* Keep main content fixed and prevent global scrolls; inner panes handle scrolling */
+.main-content {
+    height: 100vh;
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
 .sidebar-closed .main-content {
@@ -206,6 +221,12 @@
     border: 2px dashed #edf0f5;
     border-radius: 20px;
     margin-top: 20px;
+    /* Make the tree canvas vertically scrollable only */
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: calc(100vh - 240px); /* allow room for header/stats */
 }
 
 /* --- Hierarchical Tree Logic --- */
@@ -214,6 +235,7 @@
     justify-content: center;
     padding: 60px 20px;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .tree-branch {
@@ -367,6 +389,10 @@
     padding: 5px;
 }
 
+.chat-messages {
+    overflow-x: hidden; /* prevent horizontal scroll */
+}
+
 .chat-empty-state {
     text-align: center;
     color: #999;
@@ -397,6 +423,11 @@
     font-size: 0.75rem;
     line-height: 1.4;
     max-width: 75%;
+}
+
+.message-content {
+    white-space: pre-wrap; /* allow wrapping */
+    word-break: break-word;
 }
 
 .chat-message.user .message-content {
