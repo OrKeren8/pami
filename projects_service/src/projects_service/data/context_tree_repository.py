@@ -64,8 +64,9 @@ class ContextTreeRepository:
     async def delete(self, node_id: str, session=None) -> bool:
         """Delete a context tree node."""
         try:
+            # Look up by the model's `id` field
             node = await ContextTreeNode.find_one(
-                ContextTreeNode.node_id == node_id, session=session
+                ContextTreeNode.id == node_id, session=session
             )
             if not node:
                 return False
