@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
 import api, { projectsApi, slackApi, aiApi } from "../api/axios";
@@ -29,6 +29,7 @@ const HomePage = () => {
     const [chatInput, setChatInput] = useState("");
     const [conversationId, setConversationId] = useState(null);
     const [isChatLoading, setIsChatLoading] = useState(false);
+    const treeContainerRef = useRef(null);
 
     const fetchProjects = async () => {
         setIsLoading(true);
@@ -317,11 +318,11 @@ const HomePage = () => {
         }
     };
 
-    const renderTree = (node) => {
+    const renderTree = (node, parentId = null) => {
         if (!node) return null;
         return (
-            <div className="tree-branch" key={node.name}>
-                <div className="tree-node-wrapper">
+            <div className="tree-branch" key={node.id || node.name}>
+                <div className="tree-node-wrapper" data-node-id={node.id} data-parent-id={parentId || ""}>
                     <div
                         className="neural-node-v2"
                         style={{ borderColor: node.color, cursor: node.id === "root" ? "default" : "pointer" }}
@@ -333,16 +334,133 @@ const HomePage = () => {
                             <span className="node-status-v2">{node.status}</span>
                         </div>
                     </div>
-                    {node.children && node.children.length > 0 && <div className="tree-connector-arrow"></div>}
                 </div>
                 {node.children && node.children.length > 0 && (
                     <div className="tree-children">
-                        {node.children.map((child) => renderTree(child))}
+                        {node.children.map((child) => renderTree(child, node.id))}
                     </div>
                 )}
             </div>
         );
     };
+
+    const drawConnections = () => {
+        const container = treeContainerRef.current;
+        if (!container) return;
+        const svg = container.querySelector('svg.tree-svg-overlay');
+        if (!svg) return;
+        // clear
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+        const nodes = Array.from(container.querySelectorAll('.tree-node-wrapper[data-node-id]'));
+        const idToEl = {};
+        nodes.forEach((el) => {
+            const id = el.getAttribute('data-node-id');
+            idToEl[id] = el;
+        });
+
+        nodes.forEach((el) => {
+            const parentId = el.getAttribute('data-parent-id');
+            if (!parentId) return; // skip root
+            const parentEl = idToEl[parentId];
+            if (!parentEl) return;
+
+            const pRect = parentEl.getBoundingClientRect();
+            const cRect = el.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            const startX = pRect.left + pRect.width / 2 - containerRect.left;
+            const startY = pRect.top + pRect.height - containerRect.top;
+            const endX = cRect.left + cRect.width / 2 - containerRect.left;
+            const endY = cRect.top - containerRect.top + 6; // small offset
+
+            const deltaX = Math.max(40, Math.abs(endX - startX) * 0.3);
+            const control1X = startX + (endX > startX ? deltaX : -deltaX);
+            const control1Y = startY + 40;
+            const control2X = endX - (endX > startX ? deltaX : -deltaX);
+            const control2Y = endY - 40;
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const d = `M ${startX} ${startY} C ${control1X} ${control1Y} ${control2X} ${control2Y} ${endX} ${endY}`;
+            path.setAttribute('d', d);
+            path.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--connector-color') || '#d1d9e2');
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke-linecap', 'round');
+            svg.appendChild(path);
+        });
+    };
+
+    useEffect(() => {
+        // draw after layout
+        const t = setTimeout(drawConnections, 120);
+        window.addEventListener('resize', drawConnections);
+        return () => {
+            clearTimeout(t);
+            window.removeEventListener('resize', drawConnections);
+        };
+    }, [realProjects, isLoading]);
+
+    // make nodes draggable and update connectors while moving
+    useEffect(() => {
+        const container = treeContainerRef.current;
+        if (!container) return;
+
+        let active = null;
+        let startX = 0;
+        let startY = 0;
+        let origX = 0;
+        let origY = 0;
+
+        const onPointerMove = (e) => {
+            if (!active) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            const nx = origX + dx;
+            const ny = origY + dy;
+            active.style.transform = `translate(${nx}px, ${ny}px)`;
+            active.dataset.translateX = nx;
+            active.dataset.translateY = ny;
+            drawConnections();
+        };
+
+        const onPointerUp = () => {
+            if (!active) return;
+            active = null;
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
+        };
+
+        const nodeEls = Array.from(container.querySelectorAll('.neural-node-v2'));
+        nodeEls.forEach((nodeEl) => {
+            nodeEl.style.touchAction = 'none';
+            const down = (e) => {
+                // ignore right-click
+                if (e.button && e.button !== 0) return;
+                const wrapper = nodeEl.closest('.tree-node-wrapper');
+                if (!wrapper) return;
+                active = wrapper;
+                startX = e.clientX;
+                startY = e.clientY;
+                origX = parseFloat(wrapper.dataset.translateX || 0) || 0;
+                origY = parseFloat(wrapper.dataset.translateY || 0) || 0;
+                window.addEventListener('pointermove', onPointerMove);
+                window.addEventListener('pointerup', onPointerUp);
+            };
+            nodeEl.addEventListener('pointerdown', down);
+            // store for cleanup
+            nodeEl.__pami_down = down;
+        });
+
+        return () => {
+            nodeEls.forEach((nodeEl) => {
+                if (nodeEl.__pami_down) nodeEl.removeEventListener('pointerdown', nodeEl.__pami_down);
+                delete nodeEl.__pami_down;
+            });
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
+        };
+    }, [realProjects, isLoading]);
 
     const renderSlackConnectModal = () => {
         return (
@@ -712,7 +830,8 @@ const HomePage = () => {
                                     <p>Connecting to Neural Cloud...</p>
                                 </div>
                             ) : realProjects.length > 0 ? (
-                                <div className="hierarchical-tree-container">
+                                <div ref={treeContainerRef} className="hierarchical-tree-container" style={{ position: 'relative' }}>
+                                    <svg className="tree-svg-overlay" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 5 }} />
                                     {renderTree(getTreeStructure())}
                                 </div>
                             ) : (

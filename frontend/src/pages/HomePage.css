@@ -258,6 +258,16 @@ html, body, #root {
     padding: 40px 16px; /* reduce side padding to use more horizontal space */
     width: 100%;
     box-sizing: border-box;
+    position: relative; /* for svg overlay positioning */
+}
+
+.tree-svg-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
 }
 
 .tree-branch {
@@ -274,56 +284,34 @@ html, body, #root {
 
 /* הקו האנכי שיורד מהאבא */
 .tree-connector-arrow {
-    width: 2px;
-    height: 40px;
-    background: var(--connector-color);
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
+    /* keep for legacy, hidden when using curved connectors */
+    display: none;
 }
 
 /* קבוצת הילדים */
 .tree-children {
     display: flex;
     flex-direction: row;
-    gap: 40px;
+    gap: 32px;
     position: relative;
     padding-top: 40px;
+    flex-wrap: wrap; /* allow children to wrap to next row when needed */
+    justify-content: center;
+    align-items: flex-start;
 }
 
     /* הקו האופקי המחבר בין האחים */
+    /* disable CSS-drawn horizontal connector; SVG will draw curved connectors */
     .tree-children::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        height: 2px;
-        background: var(--connector-color);
-        width: calc(100% - 160px);
+        display: none;
+        content: none;
     }
 
-    /* הקו האנכי שעולה מכל ילד לקו האופקי */
-    .tree-children .tree-branch::before {
-        content: "";
-        position: absolute;
-        top: -40px;
-        left: 50%;
-        width: 2px;
-        height: 40px;
-        background: var(--connector-color);
-    }
-
-    /* ראש החץ בכניסה לכל נוד */
+    /* remove legacy straight pseudo-element connectors; use SVG paths instead */
+    .tree-children .tree-branch::before,
     .tree-children .tree-branch::after {
-        content: "▼";
-        position: absolute;
-        top: -8px;
-        left: 50%;
-        transform: translateX(-50%);
-        font-size: 10px;
-        color: var(--connector-color);
+        display: none;
+        content: none;
     }
 
     /* הסתרת קווים מיותרים כשיש רק ילד אחד */
@@ -344,13 +332,33 @@ html, body, #root {
     gap: 12px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.06);
     z-index: 10;
-    min-width: 170px;
+    min-width: 140px; /* slightly smaller to fit more nodes horizontally */
     transition: transform 0.2s;
 }
 
     .neural-node-v2:hover {
-        transform: translateY(-3px);
+        transform: translateY(-6px) scale(1.02);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.12);
     }
+
+    /* allow pointer dragging without default touch actions */
+    .neural-node-v2 {
+        touch-action: none;
+        user-select: none;
+    }
+
+/* remove legacy L-shaped pseudo-element connectors; SVG paths handle all connections */
+.tree-node-wrapper::after {
+    display: none;
+    content: none;
+}
+
+/* If only one child, keep connector centered and subtle */
+.tree-children > .tree-branch:only-child::before,
+.tree-children > .tree-branch:only-child::after {
+    height: 20px;
+    top: -20px;
+}
 
 .node-name-v2 {
     font-weight: 700;
