@@ -215,6 +215,14 @@ html, body, #root {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
 }
 
+/* Make the project tree take the full horizontal space of its card */
+.project-tree-container {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+}
+
 .project-tree-canvas {
     flex: 1;
     background-color: #fafbfc;
@@ -229,11 +237,25 @@ html, body, #root {
     max-height: calc(100vh - 240px); /* allow room for header/stats */
 }
 
+/* Header layout: move title to the top-left, remove icon spacing */
+.project-tree-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 6px;
+}
+
+.tree-title-group h2 {
+    margin: 0;
+    font-size: 1.25rem;
+}
+
 /* --- Hierarchical Tree Logic --- */
 .hierarchical-tree-container {
     display: flex;
-    justify-content: center;
-    padding: 60px 20px;
+    justify-content: flex-start; /* allow tree to expand horizontally */
+    padding: 40px 16px; /* reduce side padding to use more horizontal space */
     width: 100%;
     box-sizing: border-box;
 }

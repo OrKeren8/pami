@@ -702,7 +702,6 @@ const HomePage = () => {
                     <div className="project-tree-container">
                         <div className="project-tree-header">
                             <div className="tree-title-group">
-                                <span className="pulse-icon">📈</span>
                                 <h2>Project Tree</h2>
                             </div>
                         </div>
