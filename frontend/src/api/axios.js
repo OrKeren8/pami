@@ -1,23 +1,24 @@
-import axios from 'axios';
+import axios from "axios";
 
-// חיבור שער הגישה הראשי (Gateway) לפרויקטים, משימות ועץ קונטקסט
+// Projects API (gateway)
 export const projectsApi = axios.create({
-    baseURL: process.env.REACT_APP_PROJECTS_API_URL,
+    baseURL: process.env.REACT_APP_PROJECTS_API_BASE_URL,
     timeout: 8000,
 });
 
-// חיבור ייעודי לסרוויס ה-AI של אור
-export const aiApi = axios.create({
-    baseURL: process.env.REACT_APP_AI_API_URL,
-    timeout: 12000,
-});
-
-// חיבור ייעודי לסרוויס הסלאק של החברים
+// Slack API
 export const slackApi = axios.create({
-    baseURL: process.env.REACT_APP_SLACK_API_URL,
+    baseURL: process.env.REACT_APP_SLACK_API_BASE_URL,
     timeout: 8000,
 });
 
-// ברירת מחדל לגיבוי למקרה שיש קריאות ישנות בקוד שמשתמשות ב-api הכללי
+// AI API: prefer explicit AI URL, fallback to projects base + /ai
+export const aiApi = axios.create({
+    baseURL:
+        process.env.REACT_APP_AI_API_URL ||
+        `${process.env.REACT_APP_PROJECTS_API_BASE_URL}/ai`,
+    timeout: 30000,
+});
+
 const api = projectsApi;
 export default api;

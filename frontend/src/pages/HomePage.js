@@ -550,9 +550,46 @@ const HomePage = () => {
                     <div className="bot-bubble">
                         <p>{realProjects.length > 0 ? `Neural network active with ${realProjects.length} nodes.` : "System ready. Initialize your first node."}</p>
                     </div>
+
+                    <div className="chat-messages">
+                        {chatMessages.length === 0 ? (
+                            <div className="chat-empty-state">
+                                <p>💬 Start chatting with PAMI AI</p>
+                            </div>
+                        ) : (
+                            chatMessages.map((msg, idx) => (
+                                <div key={idx} className={`chat-message ${msg.role}`}>
+                                    <div className="message-avatar">{msg.role === 'user' ? '👤' : '🤖'}</div>
+                                    <div className="message-content"><p>{msg.content}</p></div>
+                                </div>
+                            ))
+                        )}
+                        {isChatLoading && (
+                            <div className="chat-message assistant">
+                                <div className="message-avatar">🤖</div>
+                                <div className="message-content">
+                                    <div className="typing-indicator"><span></span><span></span><span></span></div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
                     <div className="bot-input-area">
-                        <input type="text" placeholder="Ask PAMI anything..." />
-                        <button className="send-btn">➔</button>
+                        <input
+                            type="text"
+                            placeholder="Ask PAMI anything..."
+                            value={chatInput}
+                            onChange={(e) => setChatInput(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                            disabled={isChatLoading}
+                        />
+                        <button
+                            className="send-btn"
+                            onClick={handleSendMessage}
+                            disabled={isChatLoading || !chatInput.trim()}
+                        >
+                            ➔
+                        </button>
                     </div>
                 </div>
             </aside>
