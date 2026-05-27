@@ -256,5 +256,79 @@ class ContextTreeService:
         )
 
     async def delete_node(self, node_id: str) -> bool:
-        """Delete a context tree node."""
-        return await self._context_tree_repository.delete(node_id)
+        """Delete a context tree node.
+
+        Behavior:
+        - Re-parent children to the deleted node's parent
+        - Update parent's children list to remove the node and include the former children
+        - Request AI service to delete the associated conversation (if any)
+        - Delete the node from the repository
+        """
+        # fetch the node
+        self._logger.info(f"Attempting to delete node {node_id}")
+        node = await self._context_tree_repository.get_by_id(node_id)
+        if not node:
+            self._logger.warning(f"Node {node_id} not found for deletion")
+            return False
+
+        parent_id = node.parent_id
+        children_ids = list(node.children_ids or [])
+
+        # Reparent children to the deleted node's parent
+        for child_id in children_ids:
+            child = await self._context_tree_repository.get_by_id(child_id)
+            if not child:
+                continue
+            child.parent_id = parent_id
+            await self._context_tree_repository.update(child_id, {"parent_id": parent_id})
+            self._logger.info(f"Reparented child {child_id} to parent {parent_id}")
+
+        # Update parent children list: remove this node, add the children
+        if parent_id:
+            parent = await self._context_tree_repository.get_by_id(parent_id)
+            if parent:
+                # remove the node id if present
+                try:
+                    parent.children_ids.remove(str(node_id))
+                except ValueError:
+                    pass
+                # add children (avoid duplicates)
+                for cid in children_ids:
+                    if str(cid) not in parent.children_ids:
+                        parent.children_ids.append(str(cid))
+                await self._context_tree_repository.update(parent_id, {"children_ids": parent.children_ids})
+                self._logger.info(f"Updated parent {parent_id} children list after deleting {node_id}")
+
+        # Ask AI service to delete conversation if exists
+        conv_id = getattr(node, "conversation_id", None)
+        if conv_id:
+            try:
+                deleted_ai = await self._delete_ai_conversation(conv_id)
+                if deleted_ai:
+                    self._logger.info(f"Deleted AI conversation {conv_id} for node {node_id}")
+                else:
+                    self._logger.warning(f"AI conversation {conv_id} deletion returned false for node {node_id}")
+            except Exception as e:
+                self._logger.error(f"Failed to delete AI conversation {conv_id}: {e}")
+
+        # Finally delete the node
+        deleted = await self._context_tree_repository.delete(node_id)
+        if deleted:
+            self._logger.info(f"Node {node_id} deleted successfully")
+        else:
+            self._logger.error(f"Failed to delete node {node_id} from repository")
+        return deleted
+
+    async def _delete_ai_conversation(self, conversation_id: str) -> bool:
+        """Request AI service to delete a conversation by id."""
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.delete(f"{settings.ai_service_url}/ai/ai-conversations/{conversation_id}") as response:
+                    if 200 <= response.status < 300:
+                        return True
+                    text = await response.text()
+                    self._logger.error(f"AI delete returned {response.status}: {text}")
+                    return False
+        except Exception as e:
+            self._logger.error(f"Error deleting AI conversation: {e}")
+            return False

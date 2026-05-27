@@ -72,6 +72,7 @@ class ContextTreeRepository:
                 return False
 
             await node.delete(session=session)
+            self._logger.info(f"Deleted node {node_id} from database")
             return True
         except Exception as e:
             self._logger.error(f"Error deleting node {node_id}: {e}")

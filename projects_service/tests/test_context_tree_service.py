@@ -292,11 +292,53 @@ class TestContextTreeService:
         """Test deleting a node when found."""
         node_id = "node-1"
 
+        # Setup node with parent and children
+        node = MagicMock()
+        node.id = node_id
+        node.parent_id = "parent-1"
+        node.children_ids = ["child-1", "child-2"]
+        node.conversation_id = "conv-123"
+
+        child1 = MagicMock()
+        child1.id = "child-1"
+        child1.parent_id = node_id
+        child1.children_ids = []
+
+        child2 = MagicMock()
+        child2.id = "child-2"
+        child2.parent_id = node_id
+        child2.children_ids = []
+
+        parent = MagicMock()
+        parent.id = "parent-1"
+        parent.parent_id = None
+        parent.children_ids = [node_id]
+
+        # Mock repository behavior: get node, then children, then parent
+        async def get_by_id_side_effect(arg):
+            if arg == node_id:
+                return node
+            if arg == "child-1":
+                return child1
+            if arg == "child-2":
+                return child2
+            if arg == "parent-1":
+                return parent
+            return None
+
+        mock_repository.get_by_id = AsyncMock(side_effect=get_by_id_side_effect)
+        mock_repository.update = AsyncMock(return_value=True)
         mock_repository.delete = AsyncMock(return_value=True)
+
+        # Patch AI deletion helper on the service to avoid network calls
+        service._delete_ai_conversation = AsyncMock(return_value=True)
 
         result = await service.delete_node(node_id)
 
         assert result is True
+        # children should have been reparented and updated
+        assert mock_repository.update.call_count >= 3
+        # repository.delete should be called for the node
         mock_repository.delete.assert_called_once_with(node_id)
 
     @pytest.mark.asyncio

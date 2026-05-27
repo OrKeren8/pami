@@ -3,6 +3,123 @@ import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
 import api, { projectsApi, slackApi, aiApi } from "../api/axios";
 
+const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoading, closeModal, fetchProjects, drawConnections }) => {
+    const [isDeleting, setIsDeleting] = useState(false);
+    if (!selectedNode) return null;
+
+    const handleDelete = async () => {
+        const ok = window.confirm(`Delete node "${selectedNode.name}"? This will reparent its children.`);
+        if (!ok) return;
+        setIsDeleting(true);
+        try {
+            const nodeId = selectedNode.id || selectedNode._id || (selectedNode._id && selectedNode._id.$oid) || null;
+            if (!nodeId) throw new Error("Selected node has no id");
+
+            // Determine whether selected item is a context-tree node or a top-level project
+            // Context tree nodes include a `project_id` field in responses; projects do not.
+            let deletePath = null;
+            if (selectedNode.project_id) {
+                // it's a context node
+                deletePath = `/context-tree/nodes/${nodeId}`;
+            } else {
+                // assume it's a project
+                deletePath = `/projects/${nodeId}`;
+            }
+
+            await projectsApi.delete(deletePath);
+            alert(`${selectedNode.name} deleted.`);
+            closeModal();
+            await fetchProjects();
+            setTimeout(() => {
+                try { drawConnections(); } catch (e) { console.error('drawConnections error', e); }
+            }, 150);
+        } catch (err) {
+            if (err && err.response) {
+                console.error('Delete failed, status=', err.response.status, err.response.data);
+                alert(`Delete failed: ${err.response.status} ${JSON.stringify(err.response.data)}`);
+            } else {
+                console.error('Failed to delete node:', err);
+                alert(`Failed to delete node: ${err && err.message ? err.message : err}`);
+            }
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    return (
+        <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span style={{ fontSize: "40px" }}>🧠</span>
+                    <h2 style={{ marginTop: "5px", color: "#333" }}>Node Blueprint Context</h2>
+                </div>
+                <div>
+                    <button onClick={handleDelete} disabled={isDeleting} style={{ background: "transparent", border: "none", cursor: isDeleting ? "not-allowed" : "pointer", fontSize: "20px" }} title="Delete node">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+
+            <div style={{ background: "#f9f9f9", padding: "15px", borderRadius: "16px", border: `2px solid ${selectedNode.color}`, maxHeight: "400px", overflowY: "auto", marginBottom: "20px" }}>
+                <div style={{ marginBottom: "10px" }}>
+                    <strong style={{ color: "#555", fontSize: "13px" }}>NODE IDENTIFIER:</strong>
+                    <p style={{ margin: "2px 0 0 0", fontSize: "15px", fontWeight: "bold", color: "#111" }}>{selectedNode.name}</p>
+                </div>
+
+                <div style={{ marginBottom: "10px" }}>
+                    <strong style={{ color: "#555", fontSize: "13px" }}>MISSION OBJECTIVE / GOAL:</strong>
+                    <p style={{ margin: "2px 0 0 0", color: "#444", fontStyle: "italic", fontSize: "14px" }}>{selectedNode.goal}</p>
+                </div>
+
+                <hr style={{ border: "none", borderTop: "1px solid #ddd", margin: "15px 0" }} />
+
+                {isModalDataLoading ? (
+                    <div style={{ textAlign: "center", padding: "20px 0" }}>
+                        <div className="loading-spinner" style={{ margin: "0 auto 10px auto", width: "25px", height: "25px" }}></div>
+                        <p style={{ fontSize: "13px", color: "#666" }}>Querying sub-resources from cloud...</p>
+                    </div>
+                ) : (
+                    <>
+                        <div style={{ marginBottom: "15px" }}>
+                            <strong style={{ color: "#f06292", fontSize: "13px" }}>CONNECTED SUB-NODES ({subNodes.length}):</strong>
+                            {subNodes.length > 0 ? (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                                    {subNodes.map((sub, idx) => (
+                                        <span key={idx} style={{ background: "#f06292", color: "white", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }}>
+                                            🌿 {sub.name || "Sub Node"}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#888" }}>No sub-nodes attached to this context layer.</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <strong style={{ color: "#2f6fed", fontSize: "13px" }}>ACTIVE ATTACHED TASKS ({nodeTasks.length}):</strong>
+                            {nodeTasks.length > 0 ? (
+                                <ul style={{ margin: "6px 0 0 0", paddingLeft: "20px", fontSize: "13px", color: "#333" }}>
+                                    {nodeTasks.map((task, idx) => (
+                                        <li key={idx} style={{ marginBottom: "4px" }}>
+                                            <strong>{task.title || "Task"}</strong> - <span style={{ color: "#666" }}>{task.status || "pending"}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#888" }}>No direct active operational tasks configured.</p>
+                            )}
+                        </div>
+                    </>
+                )}
+            </div>
+
+            <button type="button" onClick={closeModal} style={{ width: "100%", padding: "12px", background: selectedNode.color || "#2196f3", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}>
+                Close Blueprint View
+            </button>
+        </>
+    );
+};
+
 const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [isLoading, setIsLoading] = useState(true);
@@ -606,121 +723,7 @@ const HomePage = () => {
         );
     };
 
-    // מודאל פרטי נוד משופר - מציג את המשימות ותתי-הנודים המחוברים בלייב מהשרת
-    const renderNodeDetailsModal = () => {
-        if (!selectedNode) return null;
-        const [isDeleting, setIsDeleting] = React.useState(false);
-
-        const handleDelete = async () => {
-            const ok = window.confirm(
-                `Delete node "${selectedNode.name}"? This will reparent its children.`
-            );
-            if (!ok) return;
-            setIsDeleting(true);
-            try {
-                // determine id (fallback to _id if provided)
-                const nodeId = selectedNode.id || selectedNode._id || (selectedNode._id && selectedNode._id.$oid) || null;
-                if (!nodeId) throw new Error("Selected node has no id");
-
-                // call projects service to delete context tree node
-                await projectsApi.delete(`/context-tree/nodes/${nodeId}`);
-                alert(`Node ${selectedNode.name} deleted.`);
-                closeModal();
-                // refresh projects and redraw tree
-                await fetchProjects();
-                // ensure layout updated then redraw
-                setTimeout(() => {
-                    try { drawConnections(); } catch (e) { console.error('drawConnections error', e); }
-                }, 150);
-            } catch (err) {
-                // Axios errors have response payloads
-                if (err && err.response) {
-                    console.error('Delete failed, status=', err.response.status, err.response.data);
-                    alert(`Delete failed: ${err.response.status} ${JSON.stringify(err.response.data)}`);
-                } else {
-                    console.error('Failed to delete node:', err);
-                    alert(`Failed to delete node: ${err && err.message ? err.message : err}`);
-                }
-            } finally {
-                setIsDeleting(false);
-            }
-        };
-
-        return (
-            <>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <span style={{ fontSize: "40px" }}>🧠</span>
-                        <h2 style={{ marginTop: "5px", color: "#333" }}>Node Blueprint Context</h2>
-                    </div>
-                    <div>
-                        <button onClick={handleDelete} style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: "20px" }} title="Delete node">
-                            🗑️
-                        </button>
-                    </div>
-                </div>
-
-                <div style={{ background: "#f9f9f9", padding: "15px", borderRadius: "16px", border: `2px solid ${selectedNode.color}`, maxHeight: "400px", overflowY: "auto", marginBottom: "20px" }}>
-                    <div style={{ marginBottom: "10px" }}>
-                        <strong style={{ color: "#555", fontSize: "13px" }}>NODE IDENTIFIER:</strong>
-                        <p style={{ margin: "2px 0 0 0", fontSize: "15px", fontWeight: "bold", color: "#111" }}>{selectedNode.name}</p>
-                    </div>
-
-                    <div style={{ marginBottom: "10px" }}>
-                        <strong style={{ color: "#555", fontSize: "13px" }}>MISSION OBJECTIVE / GOAL:</strong>
-                        <p style={{ margin: "2px 0 0 0", color: "#444", fontStyle: "italic", fontSize: "14px" }}>{selectedNode.goal}</p>
-                    </div>
-
-                    <hr style={{ border: "none", borderTop: "1px solid #ddd", margin: "15px 0" }} />
-
-                    {isModalDataLoading ? (
-                        <div style={{ textAlign: "center", padding: "20px 0" }}>
-                            <div className="loading-spinner" style={{ margin: "0 auto 10px auto", width: "25px", height: "25px" }}></div>
-                            <p style={{ fontSize: "13px", color: "#666" }}>Querying sub-resources from cloud...</p>
-                        </div>
-                    ) : (
-                        <>
-                            {/* רשימת תתי-נודים (Context Tree) */}
-                            <div style={{ marginBottom: "15px" }}>
-                                <strong style={{ color: "#f06292", fontSize: "13px" }}>CONNECTED SUB-NODES ({subNodes.length}):</strong>
-                                {subNodes.length > 0 ? (
-                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
-                                        {subNodes.map((sub, idx) => (
-                                            <span key={idx} style={{ background: "#f06292", color: "white", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }}>
-                                                🌿 {sub.name || "Sub Node"}
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#888" }}>No sub-nodes attached to this context layer.</p>
-                                )}
-                            </div>
-
-                            {/* רשימת משימות (Tasks) */}
-                            <div>
-                                <strong style={{ color: "#2f6fed", fontSize: "13px" }}>ACTIVE ATTACHED TASKS ({nodeTasks.length}):</strong>
-                                {nodeTasks.length > 0 ? (
-                                    <ul style={{ margin: "6px 0 0 0", paddingLeft: "20px", fontSize: "13px", color: "#333" }}>
-                                        {nodeTasks.map((task, idx) => (
-                                            <li key={idx} style={{ marginBottom: "4px" }}>
-                                                <strong>{task.title || "Task"}</strong> - <span style={{ color: "#666" }}>{task.status || "pending"}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#888" }}>No direct active operational tasks configured.</p>
-                                )}
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                <button type="button" onClick={closeModal} style={{ width: "100%", padding: "12px", background: selectedNode.color || "#2196f3", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}>
-                    Close Blueprint View
-                </button>
-            </>
-        );
-    };
+    // Node details modal is now rendered via top-level `NodeDetailsModal` component
 
     const renderModalContent = () => {
         if (activeModal === "createProject") {
@@ -750,7 +753,17 @@ const HomePage = () => {
         if (activeModal === "slackActions") return renderSlackActionsModal();
         if (activeModal === "slackCreateChannel") return renderSlackCreateChannelModal();
         if (activeModal === "slackSendMessage") return renderSlackSendMessageModal();
-        if (activeModal === "viewNodeDetails") return renderNodeDetailsModal();
+        if (activeModal === "viewNodeDetails") return (
+            <NodeDetailsModal
+                selectedNode={selectedNode}
+                nodeTasks={nodeTasks}
+                subNodes={subNodes}
+                isModalDataLoading={isModalDataLoading}
+                closeModal={closeModal}
+                fetchProjects={fetchProjects}
+                drawConnections={drawConnections}
+            />
+        );
         return renderDefaultIntegrationModal();
     };
 

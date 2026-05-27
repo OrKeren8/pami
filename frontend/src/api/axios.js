@@ -24,3 +24,15 @@ export const aiApi = axios.create({
 
 const api = projectsApi;
 export default api;
+
+// Log configured base URLs at module import to help debug which endpoints are used
+try {
+    // eslint-disable-next-line no-console
+    console.log("projectsApi baseURL:", projectsApi.defaults.baseURL);
+    // eslint-disable-next-line no-console
+    console.log("slackApi baseURL:", slackApi.defaults.baseURL);
+    // eslint-disable-next-line no-console
+    console.log("aiApi baseURL:", aiApi.defaults.baseURL);
+} catch (e) {
+    // ignore in non-browser environments
+}
