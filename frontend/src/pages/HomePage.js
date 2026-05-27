@@ -365,14 +365,23 @@ const HomePage = () => {
             const parentEl = idToEl[parentId];
             if (!parentEl) return;
 
-            const pRect = parentEl.getBoundingClientRect();
-            const cRect = el.getBoundingClientRect();
+            // Prefer the visual `.neural-node-v2` element inside the wrapper
+            const parentVisual = parentEl.querySelector('.neural-node-v2') || parentEl;
+            const childVisual = el.querySelector('.neural-node-v2') || el;
+
+            const pRect = parentVisual.getBoundingClientRect();
+            const cRect = childVisual.getBoundingClientRect();
             const containerRect = container.getBoundingClientRect();
 
+            // Coordinates relative to container
             const startX = pRect.left + pRect.width / 2 - containerRect.left;
-            const startY = pRect.top + pRect.height - containerRect.top;
+            const startY = pRect.top + pRect.height - containerRect.top; // bottom of visual parent
             const endX = cRect.left + cRect.width / 2 - containerRect.left;
-            const endY = cRect.top - containerRect.top + 6; // small offset
+            const endY = cRect.top - containerRect.top; // top of visual child
+
+            // ensure svg has correct coordinate system
+            svg.setAttribute('viewBox', `0 0 ${Math.max(1, containerRect.width)} ${Math.max(1, containerRect.height)}`);
+            svg.setAttribute('preserveAspectRatio', 'none');
 
             const deltaX = Math.max(40, Math.abs(endX - startX) * 0.3);
             const control1X = startX + (endX > startX ? deltaX : -deltaX);
