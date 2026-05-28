@@ -14,6 +14,9 @@ Usage:
 """
 
 import boto3
+import botocore
+import time
+import re
 import json
 import sys
 import os
@@ -588,6 +591,71 @@ def create_api_gateway(lb_dns: str) -> Optional[str]:
         return None
 
 
+def enable_cors_on_api(api_endpoint: str):
+    """Enable CORS on API Gateway HTTP APIs (apigatewayv2). If it's a REST API,
+    this function will not modify it (the create_api_gateway path uses HTTP APIs).
+    """
+    try:
+        api_id = None
+        # parse ApiId from endpoint: https://{api_id}.execute-api.{region}.amazonaws.com
+        m = re.match(
+            r"https?://([a-z0-9]+)\.execute-api\.[^.]+\.amazonaws\.com", api_endpoint
+        )
+        if not m:
+            print_info("Could not parse API id from endpoint for CORS update")
+            return
+        api_id = m.group(1)
+
+        region = os.getenv("AWS_REGION", REGION)
+        v2 = boto3.client("apigatewayv2", region_name=region)
+        # Compose desired origin from Amplify domain if present
+        desired_origin = (
+            os.environ.get("AMPLIFY_APP_ORIGIN")
+            or os.environ.get("AMPLIFY_APP_DOMAIN")
+            or os.environ.get("AMPLIFY_APP_DEFAULT_DOMAIN")
+        )
+        if desired_origin and not desired_origin.startswith("http"):
+            desired_origin = f"https://main.{desired_origin}"
+        if not desired_origin:
+            desired_origin = os.environ.get("AMPLIFY_APP_ORIGIN", "*")
+
+        cors_conf = {
+            "AllowOrigins": [desired_origin] if desired_origin else ["*"],
+            "AllowMethods": ["GET", "POST", "OPTIONS"],
+            "AllowHeaders": ["Content-Type", "Authorization"],
+            "ExposeHeaders": [],
+            "MaxAge": 3600,
+        }
+        v2.update_api(ApiId=api_id, CorsConfiguration=cors_conf)
+        print_success(
+            f"Updated API {api_id} CORS to allow: {cors_conf['AllowOrigins']}"
+        )
+        # Ensure explicit OPTIONS route exists for the target path to return 200
+        target_path = os.environ.get("API_CORS_PATH", "/ai/ai-conversations")
+        route_key = f"OPTIONS {target_path}"
+        try:
+            routes = v2.get_routes(ApiId=api_id).get("Items", [])
+            if not any(r.get("RouteKey") == route_key for r in routes):
+                # create a MOCK integration and route for OPTIONS
+                integ = v2.create_integration(
+                    ApiId=api_id,
+                    IntegrationType="MOCK",
+                    IntegrationMethod="OPTIONS",
+                    PayloadFormatVersion="1.0",
+                )
+                integ_id = integ.get("IntegrationId")
+                v2.create_route(
+                    ApiId=api_id, RouteKey=route_key, Target=f"integrations/{integ_id}"
+                )
+                print_success(f"Created MOCK OPTIONS route for {target_path}")
+            else:
+                print_info(f"OPTIONS route for {target_path} already exists")
+        except Exception as e:
+            print_info(f"Could not ensure explicit OPTIONS route: {e}")
+    except Exception as e:
+        print_error(f"Failed to update API CORS: {e}")
+
+
 def create_amplify_app(
     api_base_url: str, github_token: Optional[str] = None
 ) -> Optional[str]:
@@ -625,7 +693,15 @@ def create_amplify_app(
                 print_info(f"  REACT_APP_PROJECTS_API_BASE_URL = {api_base_url}")
                 print_info(f"  REACT_APP_SLACK_API_BASE_URL = {api_base_url}/slack")
 
-                # Trigger a new build
+                # Trigger a new build with handling for pending jobs
+                def list_branch_jobs():
+                    try:
+                        return amplify.list_jobs(appId=app_id, branchName="main").get(
+                            "jobSummaries", []
+                        )
+                    except Exception:
+                        return []
+
                 try:
                     amplify.start_job(
                         appId=app_id, branchName="main", jobType="RELEASE"
@@ -633,11 +709,60 @@ def create_amplify_app(
                     print_success(
                         f"Triggered new deployment with updated configuration"
                     )
-                except Exception as deploy_error:
-                    print_info(f"Note: Could not trigger auto-deploy: {deploy_error}")
-                    print_info(
-                        "You can manually redeploy from AWS Console → Amplify → Deployments"
-                    )
+                except botocore.exceptions.ClientError as e:
+                    code = e.response.get("Error", {}).get("Code")
+                    msg = e.response.get("Error", {}).get("Message")
+                    print_info(f"Could not trigger auto-deploy: {code} - {msg}")
+                    if code == "LimitExceededException":
+                        print_info(
+                            "There is an active/pending job for this branch. Listing recent jobs:"
+                        )
+                        for j in list_branch_jobs():
+                            print_info(
+                                f" - jobId={j.get('jobId')} status={j.get('status')} startedAt={j.get('startTime')}"
+                            )
+                        auto_wait = os.environ.get(
+                            "AMPLIFY_AUTO_WAIT", "false"
+                        ).lower() in ("1", "true", "yes")
+                        if auto_wait:
+                            timeout = int(os.environ.get("AMPLIFY_WAIT_TIMEOUT", "600"))
+                            interval = int(
+                                os.environ.get("AMPLIFY_WAIT_INTERVAL", "15")
+                            )
+                            start = time.time()
+                            while time.time() - start < timeout:
+                                running = [
+                                    j
+                                    for j in list_branch_jobs()
+                                    if j.get("status")
+                                    in ("PENDING", "RUNNING", "IN_PROGRESS")
+                                ]
+                                if not running:
+                                    try:
+                                        amplify.start_job(
+                                            appId=app_id,
+                                            branchName="main",
+                                            jobType="RELEASE",
+                                        )
+                                        print_success(
+                                            "Triggered deployment after waiting for previous job to finish"
+                                        )
+                                        break
+                                    except Exception as e2:
+                                        print_info(f"Retry failed: {e2}")
+                                        break
+                                print_info(
+                                    f"Active job(s): {[j.get('jobId')+':'+j.get('status') for j in running]}; sleeping {interval}s..."
+                                )
+                                time.sleep(interval)
+                            else:
+                                print_info(
+                                    "Timed out waiting for existing jobs to finish. Redeploy manually or retry later."
+                                )
+                    else:
+                        print_info(
+                            "You can manually redeploy from AWS Console → Amplify → Deployments"
+                        )
 
             except Exception as update_error:
                 print_error(f"Failed to update environment variables: {update_error}")
@@ -888,6 +1013,10 @@ def main():
         api_gateway_url = None
         if lb_dns:
             api_gateway_url = create_api_gateway(lb_dns)
+
+        # Ensure CORS is enabled on the API Gateway
+        if api_gateway_url:
+            enable_cors_on_api(api_gateway_url)
 
         # Use API Gateway URL for Amplify if available, otherwise use ALB
         api_base_url = api_gateway_url if api_gateway_url else f"http://{lb_dns}"
