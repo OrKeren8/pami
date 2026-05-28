@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
 import api, { projectsApi, slackApi, aiApi } from "../api/axios";
@@ -656,7 +656,7 @@ const HomePage = () => {
             clearTimeout(t);
             window.removeEventListener('resize', drawConnections);
         };
-    }, [realProjects, isLoading]);
+    }, [realProjects, contextNodesMap, activePane, isLoading]);
 
     // make nodes draggable and update connectors while moving
     useEffect(() => {
@@ -717,7 +717,7 @@ const HomePage = () => {
             window.removeEventListener('pointermove', onPointerMove);
             window.removeEventListener('pointerup', onPointerUp);
         };
-    }, [realProjects, isLoading]);
+    }, [realProjects, contextNodesMap, activePane, isLoading]);
 
     const renderSlackConnectModal = () => {
         return (
