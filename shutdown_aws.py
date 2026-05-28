@@ -13,6 +13,8 @@ Usage:
 
 import boto3
 import sys
+import os
+from pathlib import Path
 from typing import List
 
 # Configuration
@@ -26,9 +28,39 @@ SERVICES = [
     "pami-ai-conversation-service",
 ]
 
-# AWS Clients
-ecs = boto3.client("ecs", region_name=REGION)
-elbv2 = boto3.client("elbv2", region_name=REGION)
+# AWS Clients (will be initialized at runtime after loading credentials)
+ecs = None
+elbv2 = None
+
+
+def load_env_file(env_path: str = None):
+    """Load environment variables from a .env file into os.environ.
+    This is a minimal loader so users don't have to set credentials manually.
+    """
+    path = Path(env_path) if env_path else (Path(__file__).resolve().parent / ".env")
+    if not path.exists():
+        return
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                key, val = line.split("=", 1)
+                key = key.strip()
+                val = val.strip()
+                # Remove surrounding quotes if any
+                if (val.startswith('"') and val.endswith('"')) or (
+                    val.startswith("'") and val.endswith("'")
+                ):
+                    val = val[1:-1]
+                # Overwrite existing values to ensure script uses latest .env
+                os.environ[key] = val
+    except Exception:
+        # Silently ignore parse errors (we'll rely on boto3 defaults/error messages)
+        pass
 
 
 def print_header(text: str):
@@ -145,9 +177,39 @@ def print_summary():
 def main():
     """Main shutdown flow."""
     try:
+        # Load environment (.env) so the script can run without manual setup
+        load_env_file()
+
+        # Resolve runtime region and credentials from environment
+        region = os.getenv("AWS_REGION", REGION)
+        aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+        aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
+        aws_token = os.getenv("AWS_SESSION_TOKEN")
+
+        # Initialize AWS clients with provided credentials (if any)
+        global ecs, elbv2
+        if aws_access_key and aws_secret:
+            ecs = boto3.client(
+                "ecs",
+                region_name=region,
+                aws_access_key_id=aws_access_key,
+                aws_secret_access_key=aws_secret,
+                aws_session_token=aws_token,
+            )
+            elbv2 = boto3.client(
+                "elbv2",
+                region_name=region,
+                aws_access_key_id=aws_access_key,
+                aws_secret_access_key=aws_secret,
+                aws_session_token=aws_token,
+            )
+        else:
+            ecs = boto3.client("ecs", region_name=region)
+            elbv2 = boto3.client("elbv2", region_name=region)
+
         print_header("PAMI AWS Infrastructure Shutdown")
         print()
-        print(f"Region: {REGION}")
+        print(f"Region: {region}")
         print(f"Account: {ACCOUNT_ID}")
         print()
 
