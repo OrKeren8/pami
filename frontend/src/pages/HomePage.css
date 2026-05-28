@@ -1658,3 +1658,104 @@ html, body, #root {
   align-items: center;
   justify-content: center;
 }
+
+/* ================================
+   UI POLISH TREE ZOOM AND RESIZE
+   Adds mouse-wheel zoom and top-edge resizing to the project tree area.
+   CSS only for layout/visuals; behavior is handled in HomePage.js.
+================================ */
+
+.tree-resizable-canvas {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: hidden;
+  transition: height 120ms ease;
+  user-select: none;
+}
+
+.tree-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 18px;
+  right: 18px;
+  height: 14px;
+  cursor: ns-resize;
+  z-index: 35;
+}
+
+.tree-resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 50%;
+  width: 92px;
+  height: 4px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(214, 95, 159, 0.30);
+  opacity: 0;
+  transition: opacity 140ms ease, background 140ms ease;
+}
+
+.tree-resize-handle:hover::before {
+  opacity: 1;
+  background: rgba(214, 95, 159, 0.46);
+}
+
+.tree-zoom-layer {
+  position: relative;
+  z-index: 10;
+  transition: transform 120ms ease;
+  will-change: transform;
+}
+
+.tree-zoom-indicator {
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  z-index: 40;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(214, 95, 159, 0.18);
+  color: var(--pami-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  box-shadow: 0 10px 22px rgba(74, 45, 108, 0.08);
+  pointer-events: none;
+}
+
+.tree-svg-overlay {
+  z-index: 5;
+}
+
+.tree-resizable-canvas .hierarchical-tree-container {
+  height: 100%;
+  min-height: 100%;
+  overflow: visible;
+}
+
+.tree-resizable-canvas .empty-tree-state {
+  min-height: 320px;
+}
+
+/* ================================
+   UI POLISH TREE INFINITE PAN
+   Allows middle-mouse panning inside the tree box.
+================================ */
+
+.tree-resizable-canvas {
+  cursor: default;
+}
+
+.tree-resizable-canvas.tree-panning {
+  cursor: grabbing;
+}
+
+.tree-resizable-canvas.tree-panning * {
+  cursor: grabbing !important;
+}
+
+.tree-zoom-layer {
+  transform-origin: top center;
+}
