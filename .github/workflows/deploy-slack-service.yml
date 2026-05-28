@@ -102,6 +102,7 @@ jobs:
               --cluster pami-cluster \
               --service pami-slack-service \
               --force-new-deployment \
+              --desired-count 1 \
               --region us-east-1
           else
             echo "Service doesn't exist, creating..."
@@ -115,6 +116,8 @@ jobs:
               --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:909189231170:targetgroup/slack-service-tg/07a05ce456b9b8bb,containerName=slack-service,containerPort=8002" \
               --region us-east-1
           fi
+          # Ensure desired count is 1 in case the service existed with 0
+          aws ecs update-service --cluster pami-cluster --service pami-slack-service --desired-count 1 --region us-east-1 || true
 
       - name: Wait for deployment to complete
         run: |

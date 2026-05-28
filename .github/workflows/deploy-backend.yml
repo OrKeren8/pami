@@ -92,6 +92,7 @@ jobs:
               --service pami-projects-service \
               --task-definition pami-projects-service \
               --force-new-deployment \
+              --desired-count 1 \
               --region us-east-1
           else
             echo "Service doesn't exist, creating..."
@@ -105,6 +106,8 @@ jobs:
               --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:909189231170:targetgroup/projects-service-tg/5342c6b6e7418012,containerName=pami-projects-service,containerPort=8000" \
               --region us-east-1
           fi
+          # Ensure desired count is 1 in case the service existed with 0
+          aws ecs update-service --cluster pami-cluster --service pami-projects-service --desired-count 1 --region us-east-1 || true
 
       - name: Wait for Projects Service deployment
         run: |
