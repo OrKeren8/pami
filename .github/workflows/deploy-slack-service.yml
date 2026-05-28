@@ -101,6 +101,7 @@ jobs:
             aws ecs update-service \
               --cluster pami-cluster \
               --service pami-slack-service \
+              --task-definition pami-slack-service \
               --force-new-deployment \
               --desired-count 1 \
               --region us-east-1
