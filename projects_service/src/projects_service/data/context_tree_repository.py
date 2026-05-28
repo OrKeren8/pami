@@ -24,9 +24,12 @@ class ContextTreeRepository:
     async def get_by_id(self, node_id: str, session=None) -> Optional[ContextTreeNode]:
         """Get a node by its id field."""
         try:
-            return await ContextTreeNode.find_one(
-                ContextTreeNode.id == node_id, session=session
-            )
+            # Try using Beanie's get (accepts ObjectId-like ids) first
+            try:
+                return await ContextTreeNode.get(node_id, session=session)
+            except Exception:
+                # Fallback: try to find by the stored `id` field or by _id
+                return await ContextTreeNode.find_one({"_id": node_id}, session=session)
         except Exception as e:
             self._logger.error(f"Error getting node {node_id}: {e}")
             return None
@@ -48,9 +51,10 @@ class ContextTreeRepository:
     ) -> Optional[ContextTreeNode]:
         """Update a context tree node."""
         try:
-            node = await ContextTreeNode.find_one(
-                ContextTreeNode.id == node_id, session=session
-            )
+            try:
+                node = await ContextTreeNode.get(node_id, session=session)
+            except Exception:
+                node = await ContextTreeNode.find_one({"_id": node_id}, session=session)
             if not node:
                 return None
 
@@ -64,13 +68,16 @@ class ContextTreeRepository:
     async def delete(self, node_id: str, session=None) -> bool:
         """Delete a context tree node."""
         try:
-            node = await ContextTreeNode.find_one(
-                ContextTreeNode.node_id == node_id, session=session
-            )
+            # Look up by the model's `id` field
+            try:
+                node = await ContextTreeNode.get(node_id, session=session)
+            except Exception:
+                node = await ContextTreeNode.find_one({"_id": node_id}, session=session)
             if not node:
                 return False
 
             await node.delete(session=session)
+            self._logger.info(f"Deleted node {node_id} from database")
             return True
         except Exception as e:
             self._logger.error(f"Error deleting node {node_id}: {e}")

@@ -1,13 +1,132 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
-import api, { projectsApi, slackApi } from "../api/axios";
+import api, { projectsApi, slackApi, aiApi } from "../api/axios";
+
+const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoading, closeModal, fetchProjects, drawConnections }) => {
+    const [isDeleting, setIsDeleting] = useState(false);
+    if (!selectedNode) return null;
+
+    const handleDelete = async () => {
+        const ok = window.confirm(`Delete node "${selectedNode.name}"? This will reparent its children.`);
+        if (!ok) return;
+        setIsDeleting(true);
+        try {
+            const nodeId = selectedNode.id || selectedNode._id || (selectedNode._id && selectedNode._id.$oid) || null;
+            if (!nodeId) throw new Error("Selected node has no id");
+
+            // Determine whether selected item is a context-tree node or a top-level project
+            // Context tree nodes include a `project_id` field in responses; projects do not.
+            let deletePath = null;
+            if (selectedNode.project_id) {
+                // it's a context node
+                deletePath = `/context-tree/nodes/${nodeId}`;
+            } else {
+                // assume it's a project
+                deletePath = `/projects/${nodeId}`;
+            }
+
+            await projectsApi.delete(deletePath);
+            alert(`${selectedNode.name} deleted.`);
+            closeModal();
+            await fetchProjects();
+            setTimeout(() => {
+                try { drawConnections(); } catch (e) { console.error('drawConnections error', e); }
+            }, 150);
+        } catch (err) {
+            if (err && err.response) {
+                console.error('Delete failed, status=', err.response.status, err.response.data);
+                alert(`Delete failed: ${err.response.status} ${JSON.stringify(err.response.data)}`);
+            } else {
+                console.error('Failed to delete node:', err);
+                alert(`Failed to delete node: ${err && err.message ? err.message : err}`);
+            }
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    return (
+        <>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span style={{ fontSize: "40px" }}>🧠</span>
+                    <h2 style={{ marginTop: "5px", color: "#333" }}>Node Blueprint Context</h2>
+                </div>
+                <div>
+                    <button onClick={handleDelete} disabled={isDeleting} style={{ background: "transparent", border: "none", cursor: isDeleting ? "not-allowed" : "pointer", fontSize: "20px" }} title="Delete node">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+
+            <div style={{ background: "#f9f9f9", padding: "15px", borderRadius: "16px", border: `2px solid ${selectedNode.color}`, maxHeight: "400px", overflowY: "auto", marginBottom: "20px" }}>
+                <div style={{ marginBottom: "10px" }}>
+                    <strong style={{ color: "#555", fontSize: "13px" }}>NODE IDENTIFIER:</strong>
+                    <p style={{ margin: "2px 0 0 0", fontSize: "15px", fontWeight: "bold", color: "#111" }}>{selectedNode.name}</p>
+                </div>
+
+                <div style={{ marginBottom: "10px" }}>
+                    <strong style={{ color: "#555", fontSize: "13px" }}>MISSION OBJECTIVE / GOAL:</strong>
+                    <p style={{ margin: "2px 0 0 0", color: "#444", fontStyle: "italic", fontSize: "14px" }}>{selectedNode.goal}</p>
+                </div>
+
+                <hr style={{ border: "none", borderTop: "1px solid #ddd", margin: "15px 0" }} />
+
+                {isModalDataLoading ? (
+                    <div style={{ textAlign: "center", padding: "20px 0" }}>
+                        <div className="loading-spinner" style={{ margin: "0 auto 10px auto", width: "25px", height: "25px" }}></div>
+                        <p style={{ fontSize: "13px", color: "#666" }}>Querying sub-resources from cloud...</p>
+                    </div>
+                ) : (
+                    <>
+                        <div style={{ marginBottom: "15px" }}>
+                            <strong style={{ color: "#f06292", fontSize: "13px" }}>CONNECTED SUB-NODES ({subNodes.length}):</strong>
+                            {subNodes.length > 0 ? (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                                    {subNodes.map((sub, idx) => (
+                                        <span key={idx} style={{ background: "#f06292", color: "white", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }}>
+                                            🌿 {sub.name || "Sub Node"}
+                                        </span>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#888" }}>No sub-nodes attached to this context layer.</p>
+                            )}
+                        </div>
+
+                        <div>
+                            <strong style={{ color: "#2f6fed", fontSize: "13px" }}>ACTIVE ATTACHED TASKS ({nodeTasks.length}):</strong>
+                            {nodeTasks.length > 0 ? (
+                                <ul style={{ margin: "6px 0 0 0", paddingLeft: "20px", fontSize: "13px", color: "#333" }}>
+                                    {nodeTasks.map((task, idx) => (
+                                        <li key={idx} style={{ marginBottom: "4px" }}>
+                                            <strong>{task.title || "Task"}</strong> - <span style={{ color: "#666" }}>{task.status || "pending"}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#888" }}>No direct active operational tasks configured.</p>
+                            )}
+                        </div>
+                    </>
+                )}
+            </div>
+
+            <button type="button" onClick={closeModal} style={{ width: "100%", padding: "12px", background: selectedNode.color || "#2196f3", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}>
+                Close Blueprint View
+            </button>
+        </>
+    );
+};
 
 const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [activePane, setActivePane] = useState("tree"); // 'tree' or 'chat'
     const [isLoading, setIsLoading] = useState(true);
     const [activeModal, setActiveModal] = useState(null);
     const [realProjects, setRealProjects] = useState([]);
+    const [contextNodesMap, setContextNodesMap] = useState({});
 
     // סטייט מורחב לנוד שנבחר - כולל המשימות ותתי-הנודים שלו מהשרת
     const [selectedNode, setSelectedNode] = useState(null);
@@ -24,16 +143,43 @@ const HomePage = () => {
     const [messageChannelInput, setMessageChannelInput] = useState("");
     const [messageTextInput, setMessageTextInput] = useState("");
 
+    // AI Chat states
+    const [chatMessages, setChatMessages] = useState([]);
+    const [chatInput, setChatInput] = useState("");
+    const [conversationId, setConversationId] = useState(null);
+    const [isChatLoading, setIsChatLoading] = useState(false);
+    const [assistantAvatarUrl, setAssistantAvatarUrl] = useState(null);
+    const treeContainerRef = useRef(null);
+    const fileInputRef = useRef(null);
+
     const fetchProjects = async () => {
         setIsLoading(true);
         try {
             const response = await projectsApi.get("/projects/");
             console.log("Projects fetched:", response.data);
             setRealProjects(response.data);
+            // fetch context nodes for the first project (and cache)
+            if (response.data && response.data.length > 0) {
+                const pid = response.data[0].id || response.data[0]._id || (response.data[0]._id && response.data[0]._id.$oid) || null;
+                if (pid) fetchContextNodes(pid);
+            }
         } catch (error) {
             console.error("Failed to fetch projects:", error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const fetchContextNodes = async (projectId) => {
+        if (!projectId) return;
+        try {
+            const resp = await projectsApi.get(`/context-tree/projects/${projectId}/nodes`);
+            if (resp && resp.data) {
+                console.log('Fetched context nodes for', projectId, resp.data);
+                setContextNodesMap((m) => ({ ...m, [projectId]: resp.data }));
+            }
+        } catch (err) {
+            console.error('Failed to fetch context nodes for', projectId, err);
         }
     };
 
@@ -69,24 +215,122 @@ const HomePage = () => {
 
     useEffect(() => {
         fetchProjects();
+        // load avatar from localStorage
+        try {
+            const saved = localStorage.getItem('pami.assistantAvatar');
+            if (saved) setAssistantAvatarUrl(saved);
+        } catch (e) { /* ignore */ }
     }, []);
+
+    // whenever projects change, refresh context nodes for the first project
+    useEffect(() => {
+        if (realProjects && realProjects.length > 0) {
+            const pid = realProjects[0].id || realProjects[0]._id || (realProjects[0]._id && realProjects[0]._id.$oid) || realProjects[0]._id || null;
+            if (pid) fetchContextNodes(pid);
+        }
+    }, [realProjects]);
+
+    // AI Chat functions
+    const createAIConversation = async () => {
+        try {
+            const projectId = realProjects.length > 0 ? realProjects[0].id || realProjects[0]._id : "general";
+            const contextNodeId = "chat-session-" + Date.now();
+            const response = await aiApi.post(`/ai-conversations/`, {
+                context_node_id: contextNodeId,
+                project_id: projectId,
+                title: "PAMI Chat Session",
+            });
+            if (response.data && (response.data.conversation_id || response.data.id)) {
+                const id = response.data.conversation_id || response.data.id;
+                setConversationId(id);
+                return id;
+            }
+        } catch (err) {
+            console.error("Failed to create AI conversation:", err);
+        }
+        return null;
+    };
+
+    const handleSendMessage = async () => {
+        if (!chatInput || !chatInput.trim() || isChatLoading) return;
+        const userMessage = chatInput.trim();
+        setChatInput("");
+        setChatMessages((p) => [...p, { role: "user", content: userMessage }]);
+        setIsChatLoading(true);
+        try {
+            let convId = conversationId;
+            if (!convId) {
+                convId = await createAIConversation();
+                if (!convId) throw new Error("Could not create conversation");
+            }
+
+            const resp = await aiApi.post(`/ai-conversations/${convId}/messages`, {
+                message: userMessage,
+                context_snapshot: {
+                    projects: realProjects.map((p) => ({ id: p.id || p._id, name: p.name })),
+                    project_count: realProjects.length,
+                },
+            });
+
+            const aiText = resp.data && (resp.data.response || resp.data.text || resp.data.message);
+            setChatMessages((p) => [...p, { role: "assistant", content: aiText || "(no response)" }]);
+        } catch (err) {
+            console.error("Failed to send message to AI:", err);
+            setChatMessages((p) => [...p, { role: "assistant", content: "I'm having trouble connecting right now. Please try again." }]);
+        } finally {
+            setIsChatLoading(false);
+        }
+    };
+
+    const handleAvatarFile = (file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const data = ev.target.result;
+            try { localStorage.setItem('pami.assistantAvatar', data); } catch (e) {}
+            setAssistantAvatarUrl(data);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const triggerAvatarUpload = () => fileInputRef.current && fileInputRef.current.click();
+
+    const clearAssistantAvatar = () => {
+        try { localStorage.removeItem('pami.assistantAvatar'); } catch (e) {}
+        setAssistantAvatarUrl(null);
+    };
 
     const getTreeStructure = () => {
         if (realProjects.length === 0) return null;
-        return {
-            id: "root",
-            name: "PAMI Global Core",
-            color: "#f06292",
-            status: "Root",
-            goal: "Central orchestration engine",
-            children: realProjects.map((proj) => ({
-                id: proj.id || proj._id || "unknown",
-                name: proj.name || "Untitled Project",
-                color: "#2196f3",
-                status: proj.status || "Active",
-                goal: proj.goal || "No goal defined",
+        const rootChildren = realProjects.map((proj) => {
+            const pid = proj.id || proj._id || (proj._id && proj._id.$oid) || proj._id || 'unknown';
+            const ctxNodes = contextNodesMap[pid] || [];
+            const children = ctxNodes.map((n) => ({
+                id: n.id || n._id || (n._id && n._id.$oid) || String(n._id),
+                name: n.text ? (n.text.length > 40 ? n.text.slice(0, 40) + '…' : n.text) : (n.summary || 'Context Node'),
+                color: '#8b5cf6',
+                status: n.node_type || 'context',
+                goal: n.summary || n.text || '',
                 children: [],
-            })),
+            }));
+
+            return {
+                id: pid,
+                name: proj.name || 'Untitled Project',
+                color: '#2196f3',
+                status: proj.status || 'Active',
+                goal: proj.goal || 'No goal defined',
+                children,
+            };
+        });
+
+        return {
+            id: 'root',
+            name: 'PAMI Global Core',
+            color: '#f06292',
+            status: 'Root',
+            goal: 'Central orchestration engine',
+            children: rootChildren,
         };
     };
 
@@ -202,6 +446,64 @@ const HomePage = () => {
         }
     };
 
+    const normalizeProjectId = (proj) => {
+        if (!proj) return null;
+        if (typeof proj === 'string') return proj;
+        if (proj.id) return proj.id;
+        if (proj._id) return proj._id && (proj._id.$oid || proj._id) ? (proj._id.$oid || proj._id) : proj._id;
+        if (proj._id && proj._id.$oid) return proj._id.$oid;
+        return null;
+    };
+
+    const handleCreateNodeFromConversation = async () => {
+        console.log('Create node from conversation triggered');
+        try {
+            if (realProjects.length === 0) {
+                alert('No project available to attach node to.');
+                return;
+            }
+            const projectRaw = realProjects[0];
+            const projectId = normalizeProjectId(projectRaw);
+            console.log('Using project id:', projectId, projectRaw);
+            if (!projectId) {
+                alert('Could not determine project id for node creation.');
+                return;
+            }
+
+            const recent = chatMessages.slice(-10).map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+            const body = {
+                parent_id: null,
+                children_ids: [],
+                text: recent || 'Conversation snapshot',
+                summary: (chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].content : '').slice(0, 300),
+                topics: [],
+                node_type: 'conversation',
+            };
+
+            console.log('POST body for create-node:', body);
+            const resp = await projectsApi.post(`/context-tree/projects/${projectId}/nodes`, body);
+            console.log('Create node response:', resp && resp.data ? resp.data : resp);
+            if (resp && resp.data && resp.data.id) {
+                alert('Node created from conversation: ' + (resp.data.name || resp.data.id));
+                await fetchProjects();
+                setTimeout(() => {
+                    try {
+                        drawConnections();
+                    } catch (e) {}
+                }, 200);
+            } else if (resp && resp.status && resp.status >= 200 && resp.status < 300) {
+                alert('Node created (no id returned).');
+                await fetchProjects();
+            } else {
+                alert('Unexpected response from server. See console.');
+            }
+        } catch (err) {
+            console.error('Failed to create node from conversation', err);
+            if (err && err.response) console.error('Response data:', err.response.data);
+            alert('Failed to create node from conversation. Check console/network for details.');
+        }
+    };
+
     const handleCreateSlackChannel = async (e) => {
         e.preventDefault();
         if (!channelNameInput) {
@@ -259,15 +561,15 @@ const HomePage = () => {
         }
     };
 
-    const renderTree = (node) => {
+    const renderTree = (node, parentId = null) => {
         if (!node) return null;
         return (
-            <div className="tree-branch" key={node.name}>
-                <div className="tree-node-wrapper">
+            <div className="tree-branch" key={node.id || node.name}>
+                <div className="tree-node-wrapper" data-node-id={node.id} data-parent-id={parentId || ""}>
                     <div
                         className="neural-node-v2"
                         style={{ borderColor: node.color, cursor: node.id === "root" ? "default" : "pointer" }}
-                        onClick={() => handleNodeClick(node)}
+                        onDoubleClick={() => handleNodeClick(node)}
                     >
                         <div className="node-dot" style={{ backgroundColor: node.color }}></div>
                         <div className="node-content-v2">
@@ -275,16 +577,147 @@ const HomePage = () => {
                             <span className="node-status-v2">{node.status}</span>
                         </div>
                     </div>
-                    {node.children && node.children.length > 0 && <div className="tree-connector-arrow"></div>}
                 </div>
                 {node.children && node.children.length > 0 && (
                     <div className="tree-children">
-                        {node.children.map((child) => renderTree(child))}
+                        {node.children.map((child) => renderTree(child, node.id))}
                     </div>
                 )}
             </div>
         );
     };
+
+    const drawConnections = () => {
+        const container = treeContainerRef.current;
+        if (!container) return;
+        const svg = container.querySelector('svg.tree-svg-overlay');
+        if (!svg) return;
+        // clear
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+        const nodes = Array.from(container.querySelectorAll('.tree-node-wrapper[data-node-id]'));
+        const idToEl = {};
+        nodes.forEach((el) => {
+            const id = el.getAttribute('data-node-id');
+            idToEl[id] = el;
+        });
+
+        nodes.forEach((el) => {
+            const parentId = el.getAttribute('data-parent-id');
+            if (!parentId) return; // skip root
+            const parentEl = idToEl[parentId];
+            if (!parentEl) return;
+
+            // Prefer the visual `.neural-node-v2` element inside the wrapper
+            const parentVisual = parentEl.querySelector('.neural-node-v2') || parentEl;
+            const childVisual = el.querySelector('.neural-node-v2') || el;
+
+            const pRect = parentVisual.getBoundingClientRect();
+            const cRect = childVisual.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+
+            // Coordinates relative to container
+            const startX = pRect.left + pRect.width / 2 - containerRect.left;
+            const startY = pRect.top + pRect.height - containerRect.top; // bottom of visual parent
+            const endX = cRect.left + cRect.width / 2 - containerRect.left;
+            const endY = cRect.top - containerRect.top; // top of visual child
+
+            // ensure svg has correct coordinate system and explicit pixel sizing
+            const vw = Math.max(1, Math.round(containerRect.width));
+            const vh = Math.max(1, Math.round(containerRect.height));
+            svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
+            svg.setAttribute('preserveAspectRatio', 'none');
+            svg.setAttribute('width', `${vw}`);
+            svg.setAttribute('height', `${vh}`);
+
+            const deltaX = Math.max(30, Math.abs(endX - startX) * 0.28);
+            const control1X = startX + (endX > startX ? deltaX : -deltaX);
+            const control2X = endX - (endX > startX ? deltaX : -deltaX);
+            const verticalGap = Math.max(30, (endY - startY) * 0.25);
+            const control1Y = startY + verticalGap;
+            const control2Y = endY - verticalGap;
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const d = `M ${startX} ${startY} C ${control1X} ${control1Y} ${control2X} ${control2Y} ${endX} ${endY}`;
+            path.setAttribute('d', d);
+            path.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--connector-color') || '#d1d9e2');
+            path.setAttribute('stroke-width', '2');
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke-linecap', 'round');
+            svg.appendChild(path);
+        });
+    };
+
+    useEffect(() => {
+        // draw after layout
+        const t = setTimeout(drawConnections, 120);
+        window.addEventListener('resize', drawConnections);
+        return () => {
+            clearTimeout(t);
+            window.removeEventListener('resize', drawConnections);
+        };
+    }, [realProjects, isLoading]);
+
+    // make nodes draggable and update connectors while moving
+    useEffect(() => {
+        const container = treeContainerRef.current;
+        if (!container) return;
+
+        let active = null;
+        let startX = 0;
+        let startY = 0;
+        let origX = 0;
+        let origY = 0;
+
+        const onPointerMove = (e) => {
+            if (!active) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            const nx = origX + dx;
+            const ny = origY + dy;
+            active.style.transform = `translate(${nx}px, ${ny}px)`;
+            active.dataset.translateX = nx;
+            active.dataset.translateY = ny;
+            drawConnections();
+        };
+
+        const onPointerUp = () => {
+            if (!active) return;
+            active = null;
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
+        };
+
+        const nodeEls = Array.from(container.querySelectorAll('.neural-node-v2'));
+        nodeEls.forEach((nodeEl) => {
+            nodeEl.style.touchAction = 'none';
+            const down = (e) => {
+                // ignore right-click
+                if (e.button && e.button !== 0) return;
+                const wrapper = nodeEl.closest('.tree-node-wrapper');
+                if (!wrapper) return;
+                active = wrapper;
+                startX = e.clientX;
+                startY = e.clientY;
+                origX = parseFloat(wrapper.dataset.translateX || 0) || 0;
+                origY = parseFloat(wrapper.dataset.translateY || 0) || 0;
+                window.addEventListener('pointermove', onPointerMove);
+                window.addEventListener('pointerup', onPointerUp);
+            };
+            nodeEl.addEventListener('pointerdown', down);
+            // store for cleanup
+            nodeEl.__pami_down = down;
+        });
+
+        return () => {
+            nodeEls.forEach((nodeEl) => {
+                if (nodeEl.__pami_down) nodeEl.removeEventListener('pointerdown', nodeEl.__pami_down);
+                delete nodeEl.__pami_down;
+            });
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', onPointerUp);
+        };
+    }, [realProjects, isLoading]);
 
     const renderSlackConnectModal = () => {
         return (
@@ -416,78 +849,7 @@ const HomePage = () => {
         );
     };
 
-    // מודאל פרטי נוד משופר - מציג את המשימות ותתי-הנודים המחוברים בלייב מהשרת
-    const renderNodeDetailsModal = () => {
-        if (!selectedNode) return null;
-
-        return (
-            <>
-                <div style={{ textAlign: "center", marginBottom: "15px" }}>
-                    <span style={{ fontSize: "40px" }}>🧠</span>
-                    <h2 style={{ marginTop: "5px", color: "#333" }}>Node Blueprint Context</h2>
-                </div>
-
-                <div style={{ background: "#f9f9f9", padding: "15px", borderRadius: "16px", border: `2px solid ${selectedNode.color}`, maxHeight: "400px", overflowY: "auto", marginBottom: "20px" }}>
-                    <div style={{ marginBottom: "10px" }}>
-                        <strong style={{ color: "#555", fontSize: "13px" }}>NODE IDENTIFIER:</strong>
-                        <p style={{ margin: "2px 0 0 0", fontSize: "15px", fontWeight: "bold", color: "#111" }}>{selectedNode.name}</p>
-                    </div>
-
-                    <div style={{ marginBottom: "10px" }}>
-                        <strong style={{ color: "#555", fontSize: "13px" }}>MISSION OBJECTIVE / GOAL:</strong>
-                        <p style={{ margin: "2px 0 0 0", color: "#444", fontStyle: "italic", fontSize: "14px" }}>{selectedNode.goal}</p>
-                    </div>
-
-                    <hr style={{ border: "none", borderTop: "1px solid #ddd", margin: "15px 0" }} />
-
-                    {isModalDataLoading ? (
-                        <div style={{ textAlign: "center", padding: "20px 0" }}>
-                            <div className="loading-spinner" style={{ margin: "0 auto 10px auto", width: "25px", height: "25px" }}></div>
-                            <p style={{ fontSize: "13px", color: "#666" }}>Querying sub-resources from cloud...</p>
-                        </div>
-                    ) : (
-                        <>
-                            {/* רשימת תתי-נודים (Context Tree) */}
-                            <div style={{ marginBottom: "15px" }}>
-                                <strong style={{ color: "#f06292", fontSize: "13px" }}>CONNECTED SUB-NODES ({subNodes.length}):</strong>
-                                {subNodes.length > 0 ? (
-                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
-                                        {subNodes.map((sub, idx) => (
-                                            <span key={idx} style={{ background: "#f06292", color: "white", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }}>
-                                                🌿 {sub.name || "Sub Node"}
-                                            </span>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#888" }}>No sub-nodes attached to this context layer.</p>
-                                )}
-                            </div>
-
-                            {/* רשימת משימות (Tasks) */}
-                            <div>
-                                <strong style={{ color: "#2f6fed", fontSize: "13px" }}>ACTIVE ATTACHED TASKS ({nodeTasks.length}):</strong>
-                                {nodeTasks.length > 0 ? (
-                                    <ul style={{ margin: "6px 0 0 0", paddingLeft: "20px", fontSize: "13px", color: "#333" }}>
-                                        {nodeTasks.map((task, idx) => (
-                                            <li key={idx} style={{ marginBottom: "4px" }}>
-                                                <strong>{task.title || "Task"}</strong> - <span style={{ color: "#666" }}>{task.status || "pending"}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#888" }}>No direct active operational tasks configured.</p>
-                                )}
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                <button type="button" onClick={closeModal} style={{ width: "100%", padding: "12px", background: selectedNode.color || "#2196f3", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}>
-                    Close Blueprint View
-                </button>
-            </>
-        );
-    };
+    // Node details modal is now rendered via top-level `NodeDetailsModal` component
 
     const renderModalContent = () => {
         if (activeModal === "createProject") {
@@ -517,7 +879,17 @@ const HomePage = () => {
         if (activeModal === "slackActions") return renderSlackActionsModal();
         if (activeModal === "slackCreateChannel") return renderSlackCreateChannelModal();
         if (activeModal === "slackSendMessage") return renderSlackSendMessageModal();
-        if (activeModal === "viewNodeDetails") return renderNodeDetailsModal();
+        if (activeModal === "viewNodeDetails") return (
+            <NodeDetailsModal
+                selectedNode={selectedNode}
+                nodeTasks={nodeTasks}
+                subNodes={subNodes}
+                isModalDataLoading={isModalDataLoading}
+                closeModal={closeModal}
+                fetchProjects={fetchProjects}
+                drawConnections={drawConnections}
+            />
+        );
         return renderDefaultIntegrationModal();
     };
 
@@ -539,22 +911,7 @@ const HomePage = () => {
                         </li>
                     </ul>
                 </nav>
-                <div className="sidebar-bot">
-                    <div className="bot-header">
-                        <span className="bot-avatar">🤖</span>
-                        <div className="bot-info">
-                            <strong>PAMI</strong>
-                            <span className="status-dot"></span>
-                        </div>
-                    </div>
-                    <div className="bot-bubble">
-                        <p>{realProjects.length > 0 ? `Neural network active with ${realProjects.length} nodes.` : "System ready. Initialize your first node."}</p>
-                    </div>
-                    <div className="bot-input-area">
-                        <input type="text" placeholder="Ask PAMI anything..." />
-                        <button className="send-btn">➔</button>
-                    </div>
-                </div>
+                    
             </aside>
 
             <main className="main-content">
@@ -606,27 +963,75 @@ const HomePage = () => {
                 <div className="dashboard-grid">
                     <div className="project-tree-container">
                         <div className="project-tree-header">
-                            <div className="tree-title-group">
-                                <span className="pulse-icon">📈</span>
-                                <h2>Project Tree</h2>
-                            </div>
-                        </div>
-                        <div className="project-tree-canvas">
-                            {isLoading && realProjects.length === 0 ? (
+                                    <div className="tree-title-group tabs">
+                                        <button className={`tab-btn ${activePane === 'tree' ? 'active' : ''}`} onClick={() => setActivePane('tree')}>Project Tree</button>
+                                        <button className={`tab-btn ${activePane === 'chat' ? 'active' : ''}`} onClick={() => setActivePane('chat')}>AI Chat</button>
+                                    </div>
+                                </div>
+                                <div className="project-tree-canvas">
+                                    {activePane === 'tree' ? (
+                                        isLoading && realProjects.length === 0 ? (
                                 <div className="empty-tree-state">
                                     <div className="loading-spinner"></div>
                                     <p>Connecting to Neural Cloud...</p>
                                 </div>
-                            ) : realProjects.length > 0 ? (
-                                <div className="hierarchical-tree-container">
-                                    {renderTree(getTreeStructure())}
-                                </div>
-                            ) : (
-                                <div className="empty-tree-state">
-                                    <p>No active nodes found on server.</p>
-                                    <button className="create-first-btn" onClick={() => openModal("createProject")}>+ Create First Project</button>
-                                </div>
-                            )}
+                                        ) : realProjects.length > 0 ? (
+                                            <div ref={treeContainerRef} className="hierarchical-tree-container" style={{ position: 'relative' }}>
+                                                <svg className="tree-svg-overlay" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 5 }} />
+                                                {renderTree(getTreeStructure())}
+                                            </div>
+                                        ) : (
+                                            <div className="empty-tree-state">
+                                                <p>No active nodes found on server.</p>
+                                                <button className="create-first-btn" onClick={() => openModal("createProject")}>+ Create First Project</button>
+                                            </div>
+                                        )
+                                    ) : (
+                                        // Chat pane
+                                        <div className="pami-chat-pane" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                            <div className="chat-header" style={{ padding: '12px 16px', borderBottom: '1px solid #eee', justifyContent: 'space-between' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                                    <strong>PAMI Conversation</strong>
+                                                    <span style={{ marginLeft: 12, color: '#666' }}>AI channel</span>
+                                                </div>
+                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                    <button title="Upload assistant avatar" onClick={triggerAvatarUpload} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>📤</button>
+                                                    {assistantAvatarUrl && <button title="Clear avatar" onClick={clearAssistantAvatar} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>✖️</button>}
+                                                    <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleAvatarFile(e.target.files && e.target.files[0])} />
+                                                    <button type="button" className="create-node-btn" title="Create node from conversation" onClick={handleCreateNodeFromConversation} style={{ marginLeft: 6 }} disabled={realProjects.length===0 || chatMessages.length===0}>➕ Create Node</button>
+                                                </div>
+                                            </div>
+                                            <div className="chat-body" style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
+                                                {chatMessages.length === 0 ? (
+                                                    <div className="chat-empty-state"><p>💬 Start chatting with PAMI AI</p></div>
+                                                ) : (
+                                                    chatMessages.map((msg, idx) => {
+                                                        const isUser = (msg.role === 'user');
+                                                        const roleClass = isUser ? 'user' : 'assistant';
+                                                        return (
+                                                            <div key={idx} className={`chat-message ${roleClass}`}>
+                                                                {isUser ? (
+                                                                    <div className={`message-avatar user-avatar`}>
+                                                                        <img src="/mario.png" alt="user" />
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className={`message-avatar assistant`} style={{ backgroundImage: `url(${assistantAvatarUrl || '/pami_ai_avatar.png'})` }} />
+                                                                )}
+                                                                <div className="message-content"><p>{msg.content}</p></div>
+                                                            </div>
+                                                        );
+                                                    })
+                                                )}
+                                                {isChatLoading && (
+                                                    <div className="chat-message assistant"><div className="message-avatar">🤖</div><div className="message-content"><div className="typing-indicator"><span></span><span></span><span></span></div></div></div>
+                                                )}
+                                            </div>
+                                            <div className="chat-input" style={{ padding: '12px', borderTop: '1px solid #eee', display: 'flex', gap: '8px' }}>
+                                                <input type="text" placeholder="Ask PAMI anything..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} disabled={isChatLoading} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                                                <button onClick={handleSendMessage} disabled={isChatLoading || !chatInput.trim()} style={{ padding: '10px 14px', borderRadius: '8px', background: '#2f6fed', color: 'white', border: 'none' }}>Send</button>
+                                            </div>
+                                        </div>
+                                    )}
                         </div>
                     </div>
                 </div>

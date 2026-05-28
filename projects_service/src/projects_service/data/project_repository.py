@@ -26,7 +26,20 @@ class ProjectRepository:
         try:
             return await Project.get(project_id, session=session)
         except Exception as e:
-            self._logger.error(f"Error getting project {project_id}: {e}")
+            # Beanie's `get` expects the document id to be a PydanticObjectId (ObjectId).
+            # In some cases the stored _id might be a string (UUID) which causes validation
+            # errors when calling `get`. Try a fallback lookup using `find_one` by _id.
+            self._logger.warning(
+                f"Project.get failed for id {project_id}: {e}. Trying fallback find_one by _id."
+            )
+            try:
+                proj = await Project.find_one({"_id": project_id})
+                if proj:
+                    return proj
+            except Exception as e2:
+                self._logger.error(
+                    f"Fallback find_one also failed for {project_id}: {e2}"
+                )
             return None
 
     async def list_all(self, session=None) -> List[Project]:
@@ -42,7 +55,14 @@ class ProjectRepository:
     ) -> Optional[Project]:
         """Update a project."""
         try:
-            project = await Project.get(project_id, session=session)
+            try:
+                project = await Project.get(project_id, session=session)
+            except Exception as e_get:
+                self._logger.warning(
+                    f"Project.get failed for update id {project_id}: {e_get}. Trying fallback find_one by _id."
+                )
+                project = await Project.find_one({"_id": project_id})
+
             if not project:
                 return None
 
@@ -56,7 +76,14 @@ class ProjectRepository:
     async def delete(self, project_id: str, session=None) -> bool:
         """Delete a project."""
         try:
-            project = await Project.get(project_id, session=session)
+            try:
+                project = await Project.get(project_id, session=session)
+            except Exception as e_get:
+                self._logger.warning(
+                    f"Project.get failed for delete id {project_id}: {e_get}. Trying fallback find_one by _id."
+                )
+                project = await Project.find_one({"_id": project_id})
+
             if not project:
                 return False
 

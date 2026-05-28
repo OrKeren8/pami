@@ -1,4 +1,4 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -7,10 +7,10 @@ class Settings(BaseSettings):
     service_name: str = "projects-service"
     debug: bool = True
     log_level: str = "INFO"
-    ai_service_url: str = "http://localhost:8001"  # AI conversation service URL
+    ai_service_url: str = "http://localhost:8004"  # AI conversation service URL
 
-    class Config:
-        env_file = ".env"
+    # Configure settings: load from .env and ignore extra env vars
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 settings = Settings()

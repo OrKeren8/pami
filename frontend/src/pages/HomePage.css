@@ -5,9 +5,17 @@
     --connector-color: #d1d9e2;
 }
 
+/* Ensure the app fits the viewport and prevent body scrolling */
+html, body, #root {
+    height: 100%;
+    margin: 0;
+    overflow: hidden; /* prevent global scrolling */
+}
+
 .dashboard-container {
     display: flex;
-    min-height: 100vh;
+    height: 100vh; /* fixed viewport height */
+    overflow: hidden; /* keep scrolling inside components */
     background-color: var(--bg-color);
     font-family: 'Inter', sans-serif;
 }
@@ -37,6 +45,13 @@
     margin-left: var(--sidebar-width);
     padding: 20px;
     transition: margin-left 0.3s ease-in-out;
+}
+
+/* Keep main content fixed and prevent global scrolls; inner panes handle scrolling */
+.main-content {
+    height: 100vh;
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
 .sidebar-closed .main-content {
@@ -200,20 +215,59 @@
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
 }
 
+/* Make the project tree take the full horizontal space of its card */
+.project-tree-container {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+}
+
 .project-tree-canvas {
     flex: 1;
     background-color: #fafbfc;
     border: 2px dashed #edf0f5;
     border-radius: 20px;
     margin-top: 20px;
+    /* Make the tree canvas vertically scrollable only */
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: calc(100vh - 240px); /* allow room for header/stats */
+}
+
+/* Header layout: move title to the top-left, remove icon spacing */
+.project-tree-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 0 6px;
+}
+
+.tree-title-group h2 {
+    margin: 0;
+    font-size: 1.25rem;
 }
 
 /* --- Hierarchical Tree Logic --- */
 .hierarchical-tree-container {
     display: flex;
-    justify-content: center;
-    padding: 60px 20px;
+    justify-content: flex-start; /* allow tree to expand horizontally */
+    padding: 40px 16px; /* reduce side padding to use more horizontal space */
     width: 100%;
+    box-sizing: border-box;
+    position: relative; /* for svg overlay positioning */
+}
+
+.tree-svg-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
 }
 
 .tree-branch {
@@ -230,56 +284,34 @@
 
 /* הקו האנכי שיורד מהאבא */
 .tree-connector-arrow {
-    width: 2px;
-    height: 40px;
-    background: var(--connector-color);
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
+    /* keep for legacy, hidden when using curved connectors */
+    display: none;
 }
 
 /* קבוצת הילדים */
 .tree-children {
     display: flex;
     flex-direction: row;
-    gap: 40px;
+    gap: 32px;
     position: relative;
     padding-top: 40px;
+    flex-wrap: wrap; /* allow children to wrap to next row when needed */
+    justify-content: center;
+    align-items: flex-start;
 }
 
     /* הקו האופקי המחבר בין האחים */
+    /* disable CSS-drawn horizontal connector; SVG will draw curved connectors */
     .tree-children::before {
-        content: "";
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        height: 2px;
-        background: var(--connector-color);
-        width: calc(100% - 160px);
+        display: none;
+        content: none;
     }
 
-    /* הקו האנכי שעולה מכל ילד לקו האופקי */
-    .tree-children .tree-branch::before {
-        content: "";
-        position: absolute;
-        top: -40px;
-        left: 50%;
-        width: 2px;
-        height: 40px;
-        background: var(--connector-color);
-    }
-
-    /* ראש החץ בכניסה לכל נוד */
+    /* remove legacy straight pseudo-element connectors; use SVG paths instead */
+    .tree-children .tree-branch::before,
     .tree-children .tree-branch::after {
-        content: "▼";
-        position: absolute;
-        top: -8px;
-        left: 50%;
-        transform: translateX(-50%);
-        font-size: 10px;
-        color: var(--connector-color);
+        display: none;
+        content: none;
     }
 
     /* הסתרת קווים מיותרים כשיש רק ילד אחד */
@@ -300,13 +332,33 @@
     gap: 12px;
     box-shadow: 0 4px 15px rgba(0,0,0,0.06);
     z-index: 10;
-    min-width: 170px;
+    min-width: 140px; /* slightly smaller to fit more nodes horizontally */
     transition: transform 0.2s;
 }
 
     .neural-node-v2:hover {
-        transform: translateY(-3px);
+        transform: translateY(-6px) scale(1.02);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.12);
     }
+
+    /* allow pointer dragging without default touch actions */
+    .neural-node-v2 {
+        touch-action: none;
+        user-select: none;
+    }
+
+/* remove legacy L-shaped pseudo-element connectors; SVG paths handle all connections */
+.tree-node-wrapper::after {
+    display: none;
+    content: none;
+}
+
+/* If only one child, keep connector centered and subtle */
+.tree-children > .tree-branch:only-child::before,
+.tree-children > .tree-branch:only-child::after {
+    height: 20px;
+    top: -20px;
+}
 
 .node-name-v2 {
     font-weight: 700;
@@ -359,6 +411,108 @@
     margin-bottom: 10px;
 }
 
+/* Chat Messages */
+.chat-messages {
+    max-height: 220px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding: 5px;
+}
+
+.chat-messages {
+    overflow-x: hidden; /* prevent horizontal scroll */
+}
+
+.chat-empty-state {
+    text-align: center;
+    color: #999;
+    font-size: 0.75rem;
+    padding: 20px 0;
+}
+
+.chat-message {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    animation: fadeIn 0.2s ease-in;
+}
+
+.chat-message.user {
+    flex-direction: row-reverse;
+}
+
+.message-avatar {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+.message-content {
+    background: white;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    max-width: 75%;
+}
+
+.message-content {
+    white-space: pre-wrap; /* allow wrapping */
+    word-break: break-word;
+}
+
+.chat-message.user .message-content {
+    background: var(--primary-purple);
+    color: white;
+}
+
+.chat-message.assistant .message-content {
+    background: #fdf2f7;
+}
+
+.typing-indicator {
+    display: flex;
+    gap: 4px;
+    padding: 8px;
+}
+
+.typing-indicator span {
+    width: 6px;
+    height: 6px;
+    background: var(--primary-purple);
+    border-radius: 50%;
+    animation: bounce 1.4s infinite ease-in-out;
+}
+
+.typing-indicator span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+    .message-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+.typing-indicator span:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes bounce {
+    0%, 80%, 100% {
+        transform: scale(0);
+    }
+    40% {
+        transform: scale(1);
+    }
+}
+
+.bot-input-area input:disabled,
+.bot-input-area button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* Modal */
 .modal-overlay {
     backdrop-filter: blur(4px);
@@ -381,4 +535,106 @@
     100% {
         transform: rotate(360deg);
     }
+}
+
+/* PAMI Chat Pane Styling */
+.pami-chat-pane {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    border-radius: 12px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #ffffff 0%, #fbf6f8 100%);
+}
+
+.chat-header {
+    background: linear-gradient(90deg, rgba(240,98,146,0.06), rgba(47,111,237,0.03));
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.create-node-btn {
+    background: linear-gradient(90deg, #2f6fed, #f06292);
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 8px 20px rgba(47,111,237,0.18);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.create-node-btn:hover { transform: translateY(-2px); }
+
+.chat-header strong { font-size: 1rem; }
+
+.chat-body {
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: transparent;
+}
+
+.chat-message {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+    max-width: 80%;
+}
+
+.chat-message.user { margin-left: auto; flex-direction: row-reverse; }
+
+.message-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    flex-shrink: 0;
+    font-size: 18px;
+}
+
+/* If the user places an assistant image at /assistant.png (public folder), it will be used */
+.message-avatar.assistant {
+    background-color: transparent;
+    background-size: cover;
+    background-position: center;
+}
+
+.message-content {
+    padding: 12px 16px;
+    border-radius: 14px;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    box-shadow: 0 6px 18px rgba(17,24,39,0.06);
+}
+
+.chat-message.user .message-content {
+    background: linear-gradient(90deg, #2f6fed, #1f4bd6);
+    color: #fff;
+    border-bottom-right-radius: 6px;
+}
+
+.chat-message.assistant .message-content {
+    background: linear-gradient(90deg, #fff0f5, #ffeef4);
+    color: #222;
+    border-bottom-left-radius: 6px;
+}
+
+.chat-input { background: #fff; padding: 12px; display:flex; gap:8px; align-items:center; border-top: 1px solid #f1f3f8; }
+.chat-input input { flex:1; padding:10px 12px; border-radius:10px; border:1px solid #eceff5; }
+.chat-input button { padding:10px 14px; border-radius:10px; background: linear-gradient(90deg,#f06292,#2f6fed); color:white; border:none; cursor:pointer; }
+
+/* small responsive tweaks */
+@media (max-width: 900px) {
+    .project-tree-container { min-height: 520px; }
 }
