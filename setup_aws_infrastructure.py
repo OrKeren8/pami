@@ -60,7 +60,9 @@ def load_env_file(env_path: str = None):
                 key, val = line.split("=", 1)
                 key = key.strip()
                 val = val.strip()
-                if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+                if (val.startswith('"') and val.endswith('"')) or (
+                    val.startswith("'") and val.endswith("'")
+                ):
                     val = val[1:-1]
                 os.environ[key] = val
     except Exception:
@@ -608,7 +610,7 @@ def create_amplify_app(
             default_domain = existing_app["defaultDomain"]
             print_success(f"Amplify app already exists: {app_name}")
             print_info(f"App ID: {app_id}")
-            
+
             # Update environment variables
             try:
                 amplify.update_app(
@@ -617,27 +619,29 @@ def create_amplify_app(
                         "REACT_APP_PROJECTS_API_BASE_URL": api_base_url,
                         "REACT_APP_SLACK_API_BASE_URL": f"{api_base_url}/slack",
                         "_LIVE_UPDATES": '[{"pkg":"@aws-amplify/cli","type":"npm","version":"latest"}]',
-                    }
+                    },
                 )
                 print_success(f"Updated environment variables with new API URL")
                 print_info(f"  REACT_APP_PROJECTS_API_BASE_URL = {api_base_url}")
                 print_info(f"  REACT_APP_SLACK_API_BASE_URL = {api_base_url}/slack")
-                
+
                 # Trigger a new build
                 try:
                     amplify.start_job(
-                        appId=app_id,
-                        branchName="main",
-                        jobType="RELEASE"
+                        appId=app_id, branchName="main", jobType="RELEASE"
                     )
-                    print_success(f"Triggered new deployment with updated configuration")
+                    print_success(
+                        f"Triggered new deployment with updated configuration"
+                    )
                 except Exception as deploy_error:
                     print_info(f"Note: Could not trigger auto-deploy: {deploy_error}")
-                    print_info("You can manually redeploy from AWS Console → Amplify → Deployments")
-                    
+                    print_info(
+                        "You can manually redeploy from AWS Console → Amplify → Deployments"
+                    )
+
             except Exception as update_error:
                 print_error(f"Failed to update environment variables: {update_error}")
-            
+
             print_info(f"URL: https://main.{default_domain}")
             return f"https://main.{default_domain}"
 
