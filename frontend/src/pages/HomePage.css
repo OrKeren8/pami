@@ -1065,3 +1065,596 @@ html, body, #root {
     width: 210px;
   }
 }
+
+/* ================================
+   UI POLISH V3 - DASHBOARD LAYOUT REFINEMENT
+   Focus: premium product layout, header, content rhythm, responsiveness.
+   CSS only. No logic changes.
+================================ */
+
+.main-content {
+  max-width: 1680px;
+  margin: 0 auto;
+}
+
+.top-header {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.top-header::before {
+  content: "";
+  width: 10px;
+  height: 42px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #d65f9f 0%, #8f6df2 100%);
+  box-shadow: 0 10px 24px rgba(214, 95, 159, 0.22);
+  flex: 0 0 auto;
+}
+
+.search-bar {
+  min-height: 46px;
+}
+
+.search-bar input::placeholder {
+  color: rgba(140, 129, 149, 0.72);
+}
+
+.stats-container {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+}
+
+.stat-box {
+  position: relative;
+  isolation: isolate;
+}
+
+.stat-box::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(255, 241, 247, 0.38));
+  z-index: -1;
+}
+
+.stat-box:hover {
+  transform: translateY(-4px);
+  border-color: rgba(214, 95, 159, 0.28);
+  box-shadow: 0 24px 60px rgba(74, 45, 108, 0.12);
+}
+
+.project-tree-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.project-tree-container::before {
+  content: "";
+  position: absolute;
+  top: -120px;
+  right: -120px;
+  width: 260px;
+  height: 260px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(143, 109, 242, 0.10), transparent 68%);
+  pointer-events: none;
+}
+
+.project-tree-container::after {
+  content: "";
+  position: absolute;
+  bottom: -140px;
+  left: -120px;
+  width: 280px;
+  height: 280px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(243, 143, 189, 0.12), transparent 70%);
+  pointer-events: none;
+}
+
+.project-tree-header {
+  position: relative;
+  z-index: 2;
+}
+
+.project-tree-canvas {
+  position: relative;
+  z-index: 1;
+  min-height: 520px;
+}
+
+.tree-title-group h2 {
+  margin-bottom: 4px;
+}
+
+.tree-title-group p,
+.tree-subtitle,
+.project-tree-header p {
+  color: var(--pami-muted);
+}
+
+.neural-node-v2 {
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease;
+}
+
+.neural-node-v2.selected,
+.neural-node-v2.active {
+  border-color: rgba(214, 95, 159, 0.42) !important;
+  background: linear-gradient(135deg, #fff1f7 0%, #f2ecff 100%);
+  box-shadow: 0 20px 46px rgba(214, 95, 159, 0.18);
+}
+
+.node-dot {
+  background: linear-gradient(135deg, #d65f9f 0%, #8f6df2 100%) !important;
+}
+
+.pami-chat-pane {
+  overflow: hidden;
+  min-height: 640px;
+}
+
+.chat-header {
+  min-height: 70px;
+}
+
+.chat-header::after {
+  content: "AI project assistant";
+  display: block;
+  margin-top: 3px;
+  color: var(--pami-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chat-body {
+  min-height: 430px;
+}
+
+.chat-message {
+  margin-bottom: 14px;
+}
+
+.message-content {
+  box-shadow: 0 10px 24px rgba(74, 45, 108, 0.07);
+}
+
+.chat-message.assistant .message-content {
+  color: var(--pami-text);
+}
+
+.chat-input input:focus {
+  outline: none;
+  border-color: rgba(214, 95, 159, 0.42);
+  box-shadow: 0 0 0 4px rgba(214, 95, 159, 0.10);
+}
+
+.create-node-btn {
+  border-radius: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.integration-icon-btn {
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.90);
+  border: 1px solid rgba(214, 95, 159, 0.16);
+}
+
+.integration-icon-btn:hover {
+  transform: translateY(-3px) scale(1.03);
+  border-color: rgba(214, 95, 159, 0.32);
+}
+
+.sidebar {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.sidebar-logo {
+  position: relative;
+}
+
+.sidebar-logo::after {
+  content: "";
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 10px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(214, 95, 159, 0.22), transparent);
+}
+
+.sidebar-nav li {
+  transition:
+    background 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.sidebar-nav li:hover {
+  transform: translateX(3px);
+}
+
+.sidebar-bot {
+  margin-top: auto;
+}
+
+.bot-bubble {
+  font-size: 0.86rem;
+}
+
+@media (max-width: 1280px) {
+  .stats-container {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
+  .project-tree-container {
+    min-height: 560px;
+  }
+
+  .pami-chat-pane {
+    min-height: 560px;
+  }
+}
+
+@media (max-width: 900px) {
+  .main-content {
+    padding: 18px;
+  }
+
+  .top-header {
+    border-radius: 22px;
+    flex-wrap: wrap;
+  }
+
+  .stats-container {
+    grid-template-columns: 1fr;
+  }
+
+  .project-tree-container,
+  .pami-chat-pane {
+    border-radius: 24px;
+  }
+
+  .project-tree-canvas {
+    min-height: 460px;
+  }
+}
+
+/* ================================
+   UI POLISH V3 HOTFIX
+   Fix layout regressions after V3.
+   CSS only. No logic changes.
+================================ */
+
+/* Restore correct sidebar/main layout */
+.main-content {
+  margin-left: var(--sidebar-width);
+  width: calc(100% - var(--sidebar-width));
+  max-width: none;
+  box-sizing: border-box;
+}
+
+.sidebar-closed .main-content {
+  margin-left: 0;
+  width: 100%;
+}
+
+/* Remove the decorative bar that looked like a rendering bug */
+.top-header::before {
+  display: none;
+  content: none;
+}
+
+.top-header {
+  width: 100%;
+  box-sizing: border-box;
+  justify-content: space-between;
+  padding: 18px 22px;
+}
+
+/* Keep the left header group visually clean */
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Better main action button in header */
+.top-header button:not(.menu-toggle) {
+  border: 1px solid rgba(214, 95, 159, 0.22);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fff1f7 0%, #f2ecff 100%);
+  color: #30263a;
+  padding: 11px 18px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 28px rgba(143, 109, 242, 0.10);
+}
+
+.top-header button:not(.menu-toggle):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(214, 95, 159, 0.16);
+}
+
+/* Make the pane switch buttons look intentional */
+.project-tree-container > button,
+.project-tree-header button,
+.project-tree-container button {
+  border: 1px solid rgba(214, 95, 159, 0.18);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--pami-muted);
+  border-radius: 999px;
+  padding: 9px 15px;
+  margin-right: 8px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(74, 45, 108, 0.06);
+}
+
+.project-tree-container > button:hover,
+.project-tree-header button:hover,
+.project-tree-container button:hover {
+  color: var(--primary-purple);
+  border-color: rgba(214, 95, 159, 0.34);
+  background: linear-gradient(135deg, #fff1f7 0%, #f2ecff 100%);
+}
+
+/* Restore tree spacing and prevent it from sitting too close to tabs */
+.project-tree-canvas {
+  margin-top: 22px;
+  min-height: 520px;
+}
+
+/* Improve node label spacing */
+.neural-node-v2 {
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.node-name-v2 {
+  margin-right: 6px;
+}
+
+.node-status-v2 {
+  margin-left: 4px;
+  opacity: 0.68;
+  letter-spacing: 0.08em;
+}
+
+/* Prevent first stats card from being hidden/cut */
+.stats-container {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Keep floating integrations from being too dominant */
+.integrations-fixed-container {
+  right: 28px;
+  top: 210px;
+  z-index: 90;
+}
+
+.integration-icon-btn {
+  width: 64px !important;
+  height: 64px !important;
+}
+
+/* Mobile/tablet safety */
+@media (max-width: 900px) {
+  .main-content,
+  .sidebar-closed .main-content {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .sidebar {
+    width: min(82vw, var(--sidebar-width));
+  }
+}
+
+/* ================================
+   UI POLISH CHAT BOX HOTFIX
+   Fix chat panel layout after visual polish.
+   CSS only. No API or logic changes.
+================================ */
+
+.pami-chat-pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 620px;
+  overflow: hidden;
+}
+
+.pami-chat-pane .chat-header {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.pami-chat-pane .chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  padding: 18px;
+}
+
+.pami-chat-pane .chat-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.pami-chat-pane .message-avatar {
+  flex: 0 0 42px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+}
+
+.pami-chat-pane .message-content {
+  max-width: calc(100% - 56px);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.45;
+}
+
+.pami-chat-pane .chat-input {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-top: 1px solid rgba(214, 95, 159, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.pami-chat-pane .chat-input input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 44px;
+  margin: 0;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(214, 95, 159, 0.18);
+  background: #fffafd;
+  color: var(--pami-text);
+  box-sizing: border-box;
+}
+
+.pami-chat-pane .chat-input input:focus {
+  outline: none;
+  border-color: rgba(214, 95, 159, 0.42);
+  box-shadow: 0 0 0 4px rgba(214, 95, 159, 0.10);
+}
+
+.pami-chat-pane .chat-input button {
+  flex: 0 0 auto;
+  height: 44px;
+  margin: 0;
+  padding: 0 18px;
+  border: none;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #d65f9f 0%, #8f6df2 100%);
+  color: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 26px rgba(214, 95, 159, 0.22);
+}
+
+.pami-chat-pane .chat-input button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.pami-chat-pane .chat-input button:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 32px rgba(143, 109, 242, 0.24);
+}
+
+/* Prevent generic project-tree button styling from breaking chat header buttons */
+.pami-chat-pane .chat-header button {
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--pami-muted);
+  box-shadow: none;
+}
+/* ================================
+   UI POLISH CHAT PANEL SIZE HOTFIX
+   Fix oversized chat body and keep input visible.
+   CSS only. No API or logic changes.
+================================ */
+
+/* Make the AI chat panel behave like an actual chat box */
+.pami-chat-pane {
+  height: min(620px, calc(100vh - 360px));
+  min-height: 460px;
+  max-height: 680px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Header stays at top */
+.pami-chat-pane .chat-header {
+  flex: 0 0 auto;
+}
+
+/* Messages area scrolls instead of pushing the input off-screen */
+.pami-chat-pane .chat-body {
+  flex: 1 1 auto;
+  min-height: 220px;
+  overflow-y: auto;
+  padding: 18px 20px;
+}
+
+/* Input must always remain visible at the bottom */
+.pami-chat-pane .chat-input {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 68px;
+  padding: 12px 16px;
+  border-top: 1px solid rgba(214, 95, 159, 0.14);
+  background: rgba(255, 255, 255, 0.96);
+  position: relative;
+  z-index: 5;
+}
+
+/* Keep the text box compact and visible */
+.pami-chat-pane .chat-input input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(214, 95, 159, 0.20);
+  background: #fffafd;
+  color: var(--pami-text);
+  box-sizing: border-box;
+}
+
+/* Make the typing cursor/input focus visible */
+.pami-chat-pane .chat-input input:focus {
+  outline: none;
+  border-color: rgba(214, 95, 159, 0.52);
+  box-shadow: 0 0 0 4px rgba(214, 95, 159, 0.12);
+}
+
+/* Keep Send button aligned and not oversized */
+.pami-chat-pane .chat-input button {
+  flex: 0 0 auto;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 16px;
+}
+
+/* Avoid the empty-state message sitting too high or making the body feel broken */
+.pami-chat-pane .chat-body:empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
