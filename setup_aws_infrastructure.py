@@ -16,6 +16,8 @@ Usage:
 import boto3
 import json
 import sys
+import os
+from pathlib import Path
 from typing import Dict, Optional, List
 
 # Configuration
@@ -29,15 +31,74 @@ SERVICES = [
     {"name": "ai-conversation-service", "port": 8001, "health_check_path": "/health"},
 ]
 
-# AWS Clients
-ecs = boto3.client("ecs", region_name=REGION)
-ec2 = boto3.client("ec2", region_name=REGION)
-ecr = boto3.client("ecr", region_name=REGION)
-elbv2 = boto3.client("elbv2", region_name=REGION)
-logs = boto3.client("logs", region_name=REGION)
-s3 = boto3.client("s3", region_name=REGION)
-amplify = boto3.client("amplify", region_name=REGION)
-apigateway = boto3.client("apigatewayv2", region_name=REGION)
+# AWS Clients (initialized at runtime after loading .env)
+ecs = None
+ec2 = None
+ecr = None
+elbv2 = None
+logs = None
+s3 = None
+amplify = None
+apigateway = None
+
+
+def load_env_file(env_path: str = None):
+    """Load environment variables from a .env file into os.environ.
+    Minimal loader to allow running the script without manual aws configure.
+    """
+    path = Path(env_path) if env_path else (Path(__file__).resolve().parent / ".env")
+    if not path.exists():
+        return
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                key, val = line.split("=", 1)
+                key = key.strip()
+                val = val.strip()
+                if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+                    val = val[1:-1]
+                os.environ[key] = val
+    except Exception:
+        pass
+
+
+def init_aws_clients(region: str = None):
+    """Initialize global boto3 clients using environment variables if present."""
+    global ecs, ec2, ecr, elbv2, logs, s3, amplify, apigateway
+    region = region or os.getenv("AWS_REGION", REGION)
+    aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+    aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
+    aws_token = os.getenv("AWS_SESSION_TOKEN")
+
+    if aws_access_key and aws_secret:
+        session_kwargs = {
+            "aws_access_key_id": aws_access_key,
+            "aws_secret_access_key": aws_secret,
+            "aws_session_token": aws_token,
+            "region_name": region,
+        }
+        ecs = boto3.client("ecs", **session_kwargs)
+        ec2 = boto3.client("ec2", **session_kwargs)
+        ecr = boto3.client("ecr", **session_kwargs)
+        elbv2 = boto3.client("elbv2", **session_kwargs)
+        logs = boto3.client("logs", **session_kwargs)
+        s3 = boto3.client("s3", **session_kwargs)
+        amplify = boto3.client("amplify", **session_kwargs)
+        apigateway = boto3.client("apigatewayv2", **session_kwargs)
+    else:
+        ecs = boto3.client("ecs", region_name=region)
+        ec2 = boto3.client("ec2", region_name=region)
+        ecr = boto3.client("ecr", region_name=region)
+        elbv2 = boto3.client("elbv2", region_name=region)
+        logs = boto3.client("logs", region_name=region)
+        s3 = boto3.client("s3", region_name=region)
+        amplify = boto3.client("amplify", region_name=region)
+        apigateway = boto3.client("apigatewayv2", region_name=region)
 
 
 def print_header(text: str):
@@ -762,8 +823,13 @@ def print_summary(
 
 def main():
     """Main setup function."""
+    # Load .env (if present) and initialize AWS clients so temporary credentials are used
+    load_env_file()
+    init_aws_clients()
+
     print_header("PAMI AWS Infrastructure Setup")
-    print(f"Region: {REGION}")
+    resolved_region = os.getenv("AWS_REGION", REGION)
+    print(f"Region: {resolved_region}")
     print(f"Account: {ACCOUNT_ID}")
     print()
 
