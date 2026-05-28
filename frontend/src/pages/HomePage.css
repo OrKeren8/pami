@@ -638,3 +638,430 @@ html, body, #root {
 @media (max-width: 900px) {
     .project-tree-container { min-height: 520px; }
 }
+
+/* ================================
+   UI POLISH V1 - PAMI SOFT DASHBOARD
+   Safe CSS-only visual refinement.
+   No logic, API, or component changes.
+================================ */
+
+:root {
+  --bg-color: #fbf6fb;
+  --primary-purple: #d65f9f;
+  --pami-purple: #8f6df2;
+  --pami-pink: #f38fbd;
+  --pami-soft-pink: #fff1f7;
+  --pami-card: rgba(255, 255, 255, 0.86);
+  --pami-border: rgba(214, 95, 159, 0.16);
+  --pami-text: #30263a;
+  --pami-muted: #8c8195;
+  --connector-color: #dfcfe0;
+}
+
+.dashboard-container {
+  background:
+    radial-gradient(circle at top left, rgba(243, 143, 189, 0.22), transparent 34%),
+    radial-gradient(circle at top right, rgba(143, 109, 242, 0.14), transparent 34%),
+    linear-gradient(135deg, #fff8fc 0%, #f7f2ff 52%, #fbf6fb 100%);
+  color: var(--pami-text);
+}
+
+.sidebar {
+  background: rgba(255, 255, 255, 0.78);
+  border-right: 1px solid var(--pami-border);
+  box-shadow: 18px 0 45px rgba(143, 109, 242, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.main-content {
+  padding: 26px;
+}
+
+.sidebar-nav li {
+  color: var(--pami-muted);
+  border: 1px solid transparent;
+  font-weight: 650;
+}
+
+.sidebar-nav li:hover {
+  background: rgba(255, 241, 247, 0.86);
+  color: var(--primary-purple);
+  border-color: rgba(214, 95, 159, 0.12);
+}
+
+.sidebar-nav li.active {
+  background: linear-gradient(135deg, #fff1f7 0%, #f2ecff 100%);
+  color: var(--primary-purple);
+  border: 1px solid rgba(214, 95, 159, 0.18);
+  box-shadow: 0 10px 24px rgba(214, 95, 159, 0.10);
+}
+
+.top-header {
+  background: rgba(255, 255, 255, 0.52);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 28px;
+  padding: 16px 18px;
+  margin-bottom: 22px;
+  box-shadow: 0 18px 45px rgba(143, 109, 242, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.search-bar {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--pami-border);
+  border-radius: 18px;
+  box-shadow: 0 12px 28px rgba(143, 109, 242, 0.08);
+}
+
+.search-bar input {
+  color: var(--pami-text);
+  background: transparent;
+}
+
+.menu-toggle {
+  background: linear-gradient(135deg, #fff1f7 0%, #f0eaff 100%);
+  color: var(--primary-purple);
+  border: 1px solid rgba(214, 95, 159, 0.18);
+  box-shadow: 0 10px 22px rgba(214, 95, 159, 0.10);
+}
+
+.stat-box,
+.project-tree-container,
+.pami-chat-pane {
+  background: var(--pami-card);
+  border: 1px solid var(--pami-border);
+  box-shadow: 0 20px 55px rgba(74, 45, 108, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+.stat-box {
+  border-radius: 28px;
+}
+
+.stat-number {
+  color: var(--pami-text);
+}
+
+.stat-label {
+  color: var(--pami-muted);
+  letter-spacing: 0.07em;
+}
+
+.project-tree-container {
+  border-radius: 34px;
+}
+
+.project-tree-canvas {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 248, 252, 0.72)),
+    radial-gradient(circle at top left, rgba(243, 143, 189, 0.10), transparent 40%);
+  border: 1px dashed rgba(214, 95, 159, 0.22);
+  border-radius: 26px;
+}
+
+.tree-title-group h2 {
+  color: var(--pami-text);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.neural-node-v2 {
+  background: rgba(255, 255, 255, 0.92);
+  border-width: 1px;
+  border-radius: 18px;
+  box-shadow: 0 14px 32px rgba(74, 45, 108, 0.10);
+}
+
+.neural-node-v2:hover {
+  transform: translateY(-5px) scale(1.015);
+  box-shadow: 0 20px 42px rgba(74, 45, 108, 0.14);
+}
+
+.node-name-v2 {
+  color: var(--pami-text);
+}
+
+.node-status-v2 {
+  color: var(--pami-muted);
+}
+
+.sidebar-bot {
+  background: linear-gradient(135deg, rgba(255, 241, 247, 0.95), rgba(242, 236, 255, 0.92));
+  border: 1px solid rgba(214, 95, 159, 0.14);
+  box-shadow: 0 16px 34px rgba(214, 95, 159, 0.10);
+}
+
+.bot-bubble {
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--pami-text);
+  border: 1px solid rgba(214, 95, 159, 0.12);
+}
+
+.chat-header {
+  background: linear-gradient(135deg, rgba(255, 241, 247, 0.95), rgba(242, 236, 255, 0.9));
+  border-bottom: 1px solid rgba(214, 95, 159, 0.12);
+}
+
+.chat-body {
+  background:
+    radial-gradient(circle at top left, rgba(243, 143, 189, 0.10), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.40), rgba(255, 248, 252, 0.64));
+}
+
+.create-node-btn,
+.chat-input button {
+  background: linear-gradient(135deg, #d65f9f 0%, #8f6df2 100%);
+  box-shadow: 0 14px 30px rgba(214, 95, 159, 0.24);
+}
+
+.create-node-btn:hover,
+.chat-input button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 36px rgba(143, 109, 242, 0.24);
+}
+
+.chat-input {
+  background: rgba(255, 255, 255, 0.88);
+  border-top: 1px solid rgba(214, 95, 159, 0.12);
+}
+
+.chat-input input {
+  border: 1px solid rgba(214, 95, 159, 0.16);
+  background: #fffafd;
+}
+
+.logout-item {
+  color: #d84b66 !important;
+}
+
+/* ================================
+   UI POLISH V2 - STRUCTURE AND DEPTH
+   Focus: dashboard hierarchy, cards, tree canvas, chat pane.
+   CSS only. No logic changes.
+================================ */
+
+.dashboard-container {
+  letter-spacing: -0.01em;
+}
+
+.main-content {
+  background: transparent;
+}
+
+.stats-container {
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.stat-box {
+  min-height: 88px;
+  padding: 18px 20px;
+  overflow: hidden;
+}
+
+.stat-box::after {
+  content: "";
+  position: absolute;
+  top: -35px;
+  right: -35px;
+  width: 95px;
+  height: 95px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(243, 143, 189, 0.18), transparent 68%);
+  pointer-events: none;
+}
+
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 18px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.pink-bg,
+.purple-bg,
+.green-bg,
+.blue-bg {
+  background: linear-gradient(135deg, #fff1f7 0%, #f2ecff 100%);
+}
+
+.stat-number {
+  font-size: 1.62rem;
+  line-height: 1;
+}
+
+.stat-label {
+  margin-top: 6px;
+  font-size: 0.68rem;
+}
+
+.project-tree-container {
+  padding: 22px;
+  min-height: 640px;
+}
+
+.project-tree-header {
+  min-height: 46px;
+  margin-bottom: 8px;
+}
+
+.tree-title-group h2 {
+  font-size: 1.38rem;
+}
+
+.project-tree-canvas {
+  margin-top: 14px;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.hierarchical-tree-container {
+  padding: 36px 18px 52px;
+}
+
+.tree-children {
+  gap: 28px;
+}
+
+.tree-node-wrapper {
+  padding-bottom: 34px;
+}
+
+.neural-node-v2 {
+  min-width: 152px;
+  min-height: 54px;
+  padding: 13px 18px;
+  border-radius: 20px;
+  border-color: rgba(214, 95, 159, 0.20) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 249, 253, 0.92));
+}
+
+.neural-node-v2:hover {
+  border-color: rgba(214, 95, 159, 0.38) !important;
+}
+
+.node-dot {
+  width: 11px;
+  height: 11px;
+  box-shadow: 0 0 0 5px rgba(214, 95, 159, 0.09);
+}
+
+.node-name-v2 {
+  font-size: 0.93rem;
+  line-height: 1.15;
+}
+
+.node-status-v2 {
+  margin-top: 4px;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+}
+
+.tree-svg-overlay path {
+  stroke: rgba(214, 95, 159, 0.26);
+  stroke-width: 2.25;
+}
+
+.integrations-fixed-container {
+  right: 26px;
+  top: 190px;
+}
+
+.integration-icon-btn {
+  filter: drop-shadow(0 12px 22px rgba(74, 45, 108, 0.14));
+}
+
+.pami-chat-pane {
+  border-radius: 28px;
+}
+
+.chat-header {
+  padding: 16px 18px;
+}
+
+.chat-header strong {
+  color: var(--pami-text);
+  font-size: 1.05rem;
+}
+
+.chat-body {
+  padding: 18px;
+}
+
+.message-avatar {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(214, 95, 159, 0.12);
+}
+
+.message-content {
+  border-radius: 18px;
+}
+
+.chat-message.user .message-content {
+  background: linear-gradient(135deg, #d65f9f 0%, #8f6df2 100%);
+}
+
+.chat-message.assistant .message-content {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(214, 95, 159, 0.12);
+}
+
+.chat-input {
+  padding: 14px;
+}
+
+.chat-input input {
+  border-radius: 16px;
+  padding: 12px 14px;
+}
+
+.chat-input button {
+  border-radius: 16px;
+  padding: 12px 16px;
+  font-weight: 800;
+}
+
+.sidebar-logo {
+  padding-top: 14px;
+  padding-bottom: 26px;
+}
+
+.logo-img {
+  height: 48px;
+  filter: drop-shadow(0 10px 18px rgba(143, 109, 242, 0.12));
+}
+
+.sidebar-nav ul {
+  margin-top: 14px;
+}
+
+.sidebar-nav li {
+  padding: 13px 15px;
+  margin-bottom: 8px;
+  border-radius: 16px;
+}
+
+.sidebar-bot {
+  border-radius: 22px;
+}
+
+.bot-bubble {
+  border-radius: 18px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1100px) {
+  .stats-container {
+    flex-wrap: wrap;
+  }
+
+  .stat-box {
+    min-width: calc(50% - 18px);
+  }
+
+  .search-bar input {
+    width: 210px;
+  }
+}
