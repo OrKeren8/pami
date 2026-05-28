@@ -69,6 +69,12 @@ async def health_check():
     }
 
 
+@app.get("/")
+async def root_check():
+    # Provide a simple root health response to satisfy ALB health checks
+    return {"status": "healthy"}
+
+
 if __name__ == "__main__":
     import uvicorn
 
