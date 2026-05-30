@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+﻿import React, { useState, useEffect, useRef } from "react";
 import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
 import api, { projectsApi, slackApi, aiApi } from "../api/axios";
@@ -123,6 +123,10 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
 const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [activePane, setActivePane] = useState("tree"); // 'tree' or 'chat'
+    const [treeZoom, setTreeZoom] = useState(1);
+    const [treeHeight, setTreeHeight] = useState(620);
+    const [treePan, setTreePan] = useState({ x: 0, y: 0 });
+    const [isTreePanning, setIsTreePanning] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [activeModal, setActiveModal] = useState(null);
     const [realProjects, setRealProjects] = useState([]);
@@ -649,14 +653,16 @@ const HomePage = () => {
     };
 
     useEffect(() => {
-        // draw after layout
-        const t = setTimeout(drawConnections, 120);
-        window.addEventListener('resize', drawConnections);
+        if (activePane !== "tree") return;
+
+        const t = setTimeout(drawConnections, 80);
+        window.addEventListener("resize", drawConnections);
+
         return () => {
             clearTimeout(t);
-            window.removeEventListener('resize', drawConnections);
+            window.removeEventListener("resize", drawConnections);
         };
-    }, [realProjects, isLoading]);
+    }, [realProjects, contextNodesMap, activePane, isLoading, treeZoom, treeHeight, treePan]);
 
     // make nodes draggable and update connectors while moving
     useEffect(() => {
@@ -671,53 +677,144 @@ const HomePage = () => {
 
         const onPointerMove = (e) => {
             if (!active) return;
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
+
+            const zoom = treeZoom || 1;
+            const dx = (e.clientX - startX) / zoom;
+            const dy = (e.clientY - startY) / zoom;
+
             const nx = origX + dx;
             const ny = origY + dy;
+
             active.style.transform = `translate(${nx}px, ${ny}px)`;
             active.dataset.translateX = nx;
             active.dataset.translateY = ny;
+
             drawConnections();
         };
 
         const onPointerUp = () => {
             if (!active) return;
             active = null;
-            window.removeEventListener('pointermove', onPointerMove);
-            window.removeEventListener('pointerup', onPointerUp);
+            window.removeEventListener("pointermove", onPointerMove);
+            window.removeEventListener("pointerup", onPointerUp);
         };
 
-        const nodeEls = Array.from(container.querySelectorAll('.neural-node-v2'));
+        const nodeEls = Array.from(container.querySelectorAll(".neural-node-v2"));
         nodeEls.forEach((nodeEl) => {
-            nodeEl.style.touchAction = 'none';
+            nodeEl.style.touchAction = "none";
             const down = (e) => {
-                // ignore right-click
-                if (e.button && e.button !== 0) return;
-                const wrapper = nodeEl.closest('.tree-node-wrapper');
+                // left mouse button only for node dragging
+                if (e.button !== 0) return;
+
+                const wrapper = nodeEl.closest(".tree-node-wrapper");
                 if (!wrapper) return;
+
+                e.stopPropagation();
+
                 active = wrapper;
                 startX = e.clientX;
                 startY = e.clientY;
                 origX = parseFloat(wrapper.dataset.translateX || 0) || 0;
                 origY = parseFloat(wrapper.dataset.translateY || 0) || 0;
-                window.addEventListener('pointermove', onPointerMove);
-                window.addEventListener('pointerup', onPointerUp);
+
+                window.addEventListener("pointermove", onPointerMove);
+                window.addEventListener("pointerup", onPointerUp);
             };
-            nodeEl.addEventListener('pointerdown', down);
-            // store for cleanup
+
+            nodeEl.addEventListener("pointerdown", down);
             nodeEl.__pami_down = down;
         });
 
         return () => {
             nodeEls.forEach((nodeEl) => {
-                if (nodeEl.__pami_down) nodeEl.removeEventListener('pointerdown', nodeEl.__pami_down);
+                if (nodeEl.__pami_down) {
+                    nodeEl.removeEventListener("pointerdown", nodeEl.__pami_down);
+                }
                 delete nodeEl.__pami_down;
             });
-            window.removeEventListener('pointermove', onPointerMove);
-            window.removeEventListener('pointerup', onPointerUp);
+
+            window.removeEventListener("pointermove", onPointerMove);
+            window.removeEventListener("pointerup", onPointerUp);
         };
-    }, [realProjects, isLoading]);
+    }, [realProjects, contextNodesMap, activePane, isLoading, treeZoom]);
+
+    const handleTreeWheel = (e) => {
+        if (activePane !== "tree") return;
+
+        e.preventDefault();
+
+        setTreeZoom((prevZoom) => {
+            const direction = e.deltaY < 0 ? 1 : -1;
+            const nextZoom = prevZoom + direction * 0.05;
+            const clampedZoom = Math.min(1, Math.max(0.15, nextZoom));
+
+            return Number(clampedZoom.toFixed(2));
+        });
+    };
+
+    const handleTreeResizePointerDown = (e) => {
+        if (activePane !== "tree") return;
+
+        // keep this resize handle from starting tree panning
+        e.preventDefault();
+        e.stopPropagation();
+
+        const startY = e.clientY;
+        const startHeight = treeHeight;
+
+        const handlePointerMove = (moveEvent) => {
+            const deltaY = startY - moveEvent.clientY;
+            const nextHeight = startHeight + deltaY;
+            const clampedHeight = Math.min(980, Math.max(420, nextHeight));
+
+            setTreeHeight(clampedHeight);
+        };
+
+        const handlePointerUp = () => {
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+            setTimeout(drawConnections, 120);
+        };
+
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+    };
+
+    const handleTreePanPointerDown = (e) => {
+        if (activePane !== "tree") return;
+
+        // middle mouse button only
+        if (e.button !== 1) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startPanX = treePan.x;
+        const startPanY = treePan.y;
+
+        setIsTreePanning(true);
+
+        const handlePointerMove = (moveEvent) => {
+            moveEvent.preventDefault();
+
+            const nextX = startPanX + (moveEvent.clientX - startX);
+            const nextY = startPanY + (moveEvent.clientY - startY);
+
+            setTreePan({ x: nextX, y: nextY });
+        };
+
+        const handlePointerUp = () => {
+            setIsTreePanning(false);
+            window.removeEventListener("pointermove", handlePointerMove);
+            window.removeEventListener("pointerup", handlePointerUp);
+            setTimeout(drawConnections, 80);
+        };
+
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", handlePointerUp);
+    };
 
     const renderSlackConnectModal = () => {
         return (
@@ -963,75 +1060,109 @@ const HomePage = () => {
                 <div className="dashboard-grid">
                     <div className="project-tree-container">
                         <div className="project-tree-header">
-                                    <div className="tree-title-group tabs">
-                                        <button className={`tab-btn ${activePane === 'tree' ? 'active' : ''}`} onClick={() => setActivePane('tree')}>Project Tree</button>
-                                        <button className={`tab-btn ${activePane === 'chat' ? 'active' : ''}`} onClick={() => setActivePane('chat')}>AI Chat</button>
+                            <div className="tree-title-group tabs">
+                                <button className={`tab-btn ${activePane === "tree" ? "active" : ""}`} onClick={() => setActivePane("tree")}>Project Tree</button>
+                                <button className={`tab-btn ${activePane === "chat" ? "active" : ""}`} onClick={() => setActivePane("chat")}>AI Chat</button>
+                            </div>
+                        </div>
+
+                        <div
+                            className={`project-tree-canvas tree-resizable-canvas ${isTreePanning ? "tree-panning" : ""}`}
+                            style={{ height: activePane === "tree" ? `${treeHeight}px` : undefined }}
+                            onWheel={handleTreeWheel}
+                            onPointerDown={handleTreePanPointerDown}
+                            onAuxClick={(e) => {
+                                if (e.button === 1) {
+                                    e.preventDefault();
+                                }
+                            }}
+                        >
+                            {activePane === "tree" && (
+                                <div
+                                    className="tree-resize-handle"
+                                    onPointerDown={handleTreeResizePointerDown}
+                                    title="Drag to resize tree area"
+                                />
+                            )}
+
+                            {activePane === "tree" ? (
+                                isLoading && realProjects.length === 0 ? (
+                                    <div className="empty-tree-state">
+                                        <div className="loading-spinner"></div>
+                                        <p>Connecting to Neural Cloud...</p>
+                                    </div>
+                                ) : realProjects.length > 0 ? (
+                                    <div ref={treeContainerRef} className="hierarchical-tree-container" style={{ position: "relative" }}>
+                                        <div className="tree-zoom-indicator">
+                                            {Math.round(treeZoom * 100)}%
+                                        </div>
+                                        <svg className="tree-svg-overlay" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 5 }} />
+                                        <div
+                                            className="tree-zoom-layer"
+                                            style={{
+                                                transform: `translate(${treePan.x}px, ${treePan.y}px) scale(${treeZoom})`,
+                                                transformOrigin: "top center",
+                                            }}
+                                        >
+                                            {renderTree(getTreeStructure())}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="empty-tree-state">
+                                        <p>No active nodes found on server.</p>
+                                        <button className="create-first-btn" onClick={() => openModal("createProject")}>+ Create First Project</button>
+                                    </div>
+                                )
+                            ) : (
+                                <div className="pami-chat-pane" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                                    <div className="chat-header" style={{ padding: "12px 16px", borderBottom: "1px solid #eee", justifyContent: "space-between" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                            <strong>PAMI Conversation</strong>
+                                            <span style={{ marginLeft: 12, color: "#666" }}>AI channel</span>
+                                        </div>
+                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                            <button title="Upload assistant avatar" onClick={triggerAvatarUpload} style={{ background: "transparent", border: "none", cursor: "pointer" }}>📤</button>
+                                            {assistantAvatarUrl && <button title="Clear avatar" onClick={clearAssistantAvatar} style={{ background: "transparent", border: "none", cursor: "pointer" }}>✖️</button>}
+                                            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleAvatarFile(e.target.files && e.target.files[0])} />
+                                            <button type="button" className="create-node-btn" title="Create node from conversation" onClick={handleCreateNodeFromConversation} style={{ marginLeft: 6 }} disabled={realProjects.length === 0 || chatMessages.length === 0}>➕ Create Node</button>
+                                        </div>
+                                    </div>
+                                    <div className="chat-body" style={{ padding: "16px", overflowY: "auto", flex: 1 }}>
+                                        {chatMessages.length === 0 ? (
+                                            <div className="chat-empty-state"><p>💬 Start chatting with PAMI AI</p></div>
+                                        ) : (
+                                            chatMessages.map((msg, idx) => {
+                                                const isUser = (msg.role === "user");
+                                                const roleClass = isUser ? "user" : "assistant";
+                                                return (
+                                                    <div key={idx} className={`chat-message ${roleClass}`}>
+                                                        {isUser ? (
+                                                            <div className="message-avatar user-avatar">
+                                                                <img src="/mario.png" alt="user" />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="message-avatar assistant" style={{ backgroundImage: `url(${assistantAvatarUrl || "/pami_ai_avatar.png"})` }} />
+                                                        )}
+                                                        <div className="message-content"><p>{msg.content}</p></div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                        {isChatLoading && (
+                                            <div className="chat-message assistant">
+                                                <div className="message-avatar">🤖</div>
+                                                <div className="message-content">
+                                                    <div className="typing-indicator"><span></span><span></span><span></span></div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="chat-input" style={{ padding: "12px", borderTop: "1px solid #eee", display: "flex", gap: "8px" }}>
+                                        <input type="text" placeholder="Ask PAMI anything..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyPress={(e) => e.key === "Enter" && handleSendMessage()} disabled={isChatLoading} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
+                                        <button onClick={handleSendMessage} disabled={isChatLoading || !chatInput.trim()} style={{ padding: "10px 14px", borderRadius: "8px", background: "#2f6fed", color: "white", border: "none" }}>Send</button>
                                     </div>
                                 </div>
-                                <div className="project-tree-canvas">
-                                    {activePane === 'tree' ? (
-                                        isLoading && realProjects.length === 0 ? (
-                                <div className="empty-tree-state">
-                                    <div className="loading-spinner"></div>
-                                    <p>Connecting to Neural Cloud...</p>
-                                </div>
-                                        ) : realProjects.length > 0 ? (
-                                            <div ref={treeContainerRef} className="hierarchical-tree-container" style={{ position: 'relative' }}>
-                                                <svg className="tree-svg-overlay" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 5 }} />
-                                                {renderTree(getTreeStructure())}
-                                            </div>
-                                        ) : (
-                                            <div className="empty-tree-state">
-                                                <p>No active nodes found on server.</p>
-                                                <button className="create-first-btn" onClick={() => openModal("createProject")}>+ Create First Project</button>
-                                            </div>
-                                        )
-                                    ) : (
-                                        // Chat pane
-                                        <div className="pami-chat-pane" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                                            <div className="chat-header" style={{ padding: '12px 16px', borderBottom: '1px solid #eee', justifyContent: 'space-between' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                                    <strong>PAMI Conversation</strong>
-                                                    <span style={{ marginLeft: 12, color: '#666' }}>AI channel</span>
-                                                </div>
-                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                                                    <button title="Upload assistant avatar" onClick={triggerAvatarUpload} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>📤</button>
-                                                    {assistantAvatarUrl && <button title="Clear avatar" onClick={clearAssistantAvatar} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>✖️</button>}
-                                                    <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={(e) => handleAvatarFile(e.target.files && e.target.files[0])} />
-                                                    <button type="button" className="create-node-btn" title="Create node from conversation" onClick={handleCreateNodeFromConversation} style={{ marginLeft: 6 }} disabled={realProjects.length===0 || chatMessages.length===0}>➕ Create Node</button>
-                                                </div>
-                                            </div>
-                                            <div className="chat-body" style={{ padding: '16px', overflowY: 'auto', flex: 1 }}>
-                                                {chatMessages.length === 0 ? (
-                                                    <div className="chat-empty-state"><p>💬 Start chatting with PAMI AI</p></div>
-                                                ) : (
-                                                    chatMessages.map((msg, idx) => {
-                                                        const isUser = (msg.role === 'user');
-                                                        const roleClass = isUser ? 'user' : 'assistant';
-                                                        return (
-                                                            <div key={idx} className={`chat-message ${roleClass}`}>
-                                                                {isUser ? (
-                                                                    <div className={`message-avatar user-avatar`}>
-                                                                        <img src="/mario.png" alt="user" />
-                                                                    </div>
-                                                                ) : (
-                                                                    <div className={`message-avatar assistant`} style={{ backgroundImage: `url(${assistantAvatarUrl || '/pami_ai_avatar.png'})` }} />
-                                                                )}
-                                                                <div className="message-content"><p>{msg.content}</p></div>
-                                                            </div>
-                                                        );
-                                                    })
-                                                )}
-                                                {isChatLoading && (
-                                                    <div className="chat-message assistant"><div className="message-avatar">🤖</div><div className="message-content"><div className="typing-indicator"><span></span><span></span><span></span></div></div></div>
-                                                )}
-                                            </div>
-                                            <div className="chat-input" style={{ padding: '12px', borderTop: '1px solid #eee', display: 'flex', gap: '8px' }}>
-                                                <input type="text" placeholder="Ask PAMI anything..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} disabled={isChatLoading} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
-                                                <button onClick={handleSendMessage} disabled={isChatLoading || !chatInput.trim()} style={{ padding: '10px 14px', borderRadius: '8px', background: '#2f6fed', color: 'white', border: 'none' }}>Send</button>
-                                            </div>
-                                        </div>
-                                    )}
+                            )}
                         </div>
                     </div>
                 </div>
