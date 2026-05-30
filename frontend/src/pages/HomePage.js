@@ -382,7 +382,7 @@ const HomePage = () => {
     };
 
     const fetchSlackChannels = async () => {
-        const response = await slackApi.get("/slack/list-channels");
+        const response = await slackApi.get("/list-channels");
         if (!response.data || response.data.ok !== true) {
             throw new Error(
                 response.data && response.data.error ? response.data.error : "Failed to fetch Slack channels."
@@ -420,7 +420,7 @@ const HomePage = () => {
     const handleSlackTestConnection = async () => {
         setIsLoading(true);
         try {
-            const response = await slackApi.post("/slack/connection-check");
+            const response = await slackApi.post("/connection-check");
             if (!response.data || response.data.ok !== true) {
                 throw new Error(response.data && response.data.error ? response.data.error : "Slack connection check failed.");
             }
@@ -513,7 +513,7 @@ const HomePage = () => {
         }
         setIsLoading(true);
         try {
-            const response = await slackApi.post("/slack/channels", { name: channelNameInput });
+            const response = await slackApi.post("/channels", { name: channelNameInput });
             if (!response.data || response.data.ok !== true) {
                 throw new Error(response.data && response.data.error ? response.data.error : "Failed to create Slack channel.");
             }
@@ -543,7 +543,7 @@ const HomePage = () => {
         }
         setIsLoading(true);
         try {
-            const response = await slackApi.post("/slack/messages", {
+            const response = await slackApi.post("/messages", {
                 channel: messageChannelInput,
                 text: messageTextInput,
             });
