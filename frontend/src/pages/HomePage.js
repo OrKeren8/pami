@@ -15,14 +15,10 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
             const nodeId = selectedNode.id || selectedNode._id || (selectedNode._id && selectedNode._id.$oid) || null;
             if (!nodeId) throw new Error("Selected node has no id");
 
-            // Determine whether selected item is a context-tree node or a top-level project
-            // Context tree nodes include a `project_id` field in responses; projects do not.
             let deletePath = null;
-            if (selectedNode.project_id) {
-                // it's a context node
+            if (selectedNode.project_id || selectedNode.status === 'context' || selectedNode.color === '#8b5cf6') {
                 deletePath = `/context-tree/nodes/${nodeId}`;
             } else {
-                // assume it's a project
                 deletePath = `/projects/${nodeId}`;
             }
 
@@ -61,14 +57,23 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
             </div>
 
             <div style={{ background: "#f9f9f9", padding: "15px", borderRadius: "16px", border: `2px solid ${selectedNode.color}`, maxHeight: "400px", overflowY: "auto", marginBottom: "20px" }}>
-                <div style={{ marginBottom: "10px" }}>
-                    <strong style={{ color: "#555", fontSize: "13px" }}>NODE IDENTIFIER:</strong>
-                    <p style={{ margin: "2px 0 0 0", fontSize: "15px", fontWeight: "bold", color: "#111" }}>{selectedNode.name}</p>
+                <div style={{ marginBottom: "12px" }}>
+                    <strong style={{ color: "#555", fontSize: "11px", letterSpacing: "0.5px" }}>NODE IDENTIFIER:</strong>
+                    <p style={{ margin: "2px 0 0 0", fontSize: "16px", fontWeight: "bold", color: "#111" }}>{selectedNode.name}</p>
                 </div>
 
-                <div style={{ marginBottom: "10px" }}>
-                    <strong style={{ color: "#555", fontSize: "13px" }}>MISSION OBJECTIVE / GOAL:</strong>
-                    <p style={{ margin: "2px 0 0 0", color: "#444", fontStyle: "italic", fontSize: "14px" }}>{selectedNode.goal}</p>
+                <div style={{ marginBottom: "12px", background: "#fff", padding: "12px", borderRadius: "12px", borderLeft: `4px solid ${selectedNode.color}`, boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}>
+                    <strong style={{ color: selectedNode.color, fontSize: "11px", letterSpacing: "0.5px", fontWeight: "bold" }}>NODE DESCRIPTION & MISSION OBJECTIVE:</strong>
+                    <p style={{ margin: "6px 0 0 0", color: "#2c3e50", fontStyle: "normal", fontSize: "14px", lineHeight: "1.5" }}>
+                        {selectedNode.goal || "No description or mission objectives have been configured for this intelligence layer."}
+                    </p>
+                </div>
+
+                <div style={{ display: "flex", gap: "15px", marginBottom: "10px" }}>
+                    <div>
+                        <strong style={{ color: "#555", fontSize: "11px" }}>LAYER TYPE:</strong>
+                        <p style={{ margin: "2px 0 0 0", fontSize: "13px", fontWeight: "600", textTransform: "uppercase", color: "#666" }}>{selectedNode.status}</p>
+                    </div>
                 </div>
 
                 <hr style={{ border: "none", borderTop: "1px solid #ddd", margin: "15px 0" }} />
@@ -86,7 +91,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
                                     {subNodes.map((sub, idx) => (
                                         <span key={idx} style={{ background: "#f06292", color: "white", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }}>
-                                            🌿 {sub.name || "Sub Node"}
+                                            🌿 {sub.name || sub.summary || "Sub Node"}
                                         </span>
                                     ))}
                                 </div>
@@ -122,7 +127,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
 
 const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [activePane, setActivePane] = useState("tree"); // 'tree' or 'chat'
+    const [activePane, setActivePane] = useState("tree");
     const [treeZoom, setTreeZoom] = useState(1);
     const [treeHeight, setTreeHeight] = useState(620);
     const [treePan, setTreePan] = useState({ x: 0, y: 0 });
@@ -132,7 +137,6 @@ const HomePage = () => {
     const [realProjects, setRealProjects] = useState([]);
     const [contextNodesMap, setContextNodesMap] = useState({});
 
-    // סטייט מורחב לנוד שנבחר - כולל המשימות ותתי-הנודים שלו מהשרת
     const [selectedNode, setSelectedNode] = useState(null);
     const [nodeTasks, setNodeTasks] = useState([]);
     const [subNodes, setSubNodes] = useState([]);
@@ -147,7 +151,6 @@ const HomePage = () => {
     const [messageChannelInput, setMessageChannelInput] = useState("");
     const [messageTextInput, setMessageTextInput] = useState("");
 
-    // AI Chat states
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState("");
     const [conversationId, setConversationId] = useState(null);
@@ -162,7 +165,6 @@ const HomePage = () => {
             const response = await projectsApi.get("/projects/");
             console.log("Projects fetched:", response.data);
             setRealProjects(response.data);
-            // fetch context nodes for the first project (and cache)
             if (response.data && response.data.length > 0) {
                 const pid = response.data[0].id || response.data[0]._id || (response.data[0]._id && response.data[0]._id.$oid) || null;
                 if (pid) fetchContextNodes(pid);
@@ -219,14 +221,12 @@ const HomePage = () => {
 
     useEffect(() => {
         fetchProjects();
-        // load avatar from localStorage
         try {
             const saved = localStorage.getItem('pami.assistantAvatar');
             if (saved) setAssistantAvatarUrl(saved);
-        } catch (e) { /* ignore */ }
+        } catch (e) { }
     }, []);
 
-    // whenever projects change, refresh context nodes for the first project
     useEffect(() => {
         if (realProjects && realProjects.length > 0) {
             const pid = realProjects[0].id || realProjects[0]._id || (realProjects[0]._id && realProjects[0]._id.$oid) || realProjects[0]._id || null;
@@ -234,7 +234,6 @@ const HomePage = () => {
         }
     }, [realProjects]);
 
-    // AI Chat functions
     const createAIConversation = async () => {
         try {
             const projectId = realProjects.length > 0 ? realProjects[0].id || realProjects[0]._id : "general";
@@ -291,7 +290,7 @@ const HomePage = () => {
         const reader = new FileReader();
         reader.onload = (ev) => {
             const data = ev.target.result;
-            try { localStorage.setItem('pami.assistantAvatar', data); } catch (e) {}
+            try { localStorage.setItem('pami.assistantAvatar', data); } catch (e) { }
             setAssistantAvatarUrl(data);
         };
         reader.readAsDataURL(file);
@@ -300,7 +299,7 @@ const HomePage = () => {
     const triggerAvatarUpload = () => fileInputRef.current && fileInputRef.current.click();
 
     const clearAssistantAvatar = () => {
-        try { localStorage.removeItem('pami.assistantAvatar'); } catch (e) {}
+        try { localStorage.removeItem('pami.assistantAvatar'); } catch (e) { }
         setAssistantAvatarUrl(null);
     };
 
@@ -309,13 +308,14 @@ const HomePage = () => {
         const rootChildren = realProjects.map((proj) => {
             const pid = proj.id || proj._id || (proj._id && proj._id.$oid) || proj._id || 'unknown';
             const ctxNodes = contextNodesMap[pid] || [];
+
             const children = ctxNodes.map((n) => ({
                 id: n.id || n._id || (n._id && n._id.$oid) || String(n._id),
                 name: n.text ? (n.text.length > 40 ? n.text.slice(0, 40) + '…' : n.text) : (n.summary || 'Context Node'),
                 color: '#8b5cf6',
                 status: n.node_type || 'context',
-                goal: n.summary || n.text || '',
-                children: [],
+                goal: n.summary || n.text || 'No snapshot description available.',
+                project_id: pid
             }));
 
             return {
@@ -333,7 +333,7 @@ const HomePage = () => {
             name: 'PAMI Global Core',
             color: '#f06292',
             status: 'Root',
-            goal: 'Central orchestration engine',
+            goal: 'Central orchestration system engine core.',
             children: rootChildren,
         };
     };
@@ -358,9 +358,8 @@ const HomePage = () => {
         setActiveModal(type);
     };
 
-    // פונקציה חכמה שמטפלת בלחיצה על נוד ומושכת את כל המידע המחובר אליו מהשרת
     const handleNodeClick = async (node) => {
-        if (node.id === "root") return; // התעלמות בלחיצה על ה-Root
+        if (node.id === "root") return;
 
         setSelectedNode(node);
         setActiveModal("viewNodeDetails");
@@ -368,8 +367,6 @@ const HomePage = () => {
 
         try {
             console.log(`Fetching live connected data for project: ${node.id}`);
-
-            // קריאה סימולטנית לשרת למשיכת משימות ותתי-נודים (לפי ה-Swagger החדש)
             const [tasksRes, nodesRes] = await Promise.all([
                 projectsApi.get(`/tasks/projects/${node.id}/tasks`).catch(() => ({ data: [] })),
                 projectsApi.get(`/context-tree/projects/${node.id}/nodes`).catch(() => ({ data: [] }))
@@ -493,7 +490,7 @@ const HomePage = () => {
                 setTimeout(() => {
                     try {
                         drawConnections();
-                    } catch (e) {}
+                    } catch (e) { }
                 }, 200);
             } else if (resp && resp.status && resp.status >= 200 && resp.status < 300) {
                 alert('Node created (no id returned).');
@@ -596,7 +593,6 @@ const HomePage = () => {
         if (!container) return;
         const svg = container.querySelector('svg.tree-svg-overlay');
         if (!svg) return;
-        // clear
         while (svg.firstChild) svg.removeChild(svg.firstChild);
 
         const nodes = Array.from(container.querySelectorAll('.tree-node-wrapper[data-node-id]'));
@@ -608,11 +604,10 @@ const HomePage = () => {
 
         nodes.forEach((el) => {
             const parentId = el.getAttribute('data-parent-id');
-            if (!parentId) return; // skip root
+            if (!parentId) return;
             const parentEl = idToEl[parentId];
             if (!parentEl) return;
 
-            // Prefer the visual `.neural-node-v2` element inside the wrapper
             const parentVisual = parentEl.querySelector('.neural-node-v2') || parentEl;
             const childVisual = el.querySelector('.neural-node-v2') || el;
 
@@ -620,13 +615,11 @@ const HomePage = () => {
             const cRect = childVisual.getBoundingClientRect();
             const containerRect = container.getBoundingClientRect();
 
-            // Coordinates relative to container
             const startX = pRect.left + pRect.width / 2 - containerRect.left;
-            const startY = pRect.top + pRect.height - containerRect.top; // bottom of visual parent
+            const startY = pRect.top + pRect.height - containerRect.top;
             const endX = cRect.left + cRect.width / 2 - containerRect.left;
-            const endY = cRect.top - containerRect.top; // top of visual child
+            const endY = cRect.top - containerRect.top;
 
-            // ensure svg has correct coordinate system and explicit pixel sizing
             const vw = Math.max(1, Math.round(containerRect.width));
             const vh = Math.max(1, Math.round(containerRect.height));
             svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
@@ -664,7 +657,6 @@ const HomePage = () => {
         };
     }, [realProjects, contextNodesMap, activePane, isLoading, treeZoom, treeHeight, treePan]);
 
-    // make nodes draggable and update connectors while moving
     useEffect(() => {
         const container = treeContainerRef.current;
         if (!container) return;
@@ -703,7 +695,6 @@ const HomePage = () => {
         nodeEls.forEach((nodeEl) => {
             nodeEl.style.touchAction = "none";
             const down = (e) => {
-                // left mouse button only for node dragging
                 if (e.button !== 0) return;
 
                 const wrapper = nodeEl.closest(".tree-node-wrapper");
@@ -740,22 +731,17 @@ const HomePage = () => {
 
     const handleTreeWheel = (e) => {
         if (activePane !== "tree") return;
-
         e.preventDefault();
-
         setTreeZoom((prevZoom) => {
             const direction = e.deltaY < 0 ? 1 : -1;
             const nextZoom = prevZoom + direction * 0.05;
             const clampedZoom = Math.min(1, Math.max(0.15, nextZoom));
-
             return Number(clampedZoom.toFixed(2));
         });
     };
 
     const handleTreeResizePointerDown = (e) => {
         if (activePane !== "tree") return;
-
-        // keep this resize handle from starting tree panning
         e.preventDefault();
         e.stopPropagation();
 
@@ -766,7 +752,6 @@ const HomePage = () => {
             const deltaY = startY - moveEvent.clientY;
             const nextHeight = startHeight + deltaY;
             const clampedHeight = Math.min(980, Math.max(420, nextHeight));
-
             setTreeHeight(clampedHeight);
         };
 
@@ -782,8 +767,6 @@ const HomePage = () => {
 
     const handleTreePanPointerDown = (e) => {
         if (activePane !== "tree") return;
-
-        // middle mouse button only
         if (e.button !== 1) return;
 
         e.preventDefault();
@@ -798,10 +781,8 @@ const HomePage = () => {
 
         const handlePointerMove = (moveEvent) => {
             moveEvent.preventDefault();
-
             const nextX = startPanX + (moveEvent.clientX - startX);
             const nextY = startPanY + (moveEvent.clientY - startY);
-
             setTreePan({ x: nextX, y: nextY });
         };
 
@@ -816,6 +797,7 @@ const HomePage = () => {
         window.addEventListener("pointerup", handlePointerUp);
     };
 
+    // --- הפונקציות שהיו חסרות והחזרתי לטווח הקומפוננטה ---
     const renderSlackConnectModal = () => {
         return (
             <>
@@ -946,8 +928,6 @@ const HomePage = () => {
         );
     };
 
-    // Node details modal is now rendered via top-level `NodeDetailsModal` component
-
     const renderModalContent = () => {
         if (activeModal === "createProject") {
             return (
@@ -1008,7 +988,6 @@ const HomePage = () => {
                         </li>
                     </ul>
                 </nav>
-                    
             </aside>
 
             <main className="main-content">
@@ -1072,17 +1051,11 @@ const HomePage = () => {
                             onWheel={handleTreeWheel}
                             onPointerDown={handleTreePanPointerDown}
                             onAuxClick={(e) => {
-                                if (e.button === 1) {
-                                    e.preventDefault();
-                                }
+                                if (e.button === 1) e.preventDefault();
                             }}
                         >
                             {activePane === "tree" && (
-                                <div
-                                    className="tree-resize-handle"
-                                    onPointerDown={handleTreeResizePointerDown}
-                                    title="Drag to resize tree area"
-                                />
+                                <div className="tree-resize-handle" onPointerDown={handleTreeResizePointerDown} title="Drag to resize tree area" />
                             )}
 
                             {activePane === "tree" ? (
@@ -1093,17 +1066,9 @@ const HomePage = () => {
                                     </div>
                                 ) : realProjects.length > 0 ? (
                                     <div ref={treeContainerRef} className="hierarchical-tree-container" style={{ position: "relative" }}>
-                                        <div className="tree-zoom-indicator">
-                                            {Math.round(treeZoom * 100)}%
-                                        </div>
+                                        <div className="tree-zoom-indicator">{Math.round(treeZoom * 100)}%</div>
                                         <svg className="tree-svg-overlay" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 5 }} />
-                                        <div
-                                            className="tree-zoom-layer"
-                                            style={{
-                                                transform: `translate(${treePan.x}px, ${treePan.y}px) scale(${treeZoom})`,
-                                                transformOrigin: "top center",
-                                            }}
-                                        >
+                                        <div className="tree-zoom-layer" style={{ transform: `translate(${treePan.x}px, ${treePan.y}px) scale(${treeZoom})`, transformOrigin: "top center" }}>
                                             {renderTree(getTreeStructure())}
                                         </div>
                                     </div>
@@ -1115,7 +1080,7 @@ const HomePage = () => {
                                 )
                             ) : (
                                 <div className="pami-chat-pane" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-                                    <div className="chat-header" style={{ padding: "12px 16px", borderBottom: "1px solid #eee", justifyContent: "space-between" }}>
+                                    <div className="chat-header" style={{ padding: "12px 16px", borderBottom: "1px solid #eee", justifyContent: "space-between", display: "flex" }}>
                                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                             <strong>PAMI Conversation</strong>
                                             <span style={{ marginLeft: 12, color: "#666" }}>AI channel</span>
@@ -1137,9 +1102,7 @@ const HomePage = () => {
                                                 return (
                                                     <div key={idx} className={`chat-message ${roleClass}`}>
                                                         {isUser ? (
-                                                            <div className="message-avatar user-avatar">
-                                                                <img src="/mario.png" alt="user" />
-                                                            </div>
+                                                            <div className="message-avatar user-avatar"><img src="/mario.png" alt="user" /></div>
                                                         ) : (
                                                             <div className="message-avatar assistant" style={{ backgroundImage: `url(${assistantAvatarUrl || "/pami_ai_avatar.png"})` }} />
                                                         )}

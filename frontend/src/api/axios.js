@@ -1,38 +1,23 @@
-import axios from "axios";
+import axios from 'axios';
 
-// Projects API (gateway)
+// חיבור שער הגישה הראשי (Gateway) לפרויקטים, משימות ועץ קונטקסט
 export const projectsApi = axios.create({
-    baseURL: process.env.REACT_APP_PROJECTS_API_BASE_URL || "http://localhost:8000",
+    baseURL: process.env.REACT_APP_PROJECTS_API_URL,
     timeout: 8000,
 });
 
-// Slack API
-export const slackApi = axios.create({
-    baseURL: process.env.REACT_APP_SLACK_API_BASE_URL || "http://localhost:8000/slack",
-    timeout: 8000,
-});
-
-// AI API: prefer explicit AI URL, fallback to projects base + /ai
+// חיבור ייעודי לסרוויס ה-AI של אור
 export const aiApi = axios.create({
-    baseURL:
-        process.env.REACT_APP_AI_API_URL ||
-        (process.env.REACT_APP_PROJECTS_API_BASE_URL
-            ? `${process.env.REACT_APP_PROJECTS_API_BASE_URL}/ai`
-            : "http://localhost:8001/ai"),
-    timeout: 30000,
+    baseURL: process.env.REACT_APP_AI_API_URL,
+    timeout: 12000,
 });
 
+// חיבור ייעודי לסרוויס הסלאק של החברים
+export const slackApi = axios.create({
+    baseURL: process.env.REACT_APP_SLACK_API_URL,
+    timeout: 8000,
+});
+
+// ברירת מחדל לגיבוי למקרה שיש קריאות ישנות בקוד שמשתמשות ב-api הכללי
 const api = projectsApi;
 export default api;
-
-// Log configured base URLs at module import to help debug which endpoints are used
-try {
-    // eslint-disable-next-line no-console
-    console.log("projectsApi baseURL:", projectsApi.defaults.baseURL);
-    // eslint-disable-next-line no-console
-    console.log("slackApi baseURL:", slackApi.defaults.baseURL);
-    // eslint-disable-next-line no-console
-    console.log("aiApi baseURL:", aiApi.defaults.baseURL);
-} catch (e) {
-    // ignore in non-browser environments
-}
