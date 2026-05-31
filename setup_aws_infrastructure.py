@@ -697,14 +697,17 @@ def create_amplify_app(
                 amplify.update_app(
                     appId=app_id,
                     environmentVariables={
-                        "REACT_APP_PROJECTS_API_BASE_URL": api_base_url,
-                        "REACT_APP_SLACK_API_BASE_URL": f"{api_base_url}/slack",
+                        "REACT_APP_PROJECTS_API_URL": api_base_url,
+                        "REACT_APP_SLACK_API_URL": f"{api_base_url}/slack",
+                        # Bake the `/ai` prefix into the frontend env so builds use `/ai` as base
+                        "REACT_APP_AI_API_URL": f"{api_base_url}/ai",
                         "_LIVE_UPDATES": '[{"pkg":"@aws-amplify/cli","type":"npm","version":"latest"}]',
                     },
                 )
                 print_success(f"Updated environment variables with new API URL")
-                print_info(f"  REACT_APP_PROJECTS_API_BASE_URL = {api_base_url}")
-                print_info(f"  REACT_APP_SLACK_API_BASE_URL = {api_base_url}/slack")
+                print_info(f"  REACT_APP_PROJECTS_API_URL = {api_base_url}")
+                print_info(f"  REACT_APP_SLACK_API_URL = {api_base_url}/slack")
+                print_info(f"  REACT_APP_AI_API_URL = {api_base_url}/ai")
 
                 # Trigger a new build with handling for pending jobs
                 def list_branch_jobs():
@@ -797,8 +800,10 @@ def create_amplify_app(
             "platform": "WEB",
             "oauthToken": github_token,
             "environmentVariables": {
-                "REACT_APP_PROJECTS_API_BASE_URL": api_base_url,
-                "REACT_APP_SLACK_API_BASE_URL": f"{api_base_url}/slack",
+                "REACT_APP_PROJECTS_API_URL": api_base_url,
+                "REACT_APP_SLACK_API_URL": f"{api_base_url}/slack",
+                # Bake the `/ai` prefix into the frontend so built app targets /ai
+                "REACT_APP_AI_API_URL": f"{api_base_url}/ai",
                 "_LIVE_UPDATES": '[{"pkg":"@aws-amplify/cli","type":"npm","version":"latest"}]',
             },
             "buildSpec": """version: 1
@@ -942,8 +947,9 @@ def print_summary(
             try:
                 response = elbv2.describe_load_balancers(LoadBalancerArns=[lb_arn])
                 lb_dns = response["LoadBalancers"][0]["DNSName"]
-                print(f"     REACT_APP_PROJECTS_API_BASE_URL = http://{lb_dns}")
-                print(f"     REACT_APP_SLACK_API_BASE_URL = http://{lb_dns}/slack")
+                print(f"     REACT_APP_PROJECTS_API_URL = http://{lb_dns}")
+                print(f"     REACT_APP_SLACK_API_URL = http://{lb_dns}/slack")
+                print(f"     REACT_APP_AI_API_URL = http://{lb_dns}/ai")
             except Exception:
                 pass
         print()
