@@ -2,6 +2,7 @@ from beanie import Document
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+from pydantic import Field
 from bson import ObjectId
 
 
@@ -13,8 +14,8 @@ class Task(Document):
     assignee: Optional[str] = None  # user ID
     dependencies: List[str] = []  # list of task IDs
     project_id: str  # reference to project
-    created_at: datetime = datetime.utcnow()
-    updated_at: datetime = datetime.utcnow()
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:
         name = "tasks"

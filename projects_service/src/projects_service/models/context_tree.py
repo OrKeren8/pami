@@ -1,6 +1,7 @@
 from beanie import Document, PydanticObjectId
 from typing import List, Optional, Union
 from datetime import datetime
+from pydantic import Field
 
 
 class ContextTreeNode(Document):
@@ -18,8 +19,8 @@ class ContextTreeNode(Document):
     node_type: str  # e.g., "goal", "task", "milestone"
     color: Optional[str] = None
     conversation_id: Optional[str] = None  # Link to AI conversation
-    created_at: datetime = datetime.utcnow()
-    updated_at: datetime = datetime.utcnow()
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:
         name = "context_tree"

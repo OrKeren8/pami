@@ -233,7 +233,9 @@ Suggest where this node should be placed in the tree, provide a summary, extract
             if re.search(p, h):
                 return True
         # If header contains one of these generic tokens and is short, treat as generic
-        if any(tok in h for tok in ("overview", "informative", "summary", "introduction")):
+        if any(
+            tok in h for tok in ("overview", "informative", "summary", "introduction")
+        ):
             if len(h.split()) <= 4:
                 return True
         return False
