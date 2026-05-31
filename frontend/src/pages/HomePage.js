@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
 import api, { projectsApi, slackApi, aiApi } from "../api/axios";
@@ -129,7 +129,7 @@ const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [activePane, setActivePane] = useState("tree");
     const [treeZoom, setTreeZoom] = useState(1);
-    const [treeHeight, setTreeHeight] = useState(620);
+    const [treeHeight, setTreeHeight] = useState(590);
     const [treePan, setTreePan] = useState({ x: 0, y: 0 });
     const [isTreePanning, setIsTreePanning] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -741,17 +741,18 @@ const HomePage = () => {
     };
 
     const handleTreeResizePointerDown = (e) => {
-        if (activePane !== "tree") return;
         e.preventDefault();
         e.stopPropagation();
 
         const startY = e.clientY;
         const startHeight = treeHeight;
+        const minPanelHeight = 590;
+        const maxPanelHeight = Math.max(minPanelHeight, Math.min(980, window.innerHeight - 32));
 
         const handlePointerMove = (moveEvent) => {
             const deltaY = startY - moveEvent.clientY;
             const nextHeight = startHeight + deltaY;
-            const clampedHeight = Math.min(980, Math.max(420, nextHeight));
+            const clampedHeight = Math.min(maxPanelHeight, Math.max(minPanelHeight, nextHeight));
             setTreeHeight(clampedHeight);
         };
 
@@ -1036,7 +1037,7 @@ const HomePage = () => {
                     </div>
                 </div>
 
-                <div className="dashboard-grid">
+                <div className="dashboard-grid dashboard-grid-anchored" style={{ height: `${treeHeight}px`, flexBasis: `${treeHeight}px` }}>
                     <div className="project-tree-container">
                         <div className="project-tree-header">
                             <div className="tree-title-group tabs">
@@ -1047,16 +1048,14 @@ const HomePage = () => {
 
                         <div
                             className={`project-tree-canvas tree-resizable-canvas ${isTreePanning ? "tree-panning" : ""}`}
-                            style={{ height: activePane === "tree" ? `${treeHeight}px` : undefined }}
+                            style={{ flex: 1, minHeight: 0 }}
                             onWheel={handleTreeWheel}
                             onPointerDown={handleTreePanPointerDown}
                             onAuxClick={(e) => {
                                 if (e.button === 1) e.preventDefault();
                             }}
                         >
-                            {activePane === "tree" && (
-                                <div className="tree-resize-handle" onPointerDown={handleTreeResizePointerDown} title="Drag to resize tree area" />
-                            )}
+                            <div className="tree-resize-handle" onPointerDown={handleTreeResizePointerDown} title="Drag top edge to resize tree / chat area" />
 
                             {activePane === "tree" ? (
                                 isLoading && realProjects.length === 0 ? (
@@ -1079,7 +1078,7 @@ const HomePage = () => {
                                     </div>
                                 )
                             ) : (
-                                <div className="pami-chat-pane" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+                                <div className="pami-chat-pane" style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }}>
                                     <div className="chat-header" style={{ padding: "12px 16px", borderBottom: "1px solid #eee", justifyContent: "space-between", display: "flex" }}>
                                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                             <strong>PAMI Conversation</strong>
@@ -1092,7 +1091,7 @@ const HomePage = () => {
                                             <button type="button" className="create-node-btn" title="Create node from conversation" onClick={handleCreateNodeFromConversation} style={{ marginLeft: 6 }} disabled={realProjects.length === 0 || chatMessages.length === 0}>➕ Create Node</button>
                                         </div>
                                     </div>
-                                    <div className="chat-body" style={{ padding: "16px", overflowY: "auto", flex: 1 }}>
+                                    <div className="chat-body" style={{ padding: "16px", overflowY: "auto", overflowX: "hidden", flex: 1, minHeight: 0 }}>
                                         {chatMessages.length === 0 ? (
                                             <div className="chat-empty-state"><p>💬 Start chatting with PAMI AI</p></div>
                                         ) : (

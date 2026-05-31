@@ -1,4 +1,4 @@
-﻿:root {
+:root {
     --sidebar-width: 260px;
     --bg-color: #f8f9fd;
     --primary-purple: #f06292;
@@ -1759,3 +1759,604 @@ html, body, #root {
 .tree-zoom-layer {
   transform-origin: top center;
 }
+
+/* ================================
+   SAFE PATCH: ANCHORED BOTTOM TREE CHAT RESIZE
+   The bottom project/chat panel stays fixed to the viewport bottom.
+   Dragging its top edge changes height upward, shrinking the UI above.
+================================ */
+
+.main-content {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.top-header {
+  flex: 0 0 auto;
+}
+
+.stats-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.dashboard-grid-anchored {
+  flex: 0 0 auto;
+  min-height: 420px;
+  max-height: calc(100vh - 160px);
+  overflow: hidden;
+}
+
+.dashboard-grid-anchored .project-tree-container {
+  height: 100%;
+  min-height: 0 !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dashboard-grid-anchored .project-tree-header {
+  flex: 0 0 auto;
+}
+
+.dashboard-grid-anchored .project-tree-canvas {
+  flex: 1 1 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden !important;
+  position: relative;
+}
+
+.dashboard-grid-anchored .tree-resize-handle {
+  position: absolute;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  height: 24px;
+  cursor: ns-resize;
+  z-index: 1000;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.dashboard-grid-anchored .tree-resize-handle::before {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 110px;
+  height: 5px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(214, 95, 159, 0.55);
+}
+
+.dashboard-grid-anchored .pami-chat-pane {
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.dashboard-grid-anchored .pami-chat-pane .chat-header {
+  flex: 0 0 auto !important;
+}
+
+.dashboard-grid-anchored .pami-chat-pane .chat-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.dashboard-grid-anchored .pami-chat-pane .chat-input {
+  flex: 0 0 auto !important;
+}
+
+/* ================================
+   SAFE PATCH: RESIZE HANDLE DISCOVERY TWEAK
+   Makes the resize affordance visible and intuitive.
+================================ */
+
+.dashboard-grid-anchored .tree-resize-handle {
+  height: 38px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 6px;
+}
+
+.dashboard-grid-anchored .tree-resize-handle::before {
+  content: "Drag to resize";
+  width: auto;
+  min-width: 132px;
+  height: 26px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(214, 95, 159, 0.32);
+  box-shadow: 0 8px 24px rgba(74, 45, 108, 0.12);
+  color: #8f3f6f;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 26px;
+  text-align: center;
+  letter-spacing: 0.01em;
+  opacity: 0.92;
+  transform: none;
+  position: static;
+}
+
+.dashboard-grid-anchored .tree-resize-handle:hover::before {
+  opacity: 1;
+  border-color: rgba(214, 95, 159, 0.52);
+  box-shadow: 0 10px 28px rgba(214, 95, 159, 0.18);
+}
+
+/* ================================
+   SAFE PATCH: SUBTLE RESIZE HANDLE AFFORDANCE
+   Permanent but quiet resize signifier for the anchored tree/chat panel.
+================================ */
+
+.dashboard-grid-anchored .tree-resize-handle {
+  height: 30px;
+  padding-top: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.dashboard-grid-anchored .tree-resize-handle::before {
+  content: "\2195" " Resize panel";
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  min-width: 104px;
+  height: 20px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(214, 95, 159, 0.20);
+  box-shadow: 0 6px 16px rgba(74, 45, 108, 0.08);
+  color: rgba(143, 63, 111, 0.74);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  letter-spacing: 0.01em;
+  opacity: 0.78;
+}
+
+.dashboard-grid-anchored .tree-resize-handle:hover::before {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(214, 95, 159, 0.38);
+  color: rgba(143, 63, 111, 0.96);
+  box-shadow: 0 8px 22px rgba(214, 95, 159, 0.14);
+}
+
+/* ================================
+   SAFE PATCH: FINAL RESIZE HANDLE POLISH
+   Subtle permanent grabber for the anchored panel.
+================================ */
+
+.dashboard-grid-anchored .tree-resize-handle {
+  height: 36px;
+  top: 0;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 0;
+}
+
+.dashboard-grid-anchored .tree-resize-handle::before {
+  content: "\2195 Resize panel";
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 104px;
+  height: 20px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(214, 95, 159, 0.18);
+  box-shadow: 0 4px 12px rgba(74, 45, 108, 0.08);
+  color: rgba(143, 63, 111, 0.78);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  letter-spacing: 0.01em;
+  opacity: 0.9;
+}
+
+.dashboard-grid-anchored .tree-resize-handle:hover::before {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(214, 95, 159, 0.34);
+  color: rgba(143, 63, 111, 0.96);
+  box-shadow: 0 6px 16px rgba(214, 95, 159, 0.12);
+}
+
+/* ================================
+   SAFE PATCH: FINAL MINIMUM DEFAULT PANEL HEIGHT 610
+   Match screenshot 2: this is both the default and the minimum panel height.
+================================ */
+
+.dashboard-grid-anchored {
+  min-height: 610px !important;
+}
+
+.dashboard-grid-anchored .tree-resize-handle::before {
+  content: "\2195 Resize panel";
+}
+
+/* ================================
+   SAFE PATCH: FINAL 590 LAYOUT NO PINK STRIP
+   Keeps the default/minimum panel at the measured 590px
+   and prevents the stats strip above it from being visually clipped.
+================================ */
+
+.stats-container {
+  flex: 0 1 132px !important;
+  min-height: 112px !important;
+  overflow: hidden !important;
+  margin-bottom: 16px !important;
+}
+
+.stats-container .stat-box {
+  min-height: 96px;
+}
+
+.dashboard-grid-anchored {
+  min-height: 590px !important;
+  background: rgba(255, 255, 255, 0.98);
+  overflow: hidden !important;
+}
+
+.dashboard-grid-anchored .project-tree-container {
+  background: rgba(255, 255, 255, 0.98) !important;
+}
+
+/* ================================
+   SAFE PATCH: FINAL 590 ANCHOR CORRECTION
+   Keeps panel default/minimum at 590px,
+   removes the early max cap,
+   and prevents the upper flexible area from leaving a pink strip.
+================================ */
+
+.main-content {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.top-header {
+  flex: 0 0 auto;
+}
+
+.stats-container {
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  margin-bottom: 0 !important;
+}
+
+.dashboard-grid-anchored {
+  flex: 0 0 auto !important;
+  min-height: 590px !important;
+  max-height: calc(100vh - 32px) !important;
+  overflow: hidden !important;
+}
+
+.dashboard-grid-anchored .project-tree-container {
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/* ================================
+   SAFE PATCH: COMPACT STATS CARDS
+   Slightly reduces the stat cards above the tree/chat panel.
+   CSS only. No layout logic changes.
+================================ */
+
+.stats-container {
+  align-items: flex-start !important;
+  gap: 16px !important;
+}
+
+.stats-container .stat-box {
+  min-height: 82px !important;
+  height: 82px !important;
+  padding: 14px 18px !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+}
+
+.stats-container .stat-icon {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 12px !important;
+  font-size: 15px !important;
+  margin-right: 14px !important;
+}
+
+.stats-container .stat-number {
+  font-size: 1.45rem !important;
+  line-height: 1.05 !important;
+}
+
+.stats-container .stat-label {
+  font-size: 0.64rem !important;
+  letter-spacing: 0.11em !important;
+  margin-top: 4px !important;
+}
+
+/* ================================
+   SAFE PATCH: STATS CARDS SLIGHTLY WIDER
+   Keeps the stats cards compact, but gives them slightly more width/presence.
+   CSS only.
+================================ */
+
+.stats-container {
+  gap: 14px !important;
+}
+
+.stats-container .stat-box {
+  height: 90px !important;
+  min-height: 90px !important;
+  padding: 16px 22px !important;
+}
+
+.stats-container .stat-icon {
+  width: 40px !important;
+  height: 40px !important;
+  margin-right: 16px !important;
+}
+
+.stats-container .stat-number {
+  font-size: 1.55rem !important;
+}
+
+.stats-container .stat-label {
+  font-size: 0.66rem !important;
+}
+
+/* ================================
+   SAFE PATCH: STATS CARDS LONGER BALANCED
+   Makes the stat cards longer/taller and less narrow,
+   without changing the tree/chat resize behavior.
+   CSS only.
+================================ */
+
+.stats-container {
+  gap: 16px !important;
+  align-items: flex-start !important;
+}
+
+.stats-container .stat-box {
+  height: 108px !important;
+  min-height: 108px !important;
+  padding: 20px 28px !important;
+  align-items: center !important;
+  box-sizing: border-box !important;
+}
+
+.stats-container .stat-icon {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 14px !important;
+  font-size: 17px !important;
+  margin-right: 18px !important;
+}
+
+.stats-container .stat-number {
+  font-size: 1.75rem !important;
+  line-height: 1.05 !important;
+}
+
+.stats-container .stat-label {
+  font-size: 0.69rem !important;
+  letter-spacing: 0.11em !important;
+  margin-top: 5px !important;
+}
+
+/* ================================
+   SAFE PATCH: PROFESSIONAL NODE CANVAS AND COMPACT CHAT BUBBLES
+   CSS only.
+   Improves the tree canvas background and tightens chat message bubbles.
+================================ */
+
+/* Professional node-editor style canvas background */
+.dashboard-grid-anchored .project-tree-canvas {
+  background-color: #fcf9fd !important;
+  background-image:
+    radial-gradient(circle, rgba(143, 109, 242, 0.22) 1px, transparent 1.2px),
+    linear-gradient(rgba(214, 95, 159, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(214, 95, 159, 0.055) 1px, transparent 1px),
+    radial-gradient(circle at top left, rgba(243, 143, 189, 0.12), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(255, 248, 252, 0.72)) !important;
+  background-size:
+    22px 22px,
+    88px 88px,
+    88px 88px,
+    100% 100%,
+    100% 100% !important;
+  background-position:
+    0 0,
+    0 0,
+    0 0,
+    0 0,
+    0 0 !important;
+  border: 1px solid rgba(214, 95, 159, 0.20) !important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.68),
+    inset 0 18px 40px rgba(255, 255, 255, 0.50) !important;
+}
+
+/* Keep the tree itself clean above the canvas texture */
+.dashboard-grid-anchored .hierarchical-tree-container {
+  background: transparent !important;
+}
+
+/* Compact chat layout */
+.pami-chat-pane .chat-body {
+  padding: 14px 16px !important;
+}
+
+.pami-chat-pane .chat-message {
+  gap: 9px !important;
+  margin-bottom: 10px !important;
+  align-items: flex-start !important;
+}
+
+/* Tight message bubbles around text */
+.pami-chat-pane .message-content {
+  display: inline-block !important;
+  width: fit-content !important;
+  max-width: min(68%, 620px) !important;
+  padding: 8px 12px !important;
+  border-radius: 13px !important;
+  font-size: 0.88rem !important;
+  line-height: 1.35 !important;
+  box-shadow: 0 6px 16px rgba(74, 45, 108, 0.06) !important;
+}
+
+/* Prevent short messages from looking like large boxes */
+.pami-chat-pane .chat-message.user .message-content,
+.pami-chat-pane .chat-message.assistant .message-content {
+  min-width: 0 !important;
+  min-height: 0 !important;
+}
+
+/* Slightly smaller avatars so the text bubble feels more proportional */
+.pami-chat-pane .message-avatar {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  flex: 0 0 34px !important;
+  font-size: 14px !important;
+}
+
+/* User messages stay compact on the right */
+.pami-chat-pane .chat-message.user {
+  justify-content: flex-end !important;
+}
+
+.pami-chat-pane .chat-message.user .message-content {
+  max-width: min(58%, 520px) !important;
+  padding: 8px 12px !important;
+  border-radius: 13px 13px 6px 13px !important;
+}
+
+/* Assistant messages stay compact on the left */
+.pami-chat-pane .chat-message.assistant .message-content {
+  max-width: min(72%, 640px) !important;
+  padding: 8px 12px !important;
+  border-radius: 13px 13px 13px 6px !important;
+}
+
+/* Chat empty/error text should not create oversized cards */
+.pami-chat-pane .chat-empty-state,
+.pami-chat-pane .typing-indicator {
+  width: fit-content !important;
+  max-width: 70% !important;
+}
+
+/* ================================
+   SAFE PATCH: TREE NODE CONTRAST FIX
+   Improves contrast between the node-editor canvas background and tree nodes.
+   CSS only.
+================================ */
+
+/* Make the node-editor background more subtle */
+.dashboard-grid-anchored .project-tree-canvas {
+  background-color: #fbf9fd !important;
+  background-image:
+    radial-gradient(circle, rgba(143, 109, 242, 0.13) 1px, transparent 1.2px),
+    linear-gradient(rgba(214, 95, 159, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(214, 95, 159, 0.035) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 250, 253, 0.84)) !important;
+  background-size:
+    24px 24px,
+    96px 96px,
+    96px 96px,
+    100% 100% !important;
+}
+
+/* Make tree nodes stand out clearly above the canvas */
+.dashboard-grid-anchored .neural-node-v2 {
+  background: rgba(255, 255, 255, 0.98) !important;
+  border: 1px solid rgba(143, 109, 242, 0.30) !important;
+  box-shadow:
+    0 14px 34px rgba(74, 45, 108, 0.12),
+    0 2px 8px rgba(214, 95, 159, 0.08),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(6px);
+}
+
+/* Stronger hover/focus feedback without making the UI noisy */
+.dashboard-grid-anchored .neural-node-v2:hover {
+  border-color: rgba(143, 109, 242, 0.48) !important;
+  box-shadow:
+    0 18px 42px rgba(74, 45, 108, 0.16),
+    0 4px 12px rgba(214, 95, 159, 0.12) !important;
+}
+
+/* Improve label readability inside nodes */
+.dashboard-grid-anchored .neural-node-v2,
+.dashboard-grid-anchored .neural-node-v2 span,
+.dashboard-grid-anchored .neural-node-v2 strong {
+  color: #292233 !important;
+}
+
+.dashboard-grid-anchored .neural-node-v2 small {
+  color: rgba(83, 72, 96, 0.62) !important;
+}
+
+/* ================================
+   SAFE PATCH: TREE CANVAS DOTS CONTRAST TWEAK
+   Makes the node-editor dots/grid more visible while preserving node contrast.
+   CSS only.
+================================ */
+
+.dashboard-grid-anchored .project-tree-canvas {
+  background-color: #f7f3fb !important;
+  background-image:
+    radial-gradient(circle, rgba(104, 78, 160, 0.24) 1.15px, transparent 1.35px),
+    linear-gradient(rgba(104, 78, 160, 0.050) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(104, 78, 160, 0.050) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(248, 241, 252, 0.88)) !important;
+  background-size:
+    24px 24px,
+    96px 96px,
+    96px 96px,
+    100% 100% !important;
+}
+
+/* Keep nodes clearly above the slightly stronger canvas */
+.dashboard-grid-anchored .neural-node-v2 {
+  background: rgba(255, 255, 255, 0.99) !important;
+  border-color: rgba(104, 78, 160, 0.34) !important;
+  box-shadow:
+    0 16px 36px rgba(74, 45, 108, 0.14),
+    0 3px 10px rgba(104, 78, 160, 0.10),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.82) !important;
+}
+
