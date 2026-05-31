@@ -79,7 +79,6 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                 </div>
             </div>
 
-            {/* NODE COLOR CORNER PICKER */}
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "-6px", marginBottom: "8px" }}>
                 <div
                     title="Node color"
@@ -142,7 +141,6 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                         <p style={{ margin: "2px 0 0 0", fontSize: "13px", fontWeight: "600", textTransform: "uppercase", color: "#666" }}>{selectedNode.status}</p>
                     </div>
                 </div>
-
 
                 <hr style={{ border: "none", borderTop: "1px solid #ddd", margin: "15px 0" }} />
 
@@ -1007,6 +1005,7 @@ const HomePage = () => {
         window.addEventListener("pointerup", handlePointerUp);
     };
 
+    // הפונקציות המלאות והתקינות של סלאק שממוקמות בצורה נכונה
     const renderSlackActionsModal = () => {
         return (
             <>
@@ -1213,50 +1212,50 @@ const HomePage = () => {
             </aside>
 
             <main className="main-content">
-                <header className="top-header">
-                    <div className="header-left">
+                <header className="top-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div className="header-left" style={{ display: "flex", alignItems: "center", flex: "0 0 auto" }}>
                         <button className="menu-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>☰</button>
                         <div className="search-bar">
                             <span className="search-icon">🔍</span>
                             <input type="text" placeholder="Search the machine memory..." />
                         </div>
                     </div>
-                    <div className="header-right">
+
+                    <div className="header-stats-wrapper" style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "15px",
+                        background: "rgba(255, 255, 255, 0.5)",
+                        padding: "6px 16px",
+                        borderRadius: "14px",
+                        border: "1px solid rgba(0,0,0,0.04)",
+                        margin: "0 20px",
+                        flex: "1",
+                        justifyContent: "center",
+                        overflowX: "auto"
+                    }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", whiteSpace: "nowrap" }}>
+                            <span>💼</span> <strong style={{ color: "#333" }}>{realProjects.length}</strong> <span style={{ color: "#666", fontSize: "11px" }}>NODES</span>
+                        </div>
+                        <div style={{ width: "1px", height: "14px", background: "#ddd" }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", whiteSpace: "nowrap" }}>
+                            <span>👥</span> <strong style={{ color: "#333" }}>12</strong> <span style={{ color: "#666", fontSize: "11px" }}>WORKERS</span>
+                        </div>
+                        <div style={{ width: "1px", height: "14px", background: "#ddd" }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", whiteSpace: "nowrap" }}>
+                            <span>📈</span> <strong style={{ color: "#333" }}>84%</strong> <span style={{ color: "#666", fontSize: "11px" }}>VELOCITY</span>
+                        </div>
+                        <div style={{ width: "1px", height: "14px", background: "#ddd" }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", whiteSpace: "nowrap" }}>
+                            <span>⚙️</span> <strong style={{ color: "#333" }}>99.9%</strong> <span style={{ color: "#666", fontSize: "11px" }}>UPTIME</span>
+                        </div>
+                    </div>
+
+                    <div className="header-right" style={{ display: "flex", alignItems: "center", gap: "15px", flex: "0 0 auto" }}>
                         <span className="notification">🔔</span>
                         <button className="new-node-btn" onClick={() => openModal("createProject")}>+ New Node</button>
                     </div>
                 </header>
-
-                <div className="stats-container">
-                    <div className="stat-box">
-                        <div className="stat-icon pink-bg">💼</div>
-                        <div className="stat-details">
-                            <span className="stat-number">{realProjects.length}</span>
-                            <span className="stat-label">TOTAL NODES</span>
-                        </div>
-                    </div>
-                    <div className="stat-box">
-                        <div className="stat-icon purple-bg">👥</div>
-                        <div className="stat-details">
-                            <span className="stat-number">12</span>
-                            <span className="stat-label">ACTIVE WORKERS</span>
-                        </div>
-                    </div>
-                    <div className="stat-box">
-                        <div className="stat-icon green-bg">📈</div>
-                        <div className="stat-details">
-                            <span className="stat-number">84%</span>
-                            <span className="stat-label">TASK VELOCITY</span>
-                        </div>
-                    </div>
-                    <div className="stat-box">
-                        <div className="stat-icon blue-bg">⚙️</div>
-                        <div className="stat-details">
-                            <span className="stat-number">99.9%</span>
-                            <span className="stat-label">AI UPTIME</span>
-                        </div>
-                    </div>
-                </div>
 
                 <div className="dashboard-grid dashboard-grid-anchored" style={{
                     height: `${treeHeight}px`,
