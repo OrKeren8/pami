@@ -1122,10 +1122,108 @@ const HomePage = () => {
 
     const renderSlackConnectModal = () => (
         <>
-            <h2>Connect Slack</h2>
-            <p style={{ color: "#666", marginBottom: "18px" }}>
-                Connect PAMI to the Slack service so project updates and team actions can be sent from the dashboard.
-            </p>
+            <div
+                className="modal-header"
+                style={{
+                    textAlign: "center",
+                    marginBottom: "24px"
+                }}
+            >
+                <div
+                    style={{
+                        width: "82px",
+                        height: "82px",
+                        borderRadius: "24px",
+                        margin: "0 auto 16px auto",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "linear-gradient(135deg, rgba(74,21,75,0.10), rgba(240,98,146,0.12))",
+                        border: "1px solid rgba(74,21,75,0.10)",
+                        boxShadow: "0 14px 34px rgba(74,21,75,0.12)"
+                    }}
+                >
+                    <img
+                        src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
+                        alt="Slack"
+                        style={{
+                            width: "48px",
+                            height: "48px",
+                            objectFit: "contain"
+                        }}
+                    />
+                </div>
+
+                <h2 style={{ margin: "0 0 8px 0", color: "#202124", fontSize: "26px" }}>
+                    Connect Slack Workspace
+                </h2>
+
+                <p
+                    style={{
+                        color: "#6b7280",
+                        margin: "0 auto",
+                        maxWidth: "340px",
+                        fontSize: "14px",
+                        lineHeight: "1.55"
+                    }}
+                >
+                    Connect PAMI to Slack so the dashboard can check channels, create project channels,
+                    and send operational updates directly to your workspace.
+                </p>
+            </div>
+
+            <div
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr",
+                    gap: "10px",
+                    marginBottom: "22px"
+                }}
+            >
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "12px 14px",
+                        borderRadius: "16px",
+                        background: "#faf7ff",
+                        border: "1px solid rgba(139,92,246,0.12)"
+                    }}
+                >
+                    <span style={{ fontSize: "18px" }}>#</span>
+                    <div>
+                        <div style={{ fontWeight: "700", color: "#2d2438", fontSize: "13px" }}>
+                            Channel Management
+                        </div>
+                        <div style={{ color: "#7b7286", fontSize: "12px", marginTop: "2px" }}>
+                            List channels and create new Slack channels from PAMI.
+                        </div>
+                    </div>
+                </div>
+
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                        padding: "12px 14px",
+                        borderRadius: "16px",
+                        background: "#fff7fb",
+                        border: "1px solid rgba(240,98,146,0.14)"
+                    }}
+                >
+                    <span style={{ fontSize: "18px" }}>↗</span>
+                    <div>
+                        <div style={{ fontWeight: "700", color: "#2d2438", fontSize: "13px" }}>
+                            Team Updates
+                        </div>
+                        <div style={{ color: "#7b7286", fontSize: "12px", marginTop: "2px" }}>
+                            Send messages to selected Slack channels from the dashboard.
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <form className="modal-form" onSubmit={handleConnect}>
                 <button
@@ -1134,17 +1232,31 @@ const HomePage = () => {
                     disabled={isLoading}
                     style={{
                         width: "100%",
-                        padding: "12px",
-                        background: "#f06292",
+                        padding: "14px",
+                        background: "linear-gradient(135deg, #4a154b 0%, #8b3f8f 45%, #f06292 100%)",
                         color: "white",
                         border: "none",
-                        borderRadius: "12px",
-                        fontWeight: "bold",
-                        cursor: isLoading ? "not-allowed" : "pointer"
+                        borderRadius: "16px",
+                        fontWeight: "800",
+                        letterSpacing: "0.2px",
+                        cursor: isLoading ? "not-allowed" : "pointer",
+                        boxShadow: "0 14px 30px rgba(240,98,146,0.24)",
+                        opacity: isLoading ? 0.7 : 1
                     }}
                 >
                     {isLoading ? "Connecting..." : "Connect Slack"}
                 </button>
+
+                <p
+                    style={{
+                        margin: "12px 0 0 0",
+                        textAlign: "center",
+                        color: "#9ca3af",
+                        fontSize: "12px"
+                    }}
+                >
+                    Uses the configured Slack backend service. No manual token entry is required here.
+                </p>
             </form>
         </>
     );
