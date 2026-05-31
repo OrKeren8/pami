@@ -75,7 +75,19 @@ def load_env_file(env_path: str = None):
 def init_aws_clients(region: str = None):
     """Initialize global boto3 clients using environment variables if present."""
     global ecs, ec2, ecr, elbv2, logs, s3, amplify, apigateway
-    region = region or os.getenv("AWS_REGION", REGION)
+    # Prefer explicit parameter, then common env vars, then module default
+    region = region or os.getenv("AWS_REGION") or os.getenv("REGION") or os.getenv("AWS_DEFAULT_REGION") or REGION
+
+    # Diagnostic: print region that will be used so CI logs show missing values
+    print_info(f"Initializing AWS clients with region: '{region}'")
+
+    if not region:
+        print_error("AWS region is not set. Please set AWS_REGION or AWS_DEFAULT_REGION in the environment or GitHub Secrets.")
+        # Print helpful diagnostics for CI logs
+        print_info(f"ENV AWS_REGION={os.getenv('AWS_REGION')}")
+        print_info(f"ENV REGION={os.getenv('REGION')}")
+        print_info(f"ENV AWS_DEFAULT_REGION={os.getenv('AWS_DEFAULT_REGION')}")
+        raise ValueError("Missing AWS region")
     aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
     aws_secret = os.getenv("AWS_SECRET_ACCESS_KEY")
     aws_token = os.getenv("AWS_SESSION_TOKEN")
@@ -96,6 +108,7 @@ def init_aws_clients(region: str = None):
         amplify = boto3.client("amplify", **session_kwargs)
         apigateway = boto3.client("apigatewayv2", **session_kwargs)
     else:
+        # Let boto3 resolve endpoints using the region_name parameter instead of building endpoint URLs manually.
         ecs = boto3.client("ecs", region_name=region)
         ec2 = boto3.client("ec2", region_name=region)
         ecr = boto3.client("ecr", region_name=region)
@@ -952,12 +965,28 @@ def print_summary(
 
 def main():
     """Main setup function."""
+    # Ensure we can write back the resolved region to module-level constant
+    global REGION
     # Load .env (if present) and initialize AWS clients so temporary credentials are used
     load_env_file()
-    init_aws_clients()
+    # Resolve region early so all helpers use the same resolved value
+    resolved_region = os.getenv("AWS_REGION") or os.getenv("REGION") or os.getenv("AWS_DEFAULT_REGION") or REGION
+
+    # Fail fast and provide diagnostics in CI logs when region is missing
+    if not resolved_region:
+        print_error("AWS region not configured. Set AWS_REGION or AWS_DEFAULT_REGION in environment or GitHub Secrets.")
+        print_info(f"ENV AWS_REGION={os.getenv('AWS_REGION')}")
+        print_info(f"ENV REGION={os.getenv('REGION')}")
+        print_info(f"ENV AWS_DEFAULT_REGION={os.getenv('AWS_DEFAULT_REGION')}")
+        sys.exit(2)
+
+    # Set module-level REGION so other functions use the resolved value
+    REGION = resolved_region
+
+    # Initialize boto3 clients with explicit region
+    init_aws_clients(region=resolved_region)
 
     print_header("PAMI AWS Infrastructure Setup")
-    resolved_region = os.getenv("AWS_REGION", REGION)
     print(f"Region: {resolved_region}")
     print(f"Account: {ACCOUNT_ID}")
     print()
