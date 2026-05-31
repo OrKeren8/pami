@@ -621,8 +621,8 @@ def enable_cors_on_api(api_endpoint: str):
 
         cors_conf = {
             "AllowOrigins": [desired_origin] if desired_origin else ["*"],
-            "AllowMethods": ["GET", "POST", "OPTIONS"],
-            "AllowHeaders": ["Content-Type", "Authorization"],
+            "AllowMethods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            "AllowHeaders": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
             "ExposeHeaders": [],
             "MaxAge": 3600,
         }
