@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     aws_secret_access_key: str = ""
     aws_session_token: str = ""
 
+    # API root path (useful for tests and deployments). Leave empty string for no prefix.
+    api_root: str = ""
+
     # Configure settings: load from .env and ignore extra env vars
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

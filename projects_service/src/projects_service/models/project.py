@@ -2,6 +2,7 @@ from beanie import Document
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+from pydantic import Field
 from enum import Enum
 
 
@@ -16,8 +17,8 @@ class Project(Document):
     goal: str
     status: ProjectStatus  # e.g., "active", "completed", "on-hold"
     color: Optional[str] = None
-    created_at: datetime = datetime.utcnow()
-    updated_at: datetime = datetime.utcnow()
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:
         name = "projects"

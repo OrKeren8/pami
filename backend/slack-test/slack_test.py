@@ -5,19 +5,25 @@ from dotenv import load_dotenv
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
-
 load_dotenv()
 
+# Import-time should be safe for test collection. Do not exit on missing token;
+# instead set `client` to None and let runtime callers handle the absence.
 token = os.getenv("SLACK_BOT_TOKEN")
 
 if not token:
     print("Missing SLACK_BOT_TOKEN in .env file")
-    raise SystemExit(1)
-
-client = WebClient(token=token)
+    client = None
+else:
+    client = WebClient(token=token)
 
 
 def test_slack_connection():
+    import pytest
+
+    if not client:
+        pytest.skip("SLACK_BOT_TOKEN not set; skipping real Slack test")
+
     try:
         result = client.auth_test()
 
@@ -66,7 +72,7 @@ def send_message(channel_id):
     try:
         result = client.chat_postMessage(
             channel=channel_id,
-            text="Hello from the PAMI Slack integration test in Python"
+            text="Hello from the PAMI Slack integration test in Python",
         )
 
         print("Message sent successfully")
