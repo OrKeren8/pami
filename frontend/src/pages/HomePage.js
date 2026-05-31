@@ -894,22 +894,44 @@ const HomePage = () => {
         e.preventDefault();
         e.stopPropagation();
 
+        const panelElement = e.currentTarget.closest(".dashboard-grid-anchored");
+        const panelRect = panelElement ? panelElement.getBoundingClientRect() : null;
+
         const startY = e.clientY;
-        const startHeight = treeHeight;
-        const minPanelHeight = 590;
-        const maxPanelHeight = Math.max(minPanelHeight, Math.min(980, window.innerHeight - 32));
+        const basePanelHeight = 590;
+        const topScreenLimit = -90;
+        const panelBottom = panelRect ? panelRect.bottom : window.innerHeight - 24;
+        const expandedPanelHeight = Math.max(basePanelHeight, Math.floor(panelBottom - topScreenLimit));
+        const startHeight = Math.min(expandedPanelHeight, Math.max(basePanelHeight, treeHeight));
+        const dragThreshold = 4;
+        let didDrag = false;
 
         const handlePointerMove = (moveEvent) => {
             const deltaY = startY - moveEvent.clientY;
+
+            if (Math.abs(deltaY) >= dragThreshold) {
+                didDrag = true;
+            }
+
+            if (!didDrag) return;
+
             const nextHeight = startHeight + deltaY;
-            const clampedHeight = Math.min(maxPanelHeight, Math.max(minPanelHeight, nextHeight));
+            const clampedHeight = Math.min(expandedPanelHeight, Math.max(basePanelHeight, nextHeight));
             setTreeHeight(clampedHeight);
         };
 
         const handlePointerUp = () => {
             window.removeEventListener("pointermove", handlePointerMove);
             window.removeEventListener("pointerup", handlePointerUp);
-            setTimeout(drawConnections, 120);
+
+            if (!didDrag) {
+                setTreeHeight((previousHeight) => {
+                    const isExpanded = previousHeight >= expandedPanelHeight - 5;
+                    return isExpanded ? basePanelHeight : expandedPanelHeight;
+                });
+            }
+
+            setTimeout(drawConnections, 160);
         };
 
         window.addEventListener("pointermove", handlePointerMove);
@@ -928,42 +950,61 @@ const HomePage = () => {
         const startPanX = treePan.x;
         const startPanY = treePan.y;
 
+        let animationFrameId = null;
+
+        const scheduleConnectionRedraw = () => {
+            if (animationFrameId !== null) return;
+
+            animationFrameId = window.requestAnimationFrame(() => {
+                animationFrameId = null;
+                try {
+                    drawConnections();
+                } catch (error) {
+                    console.error("drawConnections during tree pan failed:", error);
+                }
+            });
+        };
+
         setIsTreePanning(true);
 
         const handlePointerMove = (moveEvent) => {
             moveEvent.preventDefault();
-            const nextX = startPanX + (moveEvent.clientX - startX);
-            const nextY = startPanY + (moveEvent.clientY - startY);
-            setTreePan({ x: nextX, y: nextY });
+
+            const deltaX = moveEvent.clientX - startX;
+            const deltaY = moveEvent.clientY - startY;
+
+            setTreePan({
+                x: startPanX + deltaX,
+                y: startPanY + deltaY
+            });
+
+            scheduleConnectionRedraw();
         };
 
         const handlePointerUp = () => {
-            setIsTreePanning(false);
             window.removeEventListener("pointermove", handlePointerMove);
             window.removeEventListener("pointerup", handlePointerUp);
-            setTimeout(drawConnections, 80);
+
+            if (animationFrameId !== null) {
+                window.cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+
+            setIsTreePanning(false);
+
+            window.requestAnimationFrame(() => {
+                try {
+                    drawConnections();
+                } catch (error) {
+                    console.error("final drawConnections after tree pan failed:", error);
+                }
+
+                setTimeout(drawConnections, 80);
+            });
         };
 
         window.addEventListener("pointermove", handlePointerMove);
         window.addEventListener("pointerup", handlePointerUp);
-    };
-
-    // --- הפונקציות שהיו חסרות והחזרתי לטווח הקומפוננטה ---
-    const renderSlackConnectModal = () => {
-        return (
-            <>
-                <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-                    <img src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" alt="Slack" style={{ height: "50px", marginBottom: "10px" }} />
-                    <h2>Connect to Slack</h2>
-                    <p style={{ color: "#666", marginTop: "10px" }}>
-                        Use the server-side Slack bot credentials to connect once, then continue to Slack actions.
-                    </p>
-                </div>
-                <button type="button" className="login-submit-btn" disabled={isLoading} onClick={handleConnect} style={{ width: "100%", padding: "12px", background: "#4a154b", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: isLoading ? "not-allowed" : "pointer" }}>
-                    {isLoading ? "Processing..." : "Connect to Slack"}
-                </button>
-            </>
-        );
     };
 
     const renderSlackActionsModal = () => {
@@ -1079,6 +1120,35 @@ const HomePage = () => {
         );
     };
 
+    const renderSlackConnectModal = () => (
+        <>
+            <h2>Connect Slack</h2>
+            <p style={{ color: "#666", marginBottom: "18px" }}>
+                Connect PAMI to the Slack service so project updates and team actions can be sent from the dashboard.
+            </p>
+
+            <form className="modal-form" onSubmit={handleConnect}>
+                <button
+                    type="submit"
+                    className="login-submit-btn"
+                    disabled={isLoading}
+                    style={{
+                        width: "100%",
+                        padding: "12px",
+                        background: "#f06292",
+                        color: "white",
+                        border: "none",
+                        borderRadius: "12px",
+                        fontWeight: "bold",
+                        cursor: isLoading ? "not-allowed" : "pointer"
+                    }}
+                >
+                    {isLoading ? "Connecting..." : "Connect Slack"}
+                </button>
+            </form>
+        </>
+    );
+
     const renderModalContent = () => {
         if (activeModal === "createProject") {
             return (
@@ -1188,7 +1258,11 @@ const HomePage = () => {
                     </div>
                 </div>
 
-                <div className="dashboard-grid dashboard-grid-anchored" style={{ height: `${treeHeight}px`, flexBasis: `${treeHeight}px` }}>
+                <div className="dashboard-grid dashboard-grid-anchored" style={{
+                    height: `${treeHeight}px`,
+                    flexBasis: `${treeHeight}px`,
+                    marginTop: `-${Math.max(0, treeHeight - 590)}px`
+                }}>
                     <div className="project-tree-container">
                         <div className="project-tree-header">
                             <div className="tree-title-group tabs">

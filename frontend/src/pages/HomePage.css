@@ -2431,3 +2431,194 @@ html, body, #root {
     0 4px 10px rgba(0, 0, 0, 0.10) !important;
 }
 
+/* ================================
+   SAFE PATCH: ANCHORED PANEL RESIZE AND COMPACT PANE TABS
+   Keeps tree/chat panel visually bottom-anchored while resizing upward.
+   Also redesigns Project Tree / AI Chat tabs as compact professional segmented controls.
+================================ */
+
+.dashboard-grid-anchored {
+  transform-origin: bottom center !important;
+  will-change: height, transform !important;
+}
+
+.dashboard-grid-anchored .project-tree-container {
+  padding: 14px 16px 16px !important;
+  border-radius: 28px !important;
+}
+
+.dashboard-grid-anchored .project-tree-header {
+  flex: 0 0 34px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  margin: 0 0 8px 0 !important;
+  padding: 0 2px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 0 !important;
+}
+
+.dashboard-grid-anchored .tree-title-group.tabs {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  width: fit-content !important;
+  padding: 4px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.72) !important;
+  border: 1px solid rgba(143, 109, 242, 0.16) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 8px 22px rgba(74, 45, 108, 0.07) !important;
+}
+
+.dashboard-grid-anchored .tree-title-group.tabs .tab-btn {
+  height: 26px !important;
+  min-height: 26px !important;
+  padding: 0 12px !important;
+  margin: 0 !important;
+  border: 1px solid transparent !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  color: rgba(83, 72, 96, 0.72) !important;
+  box-shadow: none !important;
+  font-size: 0.74rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.015em !important;
+  line-height: 26px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease !important;
+}
+
+.dashboard-grid-anchored .tree-title-group.tabs .tab-btn::before {
+  content: "";
+  width: 13px;
+  height: 13px;
+  display: inline-block;
+  background: currentColor;
+  opacity: 0.78;
+  -webkit-mask: var(--pane-tab-icon) center / contain no-repeat;
+  mask: var(--pane-tab-icon) center / contain no-repeat;
+}
+
+.dashboard-grid-anchored .tree-title-group.tabs .tab-btn:first-child {
+  --pane-tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='6' cy='6' r='3'/%3E%3Ccircle cx='18' cy='6' r='3'/%3E%3Ccircle cx='12' cy='18' r='3'/%3E%3Cpath d='M8.7 7.5h6.6'/%3E%3Cpath d='M7.5 8.7l3.2 6.1'/%3E%3Cpath d='M16.5 8.7l-3.2 6.1'/%3E%3C/svg%3E");
+}
+
+.dashboard-grid-anchored .tree-title-group.tabs .tab-btn:nth-child(2) {
+  --pane-tab-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='5' width='16' height='13' rx='3'/%3E%3Cpath d='M8 21l4-3 4 3'/%3E%3Cpath d='M9 10h.01'/%3E%3Cpath d='M15 10h.01'/%3E%3Cpath d='M9 14h6'/%3E%3C/svg%3E");
+}
+
+.dashboard-grid-anchored .tree-title-group.tabs .tab-btn:hover {
+  color: rgba(143, 109, 242, 0.98) !important;
+  background: rgba(255, 255, 255, 0.86) !important;
+  border-color: rgba(143, 109, 242, 0.16) !important;
+}
+
+.dashboard-grid-anchored .tree-title-group.tabs .tab-btn.active {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #d65f9f 0%, #8f6df2 100%) !important;
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  box-shadow:
+    0 8px 18px rgba(143, 109, 242, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24) !important;
+  transform: translateY(-1px) !important;
+}
+
+.dashboard-grid-anchored .project-tree-canvas {
+  margin-top: 8px !important;
+}
+
+.dashboard-grid-anchored .tree-resize-handle::before {
+  content: "\2195 Resize" !important;
+  top: 4px !important;
+  height: 17px !important;
+  min-width: 78px !important;
+  padding: 0 8px !important;
+  font-size: 10px !important;
+  line-height: 17px !important;
+}
+
+/* ================================
+   SAFE PATCH: LIMIT ANCHORED PANEL RESIZE
+   Prevents the tree/chat panel from climbing too high while keeping bottom anchoring.
+================================ */
+
+.dashboard-grid-anchored {
+  max-height: 740px !important;
+}
+
+.dashboard-grid-anchored .project-tree-container,
+.dashboard-grid-anchored .pami-chat-pane {
+  max-height: 740px !important;
+}
+
+/* ================================
+   SAFE PATCH: DRAG AND CLICK RESIZE WITH BOTTOM ANCHOR
+   Resize supports both dragging and click toggle.
+   Panel bottom remains visually anchored using negative margin instead of transform.
+   Pane switch tabs are centered.
+================================ */
+
+.dashboard-grid-anchored {
+  transform: none !important;
+  transform-origin: initial !important;
+  max-height: 740px !important;
+  transition:
+    height 160ms ease,
+    flex-basis 160ms ease,
+    margin-top 160ms ease !important;
+}
+
+.dashboard-grid-anchored .project-tree-container,
+.dashboard-grid-anchored .pami-chat-pane {
+  max-height: 740px !important;
+}
+
+.dashboard-grid-anchored .project-tree-header {
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+.dashboard-grid-anchored .tree-title-group.tabs {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.dashboard-grid-anchored .tree-resize-handle {
+  cursor: ns-resize !important;
+}
+
+.dashboard-grid-anchored .tree-resize-handle::before {
+  content: "Drag / click" !important;
+  min-width: 86px !important;
+}
+
+/* ================================
+   SAFE PATCH: RESIZE CAN CROSS TOP BAR
+   Allows the tree/chat panel to overlap the upper search/header area while resized.
+================================ */
+
+.dashboard-grid-anchored {
+  position: relative !important;
+  z-index: 40 !important;
+}
+
+.dashboard-grid-anchored .project-tree-container {
+  position: relative !important;
+  z-index: 41 !important;
+}
+
+.dashboard-grid-anchored .tree-resize-handle {
+  z-index: 50 !important;
+}
+
