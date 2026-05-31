@@ -59,9 +59,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(ai_conversations_router)
-app.include_router(tree_analysis_router)
+# Include routers under the `/ai` prefix so ALB path-based routing (/ai/*)
+# correctly forwards requests to the AI service endpoints. This ensures that
+# requests arriving as `/ai/ai-conversations/...` or `/ai/tree-analysis/...`
+# are matched by the internal routers.
+app.include_router(ai_conversations_router, prefix="/ai")
+app.include_router(tree_analysis_router, prefix="/ai")
 
 
 @app.get("/health")
