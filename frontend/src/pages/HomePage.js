@@ -1487,7 +1487,7 @@ const HomePage = () => {
                         <div className="project-tree-header">
                             <div className="tree-title-group tabs">
                                 <button className={`tab-btn ${activePane === "tree" ? "active" : ""}`} onClick={async () => { setActivePane("tree"); try { await fetchProjects(); } catch (e) { console.error('Failed to refresh projects on tab switch', e); } }}>Project Tree</button>
-                                <button className={`tab-btn ${activePane === "chat" ? "active" : ""}`} onClick={() => setActivePane("chat")}>AI Chat</button>
+                                <button className={`tab-btn ${activePane === "chat" ? "active" : ""}`} onClick={() => { setActivePane("chat"); setConversationId(null); setChatMessages([]); }}>AI Chat</button>
                             </div>
                         </div>
 
