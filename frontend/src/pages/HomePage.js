@@ -416,6 +416,40 @@ const HomePage = () => {
         }
     }, [realProjects]);
 
+    // Keep selectedNode in-sync with the freshest data from contextNodesMap.
+    // Sometimes the selectedNode object is an earlier snapshot (from the tree),
+    // so when nodes are re-fetched we should replace the selectedNode with the
+    // authoritative server copy to avoid stale previews.
+    useEffect(() => {
+        try {
+            if (!selectedNode) return;
+            // look for a matching node across all projects in the map
+            const allNodes = Object.values(contextNodesMap).flat();
+            if (!allNodes || allNodes.length === 0) return;
+            const selId = selectedNode.id || selectedNode._id || (selectedNode._id && selectedNode._id.$oid) || null;
+            if (!selId) return;
+            const found = allNodes.find((n) => String(n.id || n._id || (n._id && n._id.$oid) || n._id) === String(selId));
+            if (found) {
+                // Merge but prefer fresh server values
+                setSelectedNode((prev) => ({
+                    ...prev,
+                    id: found.id || found._id,
+                    name: found.header || found.name || prev.name,
+                    color: found.color || prev.color,
+                    status: found.node_type || found.status || prev.status,
+                    goal: found.summary || found.header || prev.goal,
+                    conversation_id: found.conversation_id || found.conversationId || prev.conversation_id,
+                    project_id: found.project_id || prev.project_id,
+                    header: found.header || prev.header,
+                    summary: found.summary || prev.summary,
+                    topics: found.topics || prev.topics || [],
+                }));
+            }
+        } catch (e) {
+            console.warn('Error reconciling selectedNode with contextNodesMap', e);
+        }
+    }, [contextNodesMap]);
+
     const createAIConversation = async () => {
         try {
             const projectId = realProjects.length > 0 ? realProjects[0].id || realProjects[0]._id : "general";
