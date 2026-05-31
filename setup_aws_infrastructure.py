@@ -76,13 +76,21 @@ def init_aws_clients(region: str = None):
     """Initialize global boto3 clients using environment variables if present."""
     global ecs, ec2, ecr, elbv2, logs, s3, amplify, apigateway
     # Prefer explicit parameter, then common env vars, then module default
-    region = region or os.getenv("AWS_REGION") or os.getenv("REGION") or os.getenv("AWS_DEFAULT_REGION") or REGION
+    region = (
+        region
+        or os.getenv("AWS_REGION")
+        or os.getenv("REGION")
+        or os.getenv("AWS_DEFAULT_REGION")
+        or REGION
+    )
 
     # Diagnostic: print region that will be used so CI logs show missing values
     print_info(f"Initializing AWS clients with region: '{region}'")
 
     if not region:
-        print_error("AWS region is not set. Please set AWS_REGION or AWS_DEFAULT_REGION in the environment or GitHub Secrets.")
+        print_error(
+            "AWS region is not set. Please set AWS_REGION or AWS_DEFAULT_REGION in the environment or GitHub Secrets."
+        )
         # Print helpful diagnostics for CI logs
         print_info(f"ENV AWS_REGION={os.getenv('AWS_REGION')}")
         print_info(f"ENV REGION={os.getenv('REGION')}")
@@ -635,7 +643,13 @@ def enable_cors_on_api(api_endpoint: str):
         cors_conf = {
             "AllowOrigins": [desired_origin] if desired_origin else ["*"],
             "AllowMethods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            "AllowHeaders": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+            "AllowHeaders": [
+                "Content-Type",
+                "Authorization",
+                "X-Requested-With",
+                "Accept",
+                "Origin",
+            ],
             "ExposeHeaders": [],
             "MaxAge": 3600,
         }
@@ -976,11 +990,18 @@ def main():
     # Load .env (if present) and initialize AWS clients so temporary credentials are used
     load_env_file()
     # Resolve region early so all helpers use the same resolved value
-    resolved_region = os.getenv("AWS_REGION") or os.getenv("REGION") or os.getenv("AWS_DEFAULT_REGION") or REGION
+    resolved_region = (
+        os.getenv("AWS_REGION")
+        or os.getenv("REGION")
+        or os.getenv("AWS_DEFAULT_REGION")
+        or REGION
+    )
 
     # Fail fast and provide diagnostics in CI logs when region is missing
     if not resolved_region:
-        print_error("AWS region not configured. Set AWS_REGION or AWS_DEFAULT_REGION in environment or GitHub Secrets.")
+        print_error(
+            "AWS region not configured. Set AWS_REGION or AWS_DEFAULT_REGION in environment or GitHub Secrets."
+        )
         print_info(f"ENV AWS_REGION={os.getenv('AWS_REGION')}")
         print_info(f"ENV REGION={os.getenv('REGION')}")
         print_info(f"ENV AWS_DEFAULT_REGION={os.getenv('AWS_DEFAULT_REGION')}")
