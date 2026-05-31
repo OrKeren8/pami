@@ -9,6 +9,34 @@ from ai_conversation_service.schemas.tree_analysis_schemas import (
     TreeNodeData,
 )
 from ai_conversation_service.core.config import settings
+import re
+
+# Patterns considered overly generic for headers (lowercase, partial match)
+_GENERIC_HEADER_PATTERNS = [
+    r"^an informative overview$",
+    r"^an informative overview about",
+    r"^an overview$",
+    r"^an overview about",
+    r"^summary",
+    r"^an informative summary",
+    r"^introduction",
+]
+
+_STOPWORDS = {
+    "about",
+    "the",
+    "and",
+    "of",
+    "an",
+    "a",
+    "to",
+    "for",
+    "in",
+    "on",
+    "with",
+    "by",
+    "from",
+}
 
 
 class TreeAnalysisService:
@@ -70,12 +98,16 @@ Your task:
    - Content and purpose discussed in the conversation
    - Logical hierarchy (goals > tasks > subtasks)
    - Thematic similarity with existing nodes
-4. Generate a clear summary of the node
-    5. Extract relevant topics/tags
-    6. Propose a concise header (title) for the node: max 5 words, prefer 2-3 words
+4. Generate a clear summary of the node (1-3 sentences)
+5. Extract relevant topics/tags
+6. Propose a concise header (title) for the node: *exactly* 3 to 5 words, focus on the concrete subject/topic (e.g., use "Birds overview" not "An Informative Overview").
+   - Prefer noun phrases and specific domain words (e.g., "Birds overview", "User auth flow", "Data ingestion pipeline").
+   - Avoid generic lead-in phrases like "An Informative Overview", "Summary of", "Overview of", "Introduction to".
+   - If multiple concise options exist, pick the most specific and informative.
 
-Return your analysis as JSON with:
+Return your analysis as JSON with these fields (use null for missing ids):
 - suggested_parent_id: The ID of the best parent node (or null for root-level)
+- header: A concise title (3-5 words)
 - summary: A concise summary of what this node is about
 - topics: Array of relevant topic tags
 - reasoning: Brief explanation of your placement decision"""
@@ -117,11 +149,19 @@ Suggest where this node should be placed in the tree, provide a summary, extract
             # Parse AI response
             ai_response = json.loads(response.choices[0].message.content)
 
+            header = ai_response.get("header")
+            summary = ai_response.get("summary", "")
+
+            # Fallback heuristics: if model returns a missing or overly generic header,
+            # synthesize a concise, concrete 3-5 word header from the summary or conversation.
+            if not header or self._is_generic_header(header):
+                header = self._generate_header(conversation_history, summary)
+
             return NodeOrganizationResponse(
                 node_id=request.node_id,
                 suggested_parent_id=ai_response.get("suggested_parent_id"),
-                header=ai_response.get("header"),
-                summary=ai_response.get("summary", ""),
+                header=header,
+                summary=summary,
                 topics=ai_response.get("topics", []),
                 reasoning=ai_response.get("reasoning", ""),
             )
@@ -183,3 +223,66 @@ Suggest where this node should be placed in the tree, provide a summary, extract
         children = [n for n in node_map.values() if n.parent_id == node.id]
         for child in children:
             self._add_node_to_tree(child, node_map, lines, level + 1)
+
+    def _is_generic_header(self, header: Optional[str]) -> bool:
+        """Return True if the header looks generic or uninformative."""
+        if not header:
+            return True
+        h = re.sub(r"[^a-z0-9 ]", "", header.lower()).strip()
+        for p in _GENERIC_HEADER_PATTERNS:
+            if re.search(p, h):
+                return True
+        # If header contains one of these generic tokens and is short, treat as generic
+        if any(tok in h for tok in ("overview", "informative", "summary", "introduction")):
+            if len(h.split()) <= 4:
+                return True
+        return False
+
+    def _generate_header(self, conversation_history: str, summary: str) -> str:
+        """Generate a 3-5 word concise header from summary or conversation text.
+
+        Strategy:
+        - Prefer to extract noun-phrases by simple heuristics: pick meaningful words,
+          drop stopwords, preserve original order, and title-case the result.
+        - Ensure result has at least 3 words; if not, append most common domain words.
+        - Limit to 5 words.
+        """
+        text = ((summary or "") + " " + (conversation_history or "")).strip()
+        # remove role prefixes and punctuation
+        text = re.sub(r"\b(user|assistant|system):", "", text, flags=re.I)
+        # Tokenize into words
+        words = re.findall(r"[A-Za-z0-9]+", text)
+        # Filter short words and stopwords
+        words = [w for w in words if len(w) > 2 and w.lower() not in _STOPWORDS]
+        if not words:
+            return "Miscellaneous Topic"
+
+        # Preserve first occurrences up to 5 meaningful words
+        selected = []
+        seen = set()
+        for w in words:
+            lw = w.lower()
+            if lw in seen:
+                continue
+            seen.add(lw)
+            selected.append(w)
+            if len(selected) >= 5:
+                break
+
+        header = " ".join(selected[:5]).title()
+
+        # If too short (<3 words), append most common words from text
+        if len(header.split()) < 3:
+            from collections import Counter
+
+            ctr = Counter([w.lower() for w in words])
+            most = [w for w, _ in ctr.most_common() if w not in _STOPWORDS]
+            for w in most:
+                if w.title() not in header:
+                    header = (header + " " + w.title()).strip()
+                if len(header.split()) >= 3:
+                    break
+
+        # Ensure max 5 words
+        header = " ".join(header.split()[:5])
+        return header
