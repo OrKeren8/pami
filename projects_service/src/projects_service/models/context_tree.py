@@ -13,6 +13,7 @@ class ContextTreeNode(Document):
     topics: List[str] = []  # Topics for indexing and parsing
     project_id: str  # reference to project (kept as str for backward compatibility)
     node_type: str  # e.g., "goal", "task", "milestone"
+    color: Optional[str] = None
     conversation_id: Optional[str] = None  # Link to AI conversation
     created_at: datetime = datetime.utcnow()
     updated_at: datetime = datetime.utcnow()

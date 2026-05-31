@@ -10,6 +10,7 @@ class CreateContextTreeNodeRequest(BaseModel):
     summary: Optional[str] = None
     topics: List[str] = []
     node_type: str = "goal"
+    color: Optional[str] = None
 
 
 class UpdateContextTreeNodeRequest(BaseModel):
@@ -19,6 +20,7 @@ class UpdateContextTreeNodeRequest(BaseModel):
     summary: Optional[str] = None
     topics: Optional[List[str]] = None
     node_type: Optional[str] = None
+    color: Optional[str] = None
 
 
 class ContextTreeNodeResponse(BaseModel):
@@ -26,6 +28,7 @@ class ContextTreeNodeResponse(BaseModel):
     parent_id: Optional[str]
     children_ids: List[str]
     text: str
+    color: Optional[str] = None
     summary: Optional[str]
     topics: List[str]
     project_id: str

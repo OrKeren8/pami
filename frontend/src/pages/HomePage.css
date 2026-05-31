@@ -2360,3 +2360,74 @@ html, body, #root {
     inset 0 0 0 1px rgba(255, 255, 255, 0.82) !important;
 }
 
+/* ================================
+   SAFE PATCH: PROFESSIONAL TOP BAR ICONS AND SEARCH CLEANUP
+   Removes the simple search emoji and replaces stat-card emojis with SVG masks.
+   CSS only.
+================================ */
+
+/* Remove the search emoji/icon from the top search field */
+.search-bar .search-icon {
+  display: none !important;
+}
+
+.search-bar input {
+  padding-left: 14px !important;
+}
+
+/* Replace stat card emojis with professional SVG-style icons */
+.stats-container .stat-icon {
+  font-size: 0 !important;
+  position: relative !important;
+  overflow: hidden !important;
+  color: rgba(90, 64, 132, 0.92) !important;
+}
+
+.stats-container .stat-icon::before {
+  content: "";
+  width: 22px;
+  height: 22px;
+  display: block;
+  background: currentColor;
+  -webkit-mask: var(--pami-stat-icon) center / contain no-repeat;
+  mask: var(--pami-stat-icon) center / contain no-repeat;
+}
+
+/* Total Nodes - node/network icon */
+.stats-container .pink-bg {
+  --pami-stat-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='6' cy='6' r='3'/%3E%3Ccircle cx='18' cy='6' r='3'/%3E%3Ccircle cx='12' cy='18' r='3'/%3E%3Cpath d='M8.7 7.5l6.6 0'/%3E%3Cpath d='M7.5 8.7l3.2 6.1'/%3E%3Cpath d='M16.5 8.7l-3.2 6.1'/%3E%3C/svg%3E");
+  color: rgba(214, 95, 159, 0.98) !important;
+}
+
+/* Active Workers - users icon */
+.stats-container .purple-bg {
+  --pami-stat-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='9.5' cy='7' r='4'/%3E%3Cpath d='M22 21v-2a4 4 0 0 0-3-3.87'/%3E%3Cpath d='M16 3.13a4 4 0 0 1 0 7.75'/%3E%3C/svg%3E");
+  color: rgba(143, 109, 242, 0.98) !important;
+}
+
+/* Task Velocity - trend icon */
+.stats-container .green-bg {
+  --pami-stat-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 17l6-6 4 4 8-8'/%3E%3Cpath d='M14 7h7v7'/%3E%3C/svg%3E");
+  color: rgba(40, 150, 115, 0.96) !important;
+}
+
+/* AI Uptime - processor/AI icon */
+.stats-container .blue-bg {
+  --pami-stat-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='7' y='7' width='10' height='10' rx='2'/%3E%3Cpath d='M4 10h3'/%3E%3Cpath d='M4 14h3'/%3E%3Cpath d='M17 10h3'/%3E%3Cpath d='M17 14h3'/%3E%3Cpath d='M10 4v3'/%3E%3Cpath d='M14 4v3'/%3E%3Cpath d='M10 17v3'/%3E%3Cpath d='M14 17v3'/%3E%3Cpath d='M10 12h4'/%3E%3C/svg%3E");
+  color: rgba(47, 111, 237, 0.96) !important;
+}
+
+/* ================================
+   SAFE PATCH: NODE DOT USES NODE COLOR
+   Forces the dot inside each tree node to follow the node's selected color.
+================================ */
+
+.dashboard-grid-anchored .neural-node-v2 .node-dot,
+.neural-node-v2 .node-dot {
+  background: var(--node-color, #8b5cf6) !important;
+  background-color: var(--node-color, #8b5cf6) !important;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--node-color, #8b5cf6) 22%, transparent),
+    0 4px 10px rgba(0, 0, 0, 0.10) !important;
+}
+

@@ -59,7 +59,17 @@ class ContextTreeRepository:
                 return None
 
             await node.update({"$set": update_data}, session=session)
-            await node.reload(session=session)
+
+            for key, value in update_data.items():
+                setattr(node, key, value)
+
+            try:
+                await node.reload(session=session)
+            except Exception as reload_error:
+                self._logger.warning(
+                    f"Context tree node updated but reload failed for {node_id}: {reload_error}. Returning updated in-memory document."
+                )
+
             return node
         except Exception as e:
             self._logger.error(f"Error updating node {node_id}: {e}")

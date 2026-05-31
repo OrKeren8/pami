@@ -3,9 +3,32 @@ import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
 import api, { projectsApi, slackApi, aiApi } from "../api/axios";
 
-const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoading, closeModal, fetchProjects, drawConnections }) => {
+const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoading, closeModal, fetchProjects, drawConnections, onNodeColorChange }) => {
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isSavingColor, setIsSavingColor] = useState(false);
     if (!selectedNode) return null;
+
+    const nodeColor = selectedNode.color || "#2196f3";
+    const nodeColorOptions = [
+        { label: "Blue", value: "#2196f3" },
+        { label: "Purple", value: "#8b5cf6" },
+        { label: "Pink", value: "#f06292" },
+        { label: "Green", value: "#22c55e" },
+        { label: "Orange", value: "#f59e0b" },
+        { label: "Red", value: "#ef4444" },
+        { label: "Cyan", value: "#06b6d4" },
+        { label: "Slate", value: "#64748b" },
+    ];
+
+    const handleColorSelect = async (newColor) => {
+        if (!onNodeColorChange || isSavingColor) return;
+        setIsSavingColor(true);
+        try {
+            await onNodeColorChange(selectedNode, newColor);
+        } finally {
+            setIsSavingColor(false);
+        }
+    };
 
     const handleDelete = async () => {
         const ok = window.confirm(`Delete node "${selectedNode.name}"? This will reparent its children.`);
@@ -16,7 +39,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
             if (!nodeId) throw new Error("Selected node has no id");
 
             let deletePath = null;
-            if (selectedNode.project_id || selectedNode.status === 'context' || selectedNode.color === '#8b5cf6') {
+            if (selectedNode.nodeKind === "context" || selectedNode.project_id || selectedNode.status === 'context') {
                 deletePath = `/context-tree/nodes/${nodeId}`;
             } else {
                 deletePath = `/projects/${nodeId}`;
@@ -56,14 +79,58 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                 </div>
             </div>
 
-            <div style={{ background: "#f9f9f9", padding: "15px", borderRadius: "16px", border: `2px solid ${selectedNode.color}`, maxHeight: "400px", overflowY: "auto", marginBottom: "20px" }}>
+            {/* NODE COLOR CORNER PICKER */}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "-6px", marginBottom: "8px" }}>
+                <div
+                    title="Node color"
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        padding: "5px 7px",
+                        borderRadius: "999px",
+                        background: "rgba(255,255,255,0.84)",
+                        border: "1px solid rgba(0,0,0,0.08)",
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.06)"
+                    }}
+                >
+                    {nodeColorOptions.map((option) => (
+                        <button
+                            key={option.value}
+                            type="button"
+                            disabled={isSavingColor}
+                            title={option.label}
+                            aria-label={`Set node color to ${option.label}`}
+                            onClick={() => handleColorSelect(option.value)}
+                            style={{
+                                width: "18px",
+                                height: "18px",
+                                borderRadius: "999px",
+                                border: nodeColor === option.value ? "2px solid #111827" : "2px solid rgba(255,255,255,0.9)",
+                                background: option.value,
+                                color: "white",
+                                cursor: isSavingColor ? "not-allowed" : "pointer",
+                                boxShadow: nodeColor === option.value ? "0 0 0 2px rgba(17,24,39,0.12)" : "0 3px 8px rgba(0,0,0,0.10)",
+                                fontSize: "10px",
+                                fontWeight: "bold",
+                                lineHeight: "12px",
+                                padding: 0,
+                            }}
+                        >
+                            {nodeColor === option.value ? "✓" : ""}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div style={{ background: "#f9f9f9", padding: "15px", borderRadius: "16px", border: `2px solid ${nodeColor}`, maxHeight: "400px", overflowY: "auto", marginBottom: "20px" }}>
                 <div style={{ marginBottom: "12px" }}>
                     <strong style={{ color: "#555", fontSize: "11px", letterSpacing: "0.5px" }}>NODE IDENTIFIER:</strong>
                     <p style={{ margin: "2px 0 0 0", fontSize: "16px", fontWeight: "bold", color: "#111" }}>{selectedNode.name}</p>
                 </div>
 
-                <div style={{ marginBottom: "12px", background: "#fff", padding: "12px", borderRadius: "12px", borderLeft: `4px solid ${selectedNode.color}`, boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}>
-                    <strong style={{ color: selectedNode.color, fontSize: "11px", letterSpacing: "0.5px", fontWeight: "bold" }}>NODE DESCRIPTION & MISSION OBJECTIVE:</strong>
+                <div style={{ marginBottom: "12px", background: "#fff", padding: "12px", borderRadius: "12px", borderLeft: `4px solid ${nodeColor}`, boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}>
+                    <strong style={{ color: nodeColor, fontSize: "11px", letterSpacing: "0.5px", fontWeight: "bold" }}>NODE DESCRIPTION & MISSION OBJECTIVE:</strong>
                     <p style={{ margin: "6px 0 0 0", color: "#2c3e50", fontStyle: "normal", fontSize: "14px", lineHeight: "1.5" }}>
                         {selectedNode.goal || "No description or mission objectives have been configured for this intelligence layer."}
                     </p>
@@ -75,6 +142,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                         <p style={{ margin: "2px 0 0 0", fontSize: "13px", fontWeight: "600", textTransform: "uppercase", color: "#666" }}>{selectedNode.status}</p>
                     </div>
                 </div>
+
 
                 <hr style={{ border: "none", borderTop: "1px solid #ddd", margin: "15px 0" }} />
 
@@ -118,7 +186,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                 )}
             </div>
 
-            <button type="button" onClick={closeModal} style={{ width: "100%", padding: "12px", background: selectedNode.color || "#2196f3", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}>
+            <button type="button" onClick={closeModal} style={{ width: "100%", padding: "12px", background: nodeColor, color: "white", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}>
                 Close Blueprint View
             </button>
         </>
@@ -219,6 +287,81 @@ const HomePage = () => {
         }
     };
 
+    const handleNodeColorChange = async (node, color) => {
+        if (!node || !color || node.id === "root") return;
+
+        const nodeId = node.id || node._id || (node._id && node._id.$oid) || null;
+        if (!nodeId) {
+            alert("Could not update color: selected node has no id.");
+            return;
+        }
+
+        const isContextNode = node.nodeKind === "context" || Boolean(node.project_id) || node.status === "context";
+
+        const projectPath = `/projects/${nodeId}`;
+        const contextPath = `/context-tree/nodes/${nodeId}`;
+
+        const candidatePaths = isContextNode
+            ? [contextPath, `${contextPath}/`, projectPath, `${projectPath}/`]
+            : [projectPath, `${projectPath}/`, contextPath, `${contextPath}/`];
+
+        const applyLocalColor = () => {
+            const updatedNode = { ...node, color };
+            setSelectedNode(updatedNode);
+
+            setRealProjects((previousProjects) => previousProjects.map((project) => {
+                const projectId = project.id || project._id || (project._id && project._id.$oid) || String(project._id);
+                if (String(projectId) !== String(nodeId)) return project;
+                return { ...project, color };
+            }));
+
+            setContextNodesMap((previousMap) => {
+                const nextMap = {};
+                Object.keys(previousMap).forEach((projectId) => {
+                    nextMap[projectId] = (previousMap[projectId] || []).map((contextNode) => {
+                        const contextNodeId = contextNode.id || contextNode._id || (contextNode._id && contextNode._id.$oid) || String(contextNode._id);
+                        if (String(contextNodeId) !== String(nodeId)) return contextNode;
+                        return { ...contextNode, color };
+                    });
+                });
+                return nextMap;
+            });
+        };
+
+        applyLocalColor();
+
+        const errors = [];
+
+        for (const candidatePath of candidatePaths) {
+            try {
+                await projectsApi.put(candidatePath, { color });
+
+                if (node.project_id) {
+                    await fetchContextNodes(node.project_id);
+                } else {
+                    await fetchProjects();
+                }
+
+                setTimeout(() => {
+                    try { drawConnections(); } catch (e) { console.error("drawConnections error", e); }
+                }, 150);
+
+                return;
+            } catch (error) {
+                const status = error && error.response ? error.response.status : "NO_RESPONSE";
+                const details = error && error.response ? error.response.data : (error && error.message ? error.message : error);
+                errors.push({ path: candidatePath, status, details });
+
+                if (!(status === 404 || status === 405 || status === 307 || status === 308)) {
+                    break;
+                }
+            }
+        }
+
+        console.error("Failed to persist node color. Tried paths:", errors);
+        alert("Color changed visually, but failed to save to backend. Open the console to see the tried paths.");
+    };
+
     useEffect(() => {
         fetchProjects();
         try {
@@ -312,18 +455,20 @@ const HomePage = () => {
             const children = ctxNodes.map((n) => ({
                 id: n.id || n._id || (n._id && n._id.$oid) || String(n._id),
                 name: n.text ? (n.text.length > 40 ? n.text.slice(0, 40) + '…' : n.text) : (n.summary || 'Context Node'),
-                color: '#8b5cf6',
+                color: n.color || '#8b5cf6',
                 status: n.node_type || 'context',
                 goal: n.summary || n.text || 'No snapshot description available.',
-                project_id: pid
+                project_id: pid,
+                nodeKind: "context"
             }));
 
             return {
                 id: pid,
                 name: proj.name || 'Untitled Project',
-                color: '#2196f3',
+                color: proj.color || '#2196f3',
                 status: proj.status || 'Active',
                 goal: proj.goal || 'No goal defined',
+                nodeKind: "project",
                 children,
             };
         });
@@ -334,6 +479,7 @@ const HomePage = () => {
             color: '#f06292',
             status: 'Root',
             goal: 'Central orchestration system engine core.',
+            nodeKind: "root",
             children: rootChildren,
         };
     };
@@ -569,10 +715,14 @@ const HomePage = () => {
                 <div className="tree-node-wrapper" data-node-id={node.id} data-parent-id={parentId || ""}>
                     <div
                         className="neural-node-v2"
-                        style={{ borderColor: node.color, cursor: node.id === "root" ? "default" : "pointer" }}
+                        style={{
+                            borderColor: node.color || "#2196f3",
+                            "--node-color": node.color || "#2196f3",
+                            cursor: node.id === "root" ? "default" : "pointer"
+                        }}
                         onDoubleClick={() => handleNodeClick(node)}
                     >
-                        <div className="node-dot" style={{ backgroundColor: node.color }}></div>
+                        <div className="node-dot" style={{ backgroundColor: node.color || "#2196f3", boxShadow: `0 0 0 3px ${node.color || "#2196f3"}22` }}></div>
                         <div className="node-content-v2">
                             <span className="node-name-v2">{node.name}</span>
                             <span className="node-status-v2">{node.status}</span>
@@ -966,6 +1116,7 @@ const HomePage = () => {
                 closeModal={closeModal}
                 fetchProjects={fetchProjects}
                 drawConnections={drawConnections}
+                onNodeColorChange={handleNodeColorChange}
             />
         );
         return renderDefaultIntegrationModal();

@@ -14,12 +14,14 @@ class CreateProjectRequest(BaseModel):
     name: str
     goal: str
     status: ProjectStatus = ProjectStatus.ACTIVE
+    color: Optional[str] = None
 
 
 class UpdateProjectRequest(BaseModel):
     name: Optional[str] = None
     goal: Optional[str] = None
     status: Optional[ProjectStatus] = None
+    color: Optional[str] = None
 
 
 class ProjectResponse(BaseModel):
@@ -27,5 +29,6 @@ class ProjectResponse(BaseModel):
     name: str
     goal: str
     status: ProjectStatus
+    color: Optional[str] = None
     created_at: datetime
     updated_at: datetime

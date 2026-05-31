@@ -26,6 +26,7 @@ class ProjectService:
             name=request.name,
             goal=request.goal,
             status=request.status,
+            color=request.color,
         )
         created_project = await self._project_repository.create(project)
 
@@ -34,6 +35,7 @@ class ProjectService:
             name=created_project.name,
             goal=created_project.goal,
             status=created_project.status,
+            color=getattr(created_project, "color", None),
             created_at=created_project.created_at,
             updated_at=created_project.updated_at,
         )
@@ -49,6 +51,7 @@ class ProjectService:
             name=project.name,
             goal=project.goal,
             status=project.status,
+            color=getattr(project, "color", None),
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -62,6 +65,7 @@ class ProjectService:
                 name=p.name,
                 goal=p.goal,
                 status=p.status,
+                color=getattr(p, "color", None),
                 created_at=p.created_at,
                 updated_at=p.updated_at,
             )
@@ -84,6 +88,7 @@ class ProjectService:
             name=project.name,
             goal=project.goal,
             status=project.status,
+            color=getattr(project, "color", None),
             created_at=project.created_at,
             updated_at=project.updated_at,
         )

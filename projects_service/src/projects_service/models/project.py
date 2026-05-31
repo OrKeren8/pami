@@ -15,6 +15,7 @@ class Project(Document):
     name: str
     goal: str
     status: ProjectStatus  # e.g., "active", "completed", "on-hold"
+    color: Optional[str] = None
     created_at: datetime = datetime.utcnow()
     updated_at: datetime = datetime.utcnow()
 

@@ -67,7 +67,17 @@ class ProjectRepository:
                 return None
 
             await project.update({"$set": update_data}, session=session)
-            await project.reload(session=session)
+
+            for key, value in update_data.items():
+                setattr(project, key, value)
+
+            try:
+                await project.reload(session=session)
+            except Exception as reload_error:
+                self._logger.warning(
+                    f"Project updated but reload failed for {project_id}: {reload_error}. Returning updated in-memory document."
+                )
+
             return project
         except Exception as e:
             self._logger.error(f"Error updating project {project_id}: {e}")

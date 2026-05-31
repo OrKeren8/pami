@@ -34,6 +34,7 @@ class ContextTreeService:
             topics=request.topics,
             project_id=project_id,
             node_type=request.node_type,
+            color=request.color,
         )
         created_node = await self._context_tree_repository.create(node)
         self._logger.info(
@@ -74,6 +75,7 @@ class ContextTreeService:
             parent_id=created_node.parent_id,
             children_ids=created_node.children_ids,
             text=created_node.text,
+            color=getattr(created_node, "color", None),
             summary=created_node.summary,
             topics=created_node.topics,
             project_id=created_node.project_id,
@@ -203,6 +205,7 @@ class ContextTreeService:
             parent_id=node.parent_id,
             children_ids=node.children_ids,
             text=node.text,
+            color=getattr(node, "color", None),
             summary=node.summary,
             topics=node.topics,
             project_id=node.project_id,
@@ -223,6 +226,7 @@ class ContextTreeService:
                 parent_id=n.parent_id,
                 children_ids=n.children_ids,
                 text=n.text,
+                color=getattr(n, "color", None),
                 summary=n.summary,
                 topics=n.topics,
                 project_id=n.project_id,
@@ -250,6 +254,7 @@ class ContextTreeService:
             parent_id=node.parent_id,
             children_ids=node.children_ids,
             text=node.text,
+            color=getattr(node, "color", None),
             summary=node.summary,
             topics=node.topics,
             project_id=node.project_id,
