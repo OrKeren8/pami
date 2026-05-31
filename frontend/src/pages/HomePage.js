@@ -198,7 +198,17 @@ const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [activePane, setActivePane] = useState("tree");
     const [treeZoom, setTreeZoom] = useState(1);
-    const [treeHeight, setTreeHeight] = useState(590);
+
+    const getTreePanelSizes = () => {
+        const viewportHeight = typeof window === "undefined" ? 780 : window.innerHeight;
+
+        return {
+            collapsedHeight: Math.max(520, viewportHeight - 172),
+            expandedHeight: viewportHeight
+        };
+    };
+
+    const [treeHeight, setTreeHeight] = useState(() => getTreePanelSizes().collapsedHeight);
     const [treePan, setTreePan] = useState({ x: 0, y: 0 });
     const [isTreePanning, setIsTreePanning] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
@@ -996,6 +1006,17 @@ const HomePage = () => {
         });
     };
 
+    const toggleTreePanelHeight = () => {
+        const { collapsedHeight, expandedHeight } = getTreePanelSizes();
+
+        setTreeHeight((previousHeight) => {
+            const isExpanded = previousHeight >= expandedHeight - 5;
+            return isExpanded ? collapsedHeight : expandedHeight;
+        });
+
+        setTimeout(drawConnections, 260);
+    };
+
     const handleTreeResizePointerDown = (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -1412,6 +1433,9 @@ const HomePage = () => {
         return renderDefaultIntegrationModal();
     };
 
+    const { expandedHeight: currentTreeExpandedHeight } = getTreePanelSizes();
+    const isTreePanelExpanded = treeHeight >= currentTreeExpandedHeight - 5;
+
     return (
         <div className={`dashboard-container ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
             <aside className="sidebar">
@@ -1433,7 +1457,7 @@ const HomePage = () => {
             </aside>
 
             <main className="main-content">
-                <header className="top-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <header className="top-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", boxSizing: "border-box", flexShrink: 0 }}>
                     <div className="header-left" style={{ display: "flex", alignItems: "center", flex: "0 0 auto" }}>
                         <button className="menu-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>☰</button>
                         <div className="search-bar">
@@ -1445,30 +1469,31 @@ const HomePage = () => {
                     <div className="header-stats-wrapper" style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: "15px",
-                        background: "rgba(255, 255, 255, 0.5)",
-                        padding: "6px 16px",
-                        borderRadius: "14px",
-                        border: "1px solid rgba(0,0,0,0.04)",
+                        gap: "22px",
+                        background: "transparent",
+                        padding: "0",
+                        borderRadius: "0",
+                        border: "none",
                         margin: "0 20px",
-                        flex: "1",
+                        flex: "1 1 auto",
+                        minWidth: 0,
                         justifyContent: "center",
                         overflowX: "auto"
                     }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", whiteSpace: "nowrap" }}>
-                            <span>💼</span> <strong style={{ color: "#333" }}>{realProjects.length}</strong> <span style={{ color: "#666", fontSize: "11px" }}>NODES</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                            <span className="header-stat-icon header-stat-icon-nodes" aria-hidden="true"></span><strong className="header-stat-value">{realProjects.length}</strong><span className="header-stat-label">NODES</span>
                         </div>
-                        <div style={{ width: "1px", height: "14px", background: "#ddd" }} />
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", whiteSpace: "nowrap" }}>
-                            <span>👥</span> <strong style={{ color: "#333" }}>12</strong> <span style={{ color: "#666", fontSize: "11px" }}>WORKERS</span>
+                        <div style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                            <span className="header-stat-icon header-stat-icon-workers" aria-hidden="true"></span><strong className="header-stat-value">12</strong><span className="header-stat-label">WORKERS</span>
                         </div>
-                        <div style={{ width: "1px", height: "14px", background: "#ddd" }} />
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", whiteSpace: "nowrap" }}>
-                            <span>📈</span> <strong style={{ color: "#333" }}>84%</strong> <span style={{ color: "#666", fontSize: "11px" }}>VELOCITY</span>
+                        <div style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                            <span className="header-stat-icon header-stat-icon-velocity" aria-hidden="true"></span><strong className="header-stat-value">84%</strong><span className="header-stat-label">VELOCITY</span>
                         </div>
-                        <div style={{ width: "1px", height: "14px", background: "#ddd" }} />
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", whiteSpace: "nowrap" }}>
-                            <span>⚙️</span> <strong style={{ color: "#333" }}>99.9%</strong> <span style={{ color: "#666", fontSize: "11px" }}>UPTIME</span>
+                        <div style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                            <span className="header-stat-icon header-stat-icon-uptime" aria-hidden="true"></span><strong className="header-stat-value">99.9%</strong><span className="header-stat-label">UPTIME</span>
                         </div>
                     </div>
 
@@ -1478,10 +1503,9 @@ const HomePage = () => {
                     </div>
                 </header>
 
-                <div className="dashboard-grid dashboard-grid-anchored" style={{
+                <div className={`dashboard-grid dashboard-grid-anchored ${isTreePanelExpanded ? "tree-panel-expanded" : ""}`} style={{
                     height: `${treeHeight}px`,
-                    flexBasis: `${treeHeight}px`,
-                    marginTop: `-${Math.max(0, treeHeight - 590)}px`
+                    "--tree-panel-height": `${treeHeight}px`
                 }}>
                     <div className="project-tree-container">
                         <div className="project-tree-header">
@@ -1500,7 +1524,16 @@ const HomePage = () => {
                                 if (e.button === 1) e.preventDefault();
                             }}
                         >
-                            <div className="tree-resize-handle" onPointerDown={handleTreeResizePointerDown} title="Drag top edge to resize tree / chat area" />
+                            <button
+                                type="button"
+                                className="tree-resize-handle"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    toggleTreePanelHeight();
+                                }}
+                                title="Resize tree / chat area"
+                            />
 
                             {activePane === "tree" ? (
                                 isLoading && realProjects.length === 0 ? (
