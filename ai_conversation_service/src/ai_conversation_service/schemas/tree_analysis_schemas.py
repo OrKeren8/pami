@@ -7,7 +7,7 @@ class TreeNodeData(BaseModel):
 
     id: str
     parent_id: Optional[str]
-    text: str
+    header: Optional[str]
     summary: Optional[str]
     topics: List[str]
     node_type: str
@@ -26,6 +26,7 @@ class NodeOrganizationResponse(BaseModel):
 
     node_id: str
     suggested_parent_id: Optional[str]
+    header: Optional[str]
     summary: str
     topics: List[str]
     reasoning: str  # AI explanation for the placement

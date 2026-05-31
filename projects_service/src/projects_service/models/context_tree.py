@@ -8,8 +8,11 @@ class ContextTreeNode(Document):
     id: Optional[Union[PydanticObjectId, str]] = None
     parent_id: Optional[str] = None
     children_ids: List[str] = []
-    text: str  # Can store up to ~4 million characters (16MB limit)
-    summary: Optional[str] = None  # Summary of conversation or content
+    # `header` is a short title chosen by AI (5 words max, prefer 2-3)
+    header: Optional[str] = None
+    summary: Optional[str] = (
+        None  # Summary of conversation or content (up to ~3 sentences)
+    )
     topics: List[str] = []  # Topics for indexing and parsing
     project_id: str  # reference to project (kept as str for backward compatibility)
     node_type: str  # e.g., "goal", "task", "milestone"

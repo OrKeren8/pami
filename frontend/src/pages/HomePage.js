@@ -3,7 +3,7 @@ import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
 import api, { projectsApi, slackApi, aiApi } from "../api/axios";
 
-const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoading, closeModal, fetchProjects, drawConnections, onNodeColorChange }) => {
+const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoading, closeModal, fetchProjects, drawConnections, onNodeColorChange, onOpenConversation }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSavingColor, setIsSavingColor] = useState(false);
     if (!selectedNode) return null;
@@ -72,9 +72,12 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                     <span style={{ fontSize: "40px" }}>🧠</span>
                     <h2 style={{ marginTop: "5px", color: "#333" }}>Node Blueprint Context</h2>
                 </div>
-                <div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <button onClick={handleDelete} disabled={isDeleting} style={{ background: "transparent", border: "none", cursor: isDeleting ? "not-allowed" : "pointer", fontSize: "20px" }} title="Delete node">
                         🗑️
+                    </button>
+                    <button onClick={() => onOpenConversation && onOpenConversation(selectedNode)} style={{ background: "transparent", border: "none", cursor: 'pointer', fontSize: "18px" }} title="Open node chat">
+                        💬 Open Chat
                     </button>
                 </div>
             </div>
@@ -157,7 +160,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
                                     {subNodes.map((sub, idx) => (
                                         <span key={idx} style={{ background: "#f06292", color: "white", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }}>
-                                            🌿 {sub.name || sub.summary || "Sub Node"}
+                                            🌿 {sub.header || sub.name || "Sub Node"}
                                         </span>
                                     ))}
                                 </div>
@@ -248,7 +251,45 @@ const HomePage = () => {
             const resp = await projectsApi.get(`/context-tree/projects/${projectId}/nodes`);
             if (resp && resp.data) {
                 console.log('Fetched context nodes for', projectId, resp.data);
-                setContextNodesMap((m) => ({ ...m, [projectId]: resp.data }));
+                setContextNodesMap((m) => {
+                    const next = { ...m, [projectId]: resp.data };
+
+                    // If a node is currently selected and belongs to this project,
+                    // refresh the selectedNode object with the latest data so the
+                    // node preview reflects backend changes without a full reload.
+                    try {
+                        if (selectedNode) {
+                            const selProj = selectedNode.project_id || selectedNode.projectId || selectedNode.project || null;
+                            const normalizedSelProj = selProj;
+                            if (normalizedSelProj && String(normalizedSelProj) === String(projectId)) {
+                                const selId = selectedNode.id || selectedNode._id || (selectedNode._id && selectedNode._id.$oid) || null;
+                                if (selId) {
+                                    const updated = resp.data.find((n) => String(n.id || n._id || (n._id && n._id.$oid) || n._id) === String(selId));
+                                    if (updated) {
+                                        // update selectedNode to the fresh object
+                                        setSelectedNode({
+                                            id: updated.id || updated._id,
+                                            name: updated.header || updated.name || 'Context Node',
+                                            color: updated.color,
+                                            status: updated.node_type || updated.status,
+                                            goal: updated.summary || updated.header,
+                                            conversation_id: updated.conversation_id || updated.conversationId || null,
+                                            project_id: projectId,
+                                            nodeKind: 'context',
+                                            header: updated.header,
+                                            summary: updated.summary,
+                                            topics: updated.topics,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Failed to refresh selectedNode after context nodes fetch', e);
+                    }
+
+                    return next;
+                });
             }
         } catch (err) {
             console.error('Failed to fetch context nodes for', projectId, err);
@@ -446,16 +487,17 @@ const HomePage = () => {
 
     const getTreeStructure = () => {
         if (realProjects.length === 0) return null;
-        const rootChildren = realProjects.map((proj) => {
+                const rootChildren = realProjects.map((proj) => {
             const pid = proj.id || proj._id || (proj._id && proj._id.$oid) || proj._id || 'unknown';
             const ctxNodes = contextNodesMap[pid] || [];
 
             const children = ctxNodes.map((n) => ({
                 id: n.id || n._id || (n._id && n._id.$oid) || String(n._id),
-                name: n.text ? (n.text.length > 40 ? n.text.slice(0, 40) + '…' : n.text) : (n.summary || 'Context Node'),
+                name: n.header ? (n.header.length > 40 ? n.header.slice(0, 40) + '…' : n.header) : 'Context Node',
                 color: n.color || '#8b5cf6',
                 status: n.node_type || 'context',
-                goal: n.summary || n.text || 'No snapshot description available.',
+                goal: n.summary || n.header || 'No snapshot description available.',
+                conversation_id: n.conversation_id || n.conversationId || n.conversation || null,
                 project_id: pid,
                 nodeKind: "context"
             }));
@@ -492,6 +534,36 @@ const HomePage = () => {
         setChannelNameInput("");
         setMessageChannelInput("");
         setMessageTextInput("");
+    };
+
+    const goToNodeConversation = async (node) => {
+        if (!node) return;
+        const convId = node.conversation_id || node.conversationId || node.conversation || null;
+        if (!convId) {
+            alert('This node has no associated conversation.');
+            return;
+        }
+
+        try {
+            // Fetch conversation history from AI service
+            const resp = await aiApi.get(`/ai-conversations/${convId}`);
+            if (resp && resp.data && resp.data.messages) {
+                // Map messages into chat format
+                const msgs = resp.data.messages.map((m) => ({ role: m.role || m.role, content: m.content || m.content }));
+                setChatMessages(msgs);
+            }
+            setConversationId(convId);
+            setActivePane('chat');
+            // Close modal and focus chat
+            closeModal();
+            setTimeout(() => {
+                const input = document.querySelector('textarea, input[type=text]');
+                if (input) input.focus();
+            }, 150);
+        } catch (err) {
+            console.error('Failed to load conversation:', err);
+            alert('Failed to load conversation. Check console for details.');
+        }
     };
 
     const openModal = (type) => {
@@ -621,6 +693,8 @@ const HomePage = () => {
                 children_ids: [],
                 text: recent || 'Conversation snapshot',
                 summary: (chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].content : '').slice(0, 300),
+                conversation_id: conversationId,
+                messages: chatMessages,
                 topics: [],
                 node_type: 'conversation',
             };
@@ -1298,6 +1372,7 @@ const HomePage = () => {
                 fetchProjects={fetchProjects}
                 drawConnections={drawConnections}
                 onNodeColorChange={handleNodeColorChange}
+                onOpenConversation={goToNodeConversation}
             />
         );
         return renderDefaultIntegrationModal();
@@ -1377,7 +1452,7 @@ const HomePage = () => {
                     <div className="project-tree-container">
                         <div className="project-tree-header">
                             <div className="tree-title-group tabs">
-                                <button className={`tab-btn ${activePane === "tree" ? "active" : ""}`} onClick={() => setActivePane("tree")}>Project Tree</button>
+                                <button className={`tab-btn ${activePane === "tree" ? "active" : ""}`} onClick={async () => { setActivePane("tree"); try { await fetchProjects(); } catch (e) { console.error('Failed to refresh projects on tab switch', e); } }}>Project Tree</button>
                                 <button className={`tab-btn ${activePane === "chat" ? "active" : ""}`} onClick={() => setActivePane("chat")}>AI Chat</button>
                             </div>
                         </div>

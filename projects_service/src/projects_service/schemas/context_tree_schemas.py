@@ -6,8 +6,10 @@ from datetime import datetime
 class CreateContextTreeNodeRequest(BaseModel):
     parent_id: Optional[str] = None
     children_ids: List[str] = []
-    text: str
+    header: Optional[str] = None
     summary: Optional[str] = None
+    conversation_id: Optional[str] = None
+    messages: Optional[List[dict]] = None
     topics: List[str] = []
     node_type: str = "goal"
     color: Optional[str] = None
@@ -16,7 +18,7 @@ class CreateContextTreeNodeRequest(BaseModel):
 class UpdateContextTreeNodeRequest(BaseModel):
     parent_id: Optional[str] = None
     children_ids: Optional[List[str]] = None
-    text: Optional[str] = None
+    header: Optional[str] = None
     summary: Optional[str] = None
     topics: Optional[List[str]] = None
     node_type: Optional[str] = None
@@ -27,7 +29,7 @@ class ContextTreeNodeResponse(BaseModel):
     id: str
     parent_id: Optional[str]
     children_ids: List[str]
-    text: str
+    header: Optional[str]
     color: Optional[str] = None
     summary: Optional[str]
     topics: List[str]

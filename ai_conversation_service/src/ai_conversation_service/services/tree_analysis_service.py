@@ -36,6 +36,15 @@ class TreeAnalysisService:
         if not conversation:
             raise ValueError(f"Conversation {request.conversation_id} not found")
 
+        # Log conversation metadata for debugging
+        try:
+            msg_count = len(conversation.messages or [])
+        except Exception:
+            msg_count = -1
+        self._logger.debug(
+            f"analyze_and_organize_node: conversation_id={request.conversation_id} messages={msg_count}"
+        )
+
         # Build tree context description
         tree_context = self._build_tree_context(request.current_tree)
 
@@ -43,6 +52,13 @@ class TreeAnalysisService:
         conversation_history = "\n".join(
             [f"{msg['role']}: {msg['content']}" for msg in conversation.messages[-10:]]
         )
+        # Log a truncated conversation history for traceability
+        try:
+            self._logger.debug(
+                f"conversation_history (last {min(10, msg_count)}): {conversation_history[:1000]}"
+            )
+        except Exception:
+            self._logger.debug("conversation_history: <unserializable>")
 
         # Create AI prompt
         system_prompt = """You are an expert project management AI that organizes project nodes into a hierarchical tree structure.
@@ -55,7 +71,8 @@ Your task:
    - Logical hierarchy (goals > tasks > subtasks)
    - Thematic similarity with existing nodes
 4. Generate a clear summary of the node
-5. Extract relevant topics/tags
+    5. Extract relevant topics/tags
+    6. Propose a concise header (title) for the node: max 5 words, prefer 2-3 words
 
 Return your analysis as JSON with:
 - suggested_parent_id: The ID of the best parent node (or null for root-level)
@@ -77,6 +94,9 @@ Suggest where this node should be placed in the tree, provide a summary, extract
 
         try:
             # Call OpenAI
+            self._logger.debug(
+                f"Sending prompts to model={settings.openai_model} system_prompt_len={len(system_prompt)} user_prompt_len={len(user_prompt)}"
+            )
             response = await self._openai_client.chat.completions.create(
                 model=settings.openai_model,
                 messages=[
@@ -87,12 +107,20 @@ Suggest where this node should be placed in the tree, provide a summary, extract
                 temperature=0.3,  # Lower temperature for more consistent analysis
             )
 
+            # Log raw model output for debugging
+            try:
+                raw_output = response.choices[0].message.content
+                self._logger.debug(f"Raw model output (truncated): {raw_output[:2000]}")
+            except Exception:
+                self._logger.debug("Raw model output: <unserializable>")
+
             # Parse AI response
             ai_response = json.loads(response.choices[0].message.content)
 
             return NodeOrganizationResponse(
                 node_id=request.node_id,
                 suggested_parent_id=ai_response.get("suggested_parent_id"),
+                header=ai_response.get("header"),
                 summary=ai_response.get("summary", ""),
                 topics=ai_response.get("topics", []),
                 reasoning=ai_response.get("reasoning", ""),
@@ -139,8 +167,14 @@ Suggest where this node should be placed in the tree, provide a summary, extract
         )
         topics_str = f" [{', '.join(node.topics)}]" if node.topics else ""
 
+        header_preview = (
+            (node.header[:60] + "...")
+            if node.header and len(node.header) > 60
+            else (node.header or "")
+        )
+
         lines.append(
-            f"{indent}- [{node.node_type}] {node.id[:8]}... : {node.text[:60]}{topics_str}"
+            f"{indent}- [{node.node_type}] {node.id[:8]}... : {header_preview}{topics_str}"
         )
         if summary_preview:
             lines.append(f"{indent}  Summary: {summary_preview}")

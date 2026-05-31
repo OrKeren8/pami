@@ -30,12 +30,15 @@ class ProjectService:
         )
         created_project = await self._project_repository.create(project)
 
+        color_val = getattr(created_project, "color", None)
+        color = color_val if isinstance(color_val, str) else None
+
         return ProjectResponse(
             id=str(created_project.id),
             name=created_project.name,
             goal=created_project.goal,
             status=created_project.status,
-            color=getattr(created_project, "color", None),
+            color=color,
             created_at=created_project.created_at,
             updated_at=created_project.updated_at,
         )
@@ -46,12 +49,15 @@ class ProjectService:
         if not project:
             return None
 
+        color_val = getattr(project, "color", None)
+        color = color_val if isinstance(color_val, str) else None
+
         return ProjectResponse(
             id=str(project.id),
             name=project.name,
             goal=project.goal,
             status=project.status,
-            color=getattr(project, "color", None),
+            color=color,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )
@@ -65,7 +71,11 @@ class ProjectService:
                 name=p.name,
                 goal=p.goal,
                 status=p.status,
-                color=getattr(p, "color", None),
+                color=(
+                    getattr(p, "color", None)
+                    if isinstance(getattr(p, "color", None), str)
+                    else None
+                ),
                 created_at=p.created_at,
                 updated_at=p.updated_at,
             )
@@ -83,12 +93,13 @@ class ProjectService:
         if not project:
             return None
 
+        color_val = getattr(project, "color", None)
         return ProjectResponse(
             id=str(project.id),
             name=project.name,
             goal=project.goal,
             status=project.status,
-            color=getattr(project, "color", None),
+            color=str(color_val) if color_val is not None else None,
             created_at=project.created_at,
             updated_at=project.updated_at,
         )

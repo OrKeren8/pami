@@ -43,8 +43,12 @@ app = FastAPI(
     description="Microservice for AI-powered conversations with OpenAI and S3 storage",
     version="0.1.0",
     lifespan=lifespan,
-    root_path="/ai",
 )
+
+# Only set a non-empty root_path when explicitly configured. Leaving it unset
+# avoids routing mismatches in tests that call routes without a prefix.
+if settings.api_root:
+    app.root_path = settings.api_root
 
 # CORS middleware
 app.add_middleware(

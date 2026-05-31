@@ -13,8 +13,13 @@ from ai_conversation_service.services.ai_conversation_service.service import (
     AIConversationService,
 )
 
-
 router = APIRouter(prefix="/ai-conversations", tags=["ai-conversations"])
+
+
+@router.get("/health")
+async def health_check():
+    """Health check for AI conversation service."""
+    return {"status": "healthy", "service": "ai-conversations"}
 
 
 @router.post("/", response_model=ConversationResponse)
@@ -104,9 +109,3 @@ async def delete_conversation(
         raise HTTPException(
             status_code=500, detail=f"Failed to delete conversation: {str(e)}"
         )
-
-
-@router.get("/health")
-async def health_check():
-    """Health check for AI conversation service."""
-    return {"status": "healthy", "service": "ai-conversations"}

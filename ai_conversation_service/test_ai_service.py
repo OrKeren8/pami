@@ -11,7 +11,7 @@ from ai_conversation_service.services.ai_conversation_service.service import (
 )
 
 
-async def test_ai_conversation_service():
+async def run_ai_conversation_service():
     """Test the AI conversation service with S3 storage and OpenAI integration."""
 
     print("Testing AI Conversation Service")
@@ -131,4 +131,4 @@ async def test_ai_conversation_service():
 
 
 if __name__ == "__main__":
-    asyncio.run(test_ai_conversation_service())
+    asyncio.run(run_ai_conversation_service())

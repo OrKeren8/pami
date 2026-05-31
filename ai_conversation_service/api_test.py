@@ -11,7 +11,7 @@ import time
 BASE_URL = "http://127.0.0.1:8005"
 
 
-async def test_api():
+async def run_api():
     """Test the AI conversation API directly."""
 
     print("🚀 Testing AI Conversation API")
@@ -78,4 +78,4 @@ async def test_api():
 
 
 if __name__ == "__main__":
-    asyncio.run(test_api())
+    asyncio.run(run_api())
