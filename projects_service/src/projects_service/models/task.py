@@ -12,7 +12,7 @@ class Task(Document):
     status: str  # e.g., "todo", "in-progress", "done"
     due_date: Optional[datetime] = None
     assignee: Optional[str] = None  # user ID
-    dependencies: List[str] = []  # list of task IDs
+    dependencies: List[str] = Field(default_factory=list)  # list of task IDs
     project_id: str  # reference to project
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
