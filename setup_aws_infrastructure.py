@@ -683,6 +683,117 @@ def enable_cors_on_api(api_endpoint: str):
         print_error(f"Failed to update API CORS: {e}")
 
 
+def refresh_projects_service_ai_url(lb_dns: Optional[str]) -> bool:
+    """Ensure projects service uses the current ALB DNS for AI calls.
+
+    This prevents stale task definitions from keeping an old AI_SERVICE_URL
+    when the ALB hostname changes between lab sessions.
+    """
+    if not lb_dns:
+        print_info("Skipping projects-service env refresh: no load balancer DNS")
+        return False
+
+    service_name = "pami-projects-service"
+    desired_ai_url = f"http://{lb_dns}/ai"
+
+    try:
+        svc_resp = ecs.describe_services(cluster=CLUSTER_NAME, services=[service_name])
+        services = svc_resp.get("services", [])
+        if not services or services[0].get("status") != "ACTIVE":
+            print_info(
+                f"Skipping {service_name} env refresh: service not found/active in cluster {CLUSTER_NAME}"
+            )
+            return False
+
+        task_def_arn = services[0].get("taskDefinition")
+        if not task_def_arn:
+            print_info(f"Skipping {service_name} env refresh: no task definition ARN")
+            return False
+
+        td_resp = ecs.describe_task_definition(taskDefinition=task_def_arn)
+        current_td = td_resp.get("taskDefinition", {})
+        container_defs = current_td.get("containerDefinitions", [])
+
+        changed = False
+        for container in container_defs:
+            if container.get("name") != service_name:
+                continue
+
+            env_list = container.get("environment", [])
+            env_map = {item.get("name"): item.get("value") for item in env_list}
+            current_ai_url = env_map.get("AI_SERVICE_URL")
+
+            if current_ai_url == desired_ai_url:
+                print_success(
+                    f"{service_name} AI_SERVICE_URL already up to date: {desired_ai_url}"
+                )
+                return True
+
+            env_map["AI_SERVICE_URL"] = desired_ai_url
+            container["environment"] = [
+                {"name": k, "value": v if v is not None else ""}
+                for k, v in env_map.items()
+            ]
+            changed = True
+            break
+
+        if not changed:
+            print_info(
+                f"Skipping {service_name} env refresh: container definition not found"
+            )
+            return False
+
+        # Re-register task definition revision with updated environment variable.
+        register_args = {
+            "family": current_td["family"],
+            "taskRoleArn": current_td.get("taskRoleArn"),
+            "executionRoleArn": current_td.get("executionRoleArn"),
+            "networkMode": current_td.get("networkMode"),
+            "containerDefinitions": container_defs,
+            "volumes": current_td.get("volumes", []),
+            "placementConstraints": current_td.get("placementConstraints", []),
+            "requiresCompatibilities": current_td.get("requiresCompatibilities", []),
+            "cpu": current_td.get("cpu"),
+            "memory": current_td.get("memory"),
+        }
+
+        # Only include optional fields when present.
+        optional_fields = [
+            "runtimePlatform",
+            "proxyConfiguration",
+            "ipcMode",
+            "pidMode",
+            "inferenceAccelerators",
+            "ephemeralStorage",
+        ]
+        for field in optional_fields:
+            if current_td.get(field) is not None:
+                register_args[field] = current_td.get(field)
+
+        # Drop None values to avoid API validation errors.
+        register_args = {k: v for k, v in register_args.items() if v is not None}
+
+        reg_resp = ecs.register_task_definition(**register_args)
+        new_task_def_arn = reg_resp["taskDefinition"]["taskDefinitionArn"]
+
+        ecs.update_service(
+            cluster=CLUSTER_NAME,
+            service=service_name,
+            taskDefinition=new_task_def_arn,
+            forceNewDeployment=True,
+        )
+
+        print_success(
+            f"Updated {service_name} AI_SERVICE_URL to {desired_ai_url} and started new deployment"
+        )
+        print_info(f"New task definition: {new_task_def_arn}")
+        return True
+
+    except Exception as e:
+        print_error(f"Failed to refresh projects-service AI_SERVICE_URL: {e}")
+        return False
+
+
 def create_amplify_app(
     api_base_url: str, github_token: Optional[str] = None
 ) -> Optional[str]:
@@ -1069,6 +1180,10 @@ def main():
         api_gateway_url = None
         if lb_dns:
             api_gateway_url = create_api_gateway(lb_dns)
+
+        # Keep ECS service URLs aligned with the current ALB DNS so task
+        # revisions do not keep stale hostnames across lab sessions.
+        refresh_projects_service_ai_url(lb_dns)
 
         # Ensure CORS is enabled on the API Gateway
         if api_gateway_url:
