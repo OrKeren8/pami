@@ -263,6 +263,54 @@ const HomePage = () => {
     const [conversationId, setConversationId] = useState(null);
     const [isChatLoading, setIsChatLoading] = useState(false);
     const [assistantAvatarUrl, setAssistantAvatarUrl] = useState(null);
+
+    const pamiAssistantRecommendations = [
+        {
+            title: "Recommendation 1",
+            summary: "Several project tasks are moving slower than expected. Review blockers and ownership to keep the timeline stable.",
+            bullets: [
+                "12 tasks may miss due dates.",
+                "3 blockers need approval.",
+                "Reassign 2 developers."
+            ]
+        },
+        {
+            title: "Recommendation 2",
+            summary: "Jira sync looks healthy, but some tasks are missing ownership details.",
+            bullets: [
+                "5 tasks have no owner.",
+                "2 tasks miss priority.",
+                "1 task has no context node."
+            ]
+        },
+        {
+            title: "Recommendation 3",
+            summary: "Everything looks stable right now. No critical project changes are required.",
+            bullets: [
+                "No urgent risks detected.",
+                "Velocity looks consistent.",
+                "No action is required."
+            ]
+        }
+    ];
+
+    const [pamiAssistantIndex, setPamiAssistantIndex] = useState(0);
+    const currentPamiAssistantRecommendation = pamiAssistantRecommendations[pamiAssistantIndex] || pamiAssistantRecommendations[0];
+    const pamiSidebarAssistantImage = "/pami-assistant.png";
+
+    const goToPreviousPamiRecommendation = () => {
+        setPamiAssistantIndex((currentIndex) => {
+            if (currentIndex <= 0) return pamiAssistantRecommendations.length - 1;
+            return currentIndex - 1;
+        });
+    };
+
+    const goToNextPamiRecommendation = () => {
+        setPamiAssistantIndex((currentIndex) => {
+            if (currentIndex >= pamiAssistantRecommendations.length - 1) return 0;
+            return currentIndex + 1;
+        });
+    };
     const treeContainerRef = useRef(null);
     const fileInputRef = useRef(null);
 
@@ -1482,7 +1530,76 @@ const HomePage = () => {
                         </li>
                     </ul>
                 </nav>
-            </aside>
+            
+                <div className="pami-sidebar-assistant-panel">
+                    <div className="pami-assistant-panel-header">
+                        <div className="pami-assistant-panel-title">
+                            <span className="pami-assistant-spark" aria-hidden="true"></span>
+                            <span>PAMI Assistant</span>
+                        </div>
+                        <div className="pami-assistant-online">
+                            <span></span>
+                            Online
+                        </div>
+                    </div>
+
+                    <div className="pami-assistant-bubble">
+                        <div className="pami-assistant-bubble-top">
+                            <div className="pami-assistant-recommendation-title">
+                                <span className="pami-assistant-mini-spark" aria-hidden="true"></span>
+                                <span>{currentPamiAssistantRecommendation.title}</span>
+                            </div>
+
+                            <div className="pami-assistant-pager">
+                                <button
+                                    type="button"
+                                    className="pami-assistant-page-btn"
+                                    onClick={goToPreviousPamiRecommendation}
+                                    aria-label="Previous PAMI recommendation"
+                                >
+                                    ‹
+                                </button>
+                                <span>{pamiAssistantIndex + 1} / {pamiAssistantRecommendations.length}</span>
+                                <button
+                                    type="button"
+                                    className="pami-assistant-page-btn"
+                                    onClick={goToNextPamiRecommendation}
+                                    aria-label="Next PAMI recommendation"
+                                >
+                                    ›
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="pami-assistant-message">
+                            <p>{currentPamiAssistantRecommendation.summary}</p>
+                            <ul>
+                                {currentPamiAssistantRecommendation.bullets.map((bullet, idx) => (
+                                    <li key={idx}>{bullet}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
+
+                    <div className="pami-assistant-robot-wrap">
+                        <img
+                            src={assistantAvatarUrl || pamiSidebarAssistantImage}
+                            alt="PAMI assistant avatar"
+                            className="pami-assistant-avatar-image"
+                        />
+                    </div>
+
+                    <div className="pami-assistant-actions">
+                        <button type="button" className="pami-assistant-check-btn">
+                            Check for new
+                        </button>
+                        <button type="button" className="pami-assistant-history-btn">
+                            History
+                        </button>
+                    </div>
+                </div>
+
+</aside>
 
             <main className={`main-content ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
                 <header className="top-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", boxSizing: "border-box", flexShrink: 0 }}>

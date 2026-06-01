@@ -4519,3 +4519,1451 @@ button[aria-label*="Slack"] {
   }
 }
 
+
+/* ================================
+   SAFE PATCH: PAMI SIDEBAR ASSISTANT PANEL
+   UI-only assistant avatar + recommendation pager in the left sidebar.
+   Backend/Jira logic will be connected later.
+================================ */
+
+.sidebar {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.pami-sidebar-assistant-panel {
+  position: relative;
+  margin: auto 14px 18px;
+  padding: 16px;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 22% 76%, rgba(255, 214, 235, 0.55), transparent 34%),
+    radial-gradient(circle at 86% 18%, rgba(213, 202, 255, 0.42), transparent 38%),
+    linear-gradient(145deg, rgba(255, 249, 253, 0.94), rgba(248, 244, 255, 0.96));
+  border: 1px solid rgba(214, 95, 159, 0.16);
+  box-shadow: 0 18px 42px rgba(74, 45, 108, 0.12);
+  overflow: hidden;
+}
+
+.pami-assistant-panel-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.pami-assistant-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #bd2f82;
+  font-size: 0.92rem;
+  font-weight: 850;
+}
+
+.pami-assistant-spark,
+.pami-assistant-mini-spark {
+  width: 15px;
+  height: 15px;
+  display: inline-block;
+  flex: 0 0 auto;
+  background: linear-gradient(135deg, #f06292, #8b5cf6);
+  clip-path: polygon(50% 0%, 61% 37%, 100% 50%, 61% 63%, 50% 100%, 39% 63%, 0% 50%, 39% 37%);
+}
+
+.pami-assistant-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(83, 72, 96, 0.72);
+  font-size: 0.72rem;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.pami-assistant-online span {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #55c982;
+  box-shadow: 0 0 0 4px rgba(85, 201, 130, 0.12);
+}
+
+.pami-assistant-bubble {
+  position: relative;
+  z-index: 2;
+  min-height: 214px;
+  padding: 15px 15px 18px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(214, 95, 159, 0.16);
+  box-shadow: 0 16px 34px rgba(74, 45, 108, 0.10);
+}
+
+.pami-assistant-bubble::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -20px;
+  width: 34px;
+  height: 34px;
+  background: rgba(255, 255, 255, 0.86);
+  border-right: 1px solid rgba(214, 95, 159, 0.13);
+  border-bottom: 1px solid rgba(214, 95, 159, 0.13);
+  transform: translateX(-50%) rotate(45deg);
+  border-radius: 0 0 9px 0;
+}
+
+.pami-assistant-bubble-top {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.pami-assistant-recommendation-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: #bd2f82;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.pami-assistant-mini-spark {
+  width: 12px;
+  height: 12px;
+}
+
+.pami-assistant-pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.pami-assistant-pager span {
+  min-width: 34px;
+  text-align: center;
+  color: rgba(83, 72, 96, 0.70);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.pami-assistant-page-btn {
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(143, 109, 242, 0.18);
+  border-radius: 999px;
+  background: rgba(248, 244, 255, 0.84);
+  color: #6f48d8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.02rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 16px rgba(74, 45, 108, 0.06);
+  transition: transform 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.pami-assistant-page-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(238, 231, 255, 0.96);
+  box-shadow: 0 10px 20px rgba(74, 45, 108, 0.10);
+}
+
+.pami-assistant-message {
+  position: relative;
+  z-index: 1;
+  min-height: 150px;
+  max-height: 150px;
+  overflow: hidden;
+}
+
+.pami-assistant-message::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.92));
+  pointer-events: none;
+}
+
+.pami-assistant-message p {
+  margin: 0 0 10px;
+  color: #2f2a58;
+  font-size: 0.83rem;
+  font-weight: 720;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.pami-assistant-message ul {
+  margin: 0;
+  padding-left: 18px;
+  color: rgba(47, 42, 88, 0.78);
+  font-size: 0.76rem;
+  line-height: 1.34;
+}
+
+.pami-assistant-message li {
+  margin-bottom: 5px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.pami-assistant-robot-wrap {
+  position: relative;
+  z-index: 1;
+  height: 92px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  margin-top: 6px;
+  pointer-events: none;
+}
+
+.pami-assistant-avatar-image {
+  width: 98px;
+  height: 98px;
+  object-fit: contain;
+  filter: drop-shadow(0 14px 18px rgba(74, 45, 108, 0.14));
+}
+
+.pami-assistant-robot {
+  position: relative;
+  width: 96px;
+  height: 92px;
+  filter: drop-shadow(0 14px 18px rgba(74, 45, 108, 0.14));
+}
+
+.pami-robot-antenna {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 26px;
+  height: 20px;
+  transform: translateX(-50%);
+  border-top: 3px solid #d85c9c;
+  border-radius: 999px 999px 0 0;
+}
+
+.pami-robot-head {
+  position: absolute;
+  left: 50%;
+  top: 16px;
+  width: 76px;
+  height: 48px;
+  transform: translateX(-50%);
+  border-radius: 24px 24px 20px 20px;
+  background: linear-gradient(135deg, #ffffff, #ffeaf6);
+  border: 2px solid rgba(216, 92, 156, 0.28);
+}
+
+.pami-robot-visor {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: 52px;
+  height: 22px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #30274b, #1f1a38);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+}
+
+.pami-robot-visor span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #7dd3fc;
+  box-shadow: 0 0 8px rgba(125, 211, 252, 0.78);
+}
+
+.pami-robot-body {
+  position: absolute;
+  left: 50%;
+  top: 58px;
+  width: 54px;
+  height: 32px;
+  transform: translateX(-50%);
+  border-radius: 18px 18px 16px 16px;
+  background: linear-gradient(135deg, #ffffff, #ffe0f0);
+  border: 2px solid rgba(216, 92, 156, 0.24);
+}
+
+.pami-robot-body span {
+  position: absolute;
+  left: 50%;
+  top: 9px;
+  width: 12px;
+  height: 12px;
+  transform: translateX(-50%) rotate(45deg);
+  background: #f06292;
+  border-radius: 4px 4px 8px 4px;
+}
+
+.pami-robot-arm {
+  position: absolute;
+  top: 62px;
+  width: 24px;
+  height: 8px;
+  border-radius: 999px;
+  background: #f5b1d1;
+}
+
+.pami-robot-arm-left {
+  left: 7px;
+  transform: rotate(20deg);
+}
+
+.pami-robot-arm-right {
+  right: 4px;
+  top: 52px;
+  transform: rotate(-48deg);
+}
+
+.pami-assistant-actions {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 9px;
+  margin-top: 10px;
+}
+
+.pami-assistant-check-btn,
+.pami-assistant-history-btn {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 15px;
+  font-weight: 850;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.pami-assistant-check-btn {
+  border: 0;
+  color: #ffffff;
+  background: linear-gradient(135deg, #8b5cf6, #c85ccf);
+  box-shadow: 0 14px 28px rgba(139, 92, 246, 0.24);
+}
+
+.pami-assistant-history-btn {
+  color: #7a55d9;
+  background: rgba(255, 255, 255, 0.68);
+  border: 1px solid rgba(143, 109, 242, 0.18);
+}
+
+.pami-assistant-check-btn:hover,
+.pami-assistant-history-btn:hover {
+  transform: translateY(-1px);
+}
+
+@media (max-height: 820px) {
+  .pami-sidebar-assistant-panel {
+    padding: 13px;
+    margin-bottom: 12px;
+  }
+
+  .pami-assistant-bubble {
+    min-height: 188px;
+  }
+
+  .pami-assistant-message {
+    min-height: 126px;
+    max-height: 126px;
+  }
+
+  .pami-assistant-robot-wrap {
+    height: 76px;
+  }
+
+  .pami-assistant-robot {
+    transform: scale(0.84);
+    transform-origin: bottom center;
+  }
+}
+
+
+/* ================================
+   SAFE PATCH: PAMI SIDEBAR ASSISTANT COMPACT FIX
+   Adapts the assistant panel to the real narrow sidebar.
+   Keeps paging instead of scrolling and prevents layout breakage.
+================================ */
+
+.pami-sidebar-assistant-panel {
+  margin: auto 10px 14px !important;
+  padding: 12px !important;
+  border-radius: 22px !important;
+}
+
+.pami-assistant-panel-header {
+  margin-bottom: 9px !important;
+}
+
+.pami-assistant-panel-title {
+  gap: 6px !important;
+  font-size: 0.82rem !important;
+  line-height: 1.1 !important;
+}
+
+.pami-assistant-online {
+  font-size: 0.64rem !important;
+}
+
+.pami-assistant-bubble {
+  min-height: 168px !important;
+  max-height: 168px !important;
+  padding: 12px 12px 14px !important;
+  border-radius: 18px !important;
+}
+
+.pami-assistant-bubble::after {
+  bottom: -15px !important;
+  width: 26px !important;
+  height: 26px !important;
+}
+
+.pami-assistant-bubble-top {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-bottom: 9px !important;
+}
+
+.pami-assistant-recommendation-title {
+  min-width: 0 !important;
+  gap: 5px !important;
+  font-size: 0.66rem !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.pami-assistant-mini-spark {
+  width: 10px !important;
+  height: 10px !important;
+}
+
+.pami-assistant-pager {
+  gap: 4px !important;
+}
+
+.pami-assistant-pager span {
+  min-width: 28px !important;
+  font-size: 0.66rem !important;
+}
+
+.pami-assistant-page-btn {
+  width: 21px !important;
+  height: 21px !important;
+  font-size: 0.88rem !important;
+  box-shadow: 0 6px 12px rgba(74, 45, 108, 0.05) !important;
+}
+
+.pami-assistant-message {
+  min-height: 114px !important;
+  max-height: 114px !important;
+  overflow: hidden !important;
+}
+
+.pami-assistant-message::after {
+  height: 18px !important;
+}
+
+.pami-assistant-message p {
+  margin: 0 0 7px !important;
+  font-size: 0.69rem !important;
+  font-weight: 760 !important;
+  line-height: 1.33 !important;
+  color: #29234f !important;
+}
+
+.pami-assistant-message ul {
+  padding-left: 14px !important;
+  font-size: 0.64rem !important;
+  line-height: 1.24 !important;
+}
+
+.pami-assistant-message li {
+  margin-bottom: 3px !important;
+}
+
+.pami-assistant-robot-wrap {
+  height: 66px !important;
+  margin-top: 5px !important;
+}
+
+.pami-assistant-avatar-image {
+  width: 74px !important;
+  height: 74px !important;
+}
+
+.pami-assistant-robot {
+  transform: scale(0.72) !important;
+  transform-origin: bottom center !important;
+}
+
+.pami-assistant-actions {
+  gap: 7px !important;
+  margin-top: 8px !important;
+}
+
+.pami-assistant-check-btn,
+.pami-assistant-history-btn {
+  min-height: 34px !important;
+  border-radius: 13px !important;
+  font-size: 0.68rem !important;
+  padding: 0 8px !important;
+}
+
+/* If the sidebar becomes very short, keep the panel usable */
+@media (max-height: 820px) {
+  .pami-sidebar-assistant-panel {
+    padding: 10px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .pami-assistant-bubble {
+    min-height: 148px !important;
+    max-height: 148px !important;
+  }
+
+  .pami-assistant-message {
+    min-height: 94px !important;
+    max-height: 94px !important;
+  }
+
+  .pami-assistant-robot-wrap {
+    height: 52px !important;
+  }
+
+  .pami-assistant-robot {
+    transform: scale(0.58) !important;
+    transform-origin: bottom center !important;
+  }
+
+  .pami-assistant-check-btn,
+  .pami-assistant-history-btn {
+    min-height: 31px !important;
+  }
+}
+
+
+/* ================================
+   SAFE PATCH: PAMI SIDEBAR ASSISTANT IMAGE BUTTONS
+   Uses the real PAMI assistant image and keeps both action buttons visible.
+================================ */
+
+.pami-sidebar-assistant-panel {
+  padding: 9px !important;
+  margin: auto 10px 10px !important;
+}
+
+.pami-assistant-bubble {
+  min-height: 142px !important;
+  max-height: 142px !important;
+  padding: 10px 10px 12px !important;
+}
+
+.pami-assistant-bubble::after {
+  bottom: -13px !important;
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.pami-assistant-bubble-top {
+  margin-bottom: 7px !important;
+}
+
+.pami-assistant-message {
+  min-height: 88px !important;
+  max-height: 88px !important;
+  overflow: hidden !important;
+}
+
+.pami-assistant-message p {
+  font-size: 0.64rem !important;
+  line-height: 1.25 !important;
+  margin: 0 0 5px !important;
+}
+
+.pami-assistant-message ul {
+  font-size: 0.59rem !important;
+  line-height: 1.16 !important;
+  padding-left: 13px !important;
+}
+
+.pami-assistant-message li {
+  margin-bottom: 2px !important;
+}
+
+.pami-assistant-robot-wrap {
+  height: 62px !important;
+  margin-top: 3px !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  pointer-events: none !important;
+}
+
+.pami-assistant-avatar-image {
+  width: 78px !important;
+  height: 78px !important;
+  object-fit: contain !important;
+  display: block !important;
+  filter: drop-shadow(0 10px 14px rgba(74, 45, 108, 0.16)) !important;
+}
+
+.pami-assistant-robot {
+  display: none !important;
+}
+
+.pami-assistant-actions {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 6px !important;
+  margin-top: 7px !important;
+}
+
+.pami-assistant-check-btn,
+.pami-assistant-history-btn {
+  min-height: 31px !important;
+  height: 31px !important;
+  border-radius: 12px !important;
+  font-size: 0.60rem !important;
+  font-weight: 850 !important;
+  padding: 0 6px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.pami-assistant-check-btn {
+  box-shadow: 0 10px 18px rgba(139, 92, 246, 0.20) !important;
+}
+
+.pami-assistant-history-btn {
+  box-shadow: 0 8px 14px rgba(74, 45, 108, 0.06) !important;
+}
+
+@media (max-height: 820px) {
+  .pami-sidebar-assistant-panel {
+    padding: 8px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .pami-assistant-bubble {
+    min-height: 132px !important;
+    max-height: 132px !important;
+  }
+
+  .pami-assistant-message {
+    min-height: 80px !important;
+    max-height: 80px !important;
+  }
+
+  .pami-assistant-robot-wrap {
+    height: 54px !important;
+  }
+
+  .pami-assistant-avatar-image {
+    width: 68px !important;
+    height: 68px !important;
+  }
+
+  .pami-assistant-check-btn,
+  .pami-assistant-history-btn {
+    min-height: 29px !important;
+    height: 29px !important;
+    font-size: 0.58rem !important;
+  }
+}
+
+
+/* ================================
+   SAFE PATCH: PAMI SIDEBAR ASSISTANT LAYOUT REFINE
+   Refines sidebar assistant layout:
+   - buttons stacked vertically
+   - larger avatar
+   - message bubble clearly above avatar
+================================ */
+
+.pami-sidebar-assistant-panel {
+  padding: 10px !important;
+  margin: auto 10px 10px !important;
+}
+
+.pami-assistant-bubble {
+  min-height: 146px !important;
+  max-height: 146px !important;
+  padding: 10px 10px 12px !important;
+  border-radius: 18px !important;
+}
+
+/* Keep the bubble above the avatar instead of visually coming from the mouth */
+.pami-assistant-bubble::after {
+  display: none !important;
+}
+
+.pami-assistant-bubble-top {
+  margin-bottom: 7px !important;
+}
+
+.pami-assistant-message {
+  min-height: 92px !important;
+  max-height: 92px !important;
+  overflow: hidden !important;
+}
+
+.pami-assistant-message p {
+  font-size: 0.64rem !important;
+  line-height: 1.25 !important;
+  margin: 0 0 5px !important;
+}
+
+.pami-assistant-message ul {
+  font-size: 0.59rem !important;
+  line-height: 1.16 !important;
+  padding-left: 13px !important;
+}
+
+.pami-assistant-message li {
+  margin-bottom: 2px !important;
+}
+
+/* Larger and more prominent avatar */
+.pami-assistant-robot-wrap {
+  height: 94px !important;
+  margin-top: 10px !important;
+  margin-bottom: 8px !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  pointer-events: none !important;
+}
+
+.pami-assistant-avatar-image {
+  width: 104px !important;
+  height: 104px !important;
+  object-fit: contain !important;
+  display: block !important;
+  filter: drop-shadow(0 14px 18px rgba(74, 45, 108, 0.18)) !important;
+}
+
+/* Buttons one above the other */
+.pami-assistant-actions {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 7px !important;
+  margin-top: 2px !important;
+}
+
+.pami-assistant-check-btn,
+.pami-assistant-history-btn {
+  width: 100% !important;
+  min-height: 34px !important;
+  height: 34px !important;
+  border-radius: 12px !important;
+  font-size: 0.63rem !important;
+  font-weight: 850 !important;
+  padding: 0 8px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.pami-assistant-check-btn {
+  box-shadow: 0 10px 18px rgba(139, 92, 246, 0.20) !important;
+}
+
+.pami-assistant-history-btn {
+  box-shadow: 0 8px 14px rgba(74, 45, 108, 0.06) !important;
+}
+
+@media (max-height: 820px) {
+  .pami-assistant-bubble {
+    min-height: 136px !important;
+    max-height: 136px !important;
+  }
+
+  .pami-assistant-message {
+    min-height: 84px !important;
+    max-height: 84px !important;
+  }
+
+  .pami-assistant-robot-wrap {
+    height: 80px !important;
+    margin-top: 8px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .pami-assistant-avatar-image {
+    width: 92px !important;
+    height: 92px !important;
+  }
+
+  .pami-assistant-check-btn,
+  .pami-assistant-history-btn {
+    min-height: 32px !important;
+    height: 32px !important;
+    font-size: 0.61rem !important;
+  }
+}
+
+
+/* ================================
+   SAFE PATCH: PAMI SIDEBAR AVATAR CROP FIX
+   Fixes:
+   - stacked visible buttons
+   - larger avatar
+   - avatar shown as upper-body crop
+   - bubble clearly above avatar
+================================ */
+
+.pami-sidebar-assistant-panel {
+  padding: 10px !important;
+  margin: auto 10px 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+/* Bubble */
+.pami-assistant-bubble {
+  min-height: 140px !important;
+  max-height: 140px !important;
+  padding: 10px 10px 12px !important;
+  border-radius: 18px !important;
+  margin-bottom: 10px !important;
+}
+
+.pami-assistant-bubble::after {
+  display: none !important;
+}
+
+.pami-assistant-bubble-top {
+  margin-bottom: 7px !important;
+}
+
+.pami-assistant-message {
+  min-height: 88px !important;
+  max-height: 88px !important;
+  overflow: hidden !important;
+}
+
+.pami-assistant-message p {
+  font-size: 0.64rem !important;
+  line-height: 1.24 !important;
+  margin: 0 0 5px !important;
+}
+
+.pami-assistant-message ul {
+  font-size: 0.59rem !important;
+  line-height: 1.16 !important;
+  padding-left: 13px !important;
+}
+
+.pami-assistant-message li {
+  margin-bottom: 2px !important;
+}
+
+/* Avatar area:
+   Make it act like a crop window so the character appears bigger,
+   and mostly show head + upper torso. */
+.pami-assistant-robot-wrap {
+  height: 130px !important;
+  min-height: 130px !important;
+  margin-top: 0 !important;
+  margin-bottom: 10px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  position: relative !important;
+}
+
+.pami-assistant-avatar-image {
+  width: 158px !important;
+  height: 158px !important;
+  object-fit: cover !important;
+  object-position: center top !important;
+  display: block !important;
+  margin-top: -6px !important;
+  filter: drop-shadow(0 14px 18px rgba(74, 45, 108, 0.18)) !important;
+  background: transparent !important;
+}
+
+/* Buttons:
+   stack vertically and always keep them visible */
+.pami-assistant-actions {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 7px !important;
+  margin-top: 0 !important;
+  flex: 0 0 auto !important;
+}
+
+.pami-assistant-check-btn,
+.pami-assistant-history-btn {
+  width: 100% !important;
+  min-height: 34px !important;
+  height: 34px !important;
+  border-radius: 12px !important;
+  font-size: 0.63rem !important;
+  font-weight: 850 !important;
+  padding: 0 8px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.pami-assistant-check-btn {
+  box-shadow: 0 10px 18px rgba(139, 92, 246, 0.20) !important;
+}
+
+.pami-assistant-history-btn {
+  box-shadow: 0 8px 14px rgba(74, 45, 108, 0.06) !important;
+}
+
+/* Compact screens */
+@media (max-height: 820px) {
+  .pami-assistant-bubble {
+    min-height: 132px !important;
+    max-height: 132px !important;
+  }
+
+  .pami-assistant-message {
+    min-height: 82px !important;
+    max-height: 82px !important;
+  }
+
+  .pami-assistant-robot-wrap {
+    height: 112px !important;
+    min-height: 112px !important;
+    margin-bottom: 8px !important;
+  }
+
+  .pami-assistant-avatar-image {
+    width: 142px !important;
+    height: 142px !important;
+  }
+
+  .pami-assistant-check-btn,
+  .pami-assistant-history-btn {
+    min-height: 32px !important;
+    height: 32px !important;
+    font-size: 0.61rem !important;
+  }
+}
+
+
+/* ================================
+   SAFE PATCH: PAMI SIDEBAR FINAL FIT
+   Final visual fit for the real sidebar:
+   - transparent avatar asset
+   - larger PAMI character
+   - upper-body crop
+   - visible stacked buttons
+   - bubble above the avatar, not covering it
+================================ */
+
+.pami-sidebar-assistant-panel {
+  padding: 8px !important;
+  margin: auto 10px 10px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.pami-assistant-panel-header {
+  margin-bottom: 6px !important;
+}
+
+.pami-assistant-panel-title {
+  font-size: 0.78rem !important;
+  line-height: 1.05 !important;
+}
+
+.pami-assistant-online {
+  font-size: 0.60rem !important;
+}
+
+/* Keep the bubble compact so the avatar + two buttons fit */
+.pami-assistant-bubble {
+  min-height: 110px !important;
+  max-height: 110px !important;
+  padding: 9px 9px 10px !important;
+  border-radius: 17px !important;
+  margin-bottom: 6px !important;
+}
+
+.pami-assistant-bubble::after {
+  display: none !important;
+}
+
+.pami-assistant-bubble-top {
+  margin-bottom: 5px !important;
+}
+
+.pami-assistant-recommendation-title {
+  font-size: 0.61rem !important;
+}
+
+.pami-assistant-pager span {
+  min-width: 27px !important;
+  font-size: 0.62rem !important;
+}
+
+.pami-assistant-page-btn {
+  width: 20px !important;
+  height: 20px !important;
+  font-size: 0.82rem !important;
+}
+
+.pami-assistant-message {
+  min-height: 67px !important;
+  max-height: 67px !important;
+  overflow: hidden !important;
+}
+
+.pami-assistant-message::after {
+  height: 16px !important;
+}
+
+.pami-assistant-message p {
+  font-size: 0.60rem !important;
+  line-height: 1.18 !important;
+  margin: 0 0 4px !important;
+}
+
+.pami-assistant-message ul {
+  font-size: 0.55rem !important;
+  line-height: 1.12 !important;
+  padding-left: 12px !important;
+}
+
+.pami-assistant-message li {
+  margin-bottom: 1px !important;
+}
+
+/* Larger PAMI avatar, cropped to show head + upper body */
+.pami-assistant-robot-wrap {
+  height: 112px !important;
+  min-height: 112px !important;
+  margin-top: 4px !important;
+  margin-bottom: 6px !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  position: relative !important;
+}
+
+.pami-assistant-avatar-image {
+  width: 178px !important;
+  height: 178px !important;
+  object-fit: contain !important;
+  object-position: center top !important;
+  display: block !important;
+  margin-top: -4px !important;
+  background: transparent !important;
+  filter: drop-shadow(0 16px 20px rgba(74, 45, 108, 0.20)) !important;
+}
+
+/* Keep old CSS robot hidden */
+.pami-assistant-robot {
+  display: none !important;
+}
+
+/* Buttons must be vertical and fully visible */
+.pami-assistant-actions {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 6px !important;
+  margin-top: 0 !important;
+  flex: 0 0 auto !important;
+}
+
+.pami-assistant-check-btn,
+.pami-assistant-history-btn {
+  width: 100% !important;
+  min-height: 30px !important;
+  height: 30px !important;
+  border-radius: 12px !important;
+  font-size: 0.60rem !important;
+  font-weight: 850 !important;
+  padding: 0 8px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.pami-assistant-check-btn {
+  box-shadow: 0 10px 18px rgba(139, 92, 246, 0.20) !important;
+}
+
+.pami-assistant-history-btn {
+  background: rgba(255, 255, 255, 0.78) !important;
+  box-shadow: 0 8px 14px rgba(74, 45, 108, 0.06) !important;
+}
+
+/* Smaller vertical screens */
+@media (max-height: 820px) {
+  .pami-assistant-bubble {
+    min-height: 104px !important;
+    max-height: 104px !important;
+  }
+
+  .pami-assistant-message {
+    min-height: 61px !important;
+    max-height: 61px !important;
+  }
+
+  .pami-assistant-robot-wrap {
+    height: 100px !important;
+    min-height: 100px !important;
+  }
+
+  .pami-assistant-avatar-image {
+    width: 164px !important;
+    height: 164px !important;
+  }
+
+  .pami-assistant-check-btn,
+  .pami-assistant-history-btn {
+    min-height: 29px !important;
+    height: 29px !important;
+    font-size: 0.58rem !important;
+  }
+}
+
+
+/* ================================
+   SAFE PATCH: PAMI SIDEBAR READABILITY FIX
+   Improves bottom-text readability and gives the assistant panel
+   a bit more vertical space without sticking to the bottom.
+================================ */
+
+.pami-sidebar-assistant-panel {
+  padding: 10px !important;
+  margin: auto 10px 16px !important;
+}
+
+/* Make the main bubble a little taller */
+.pami-assistant-bubble {
+  min-height: 124px !important;
+  max-height: 124px !important;
+  padding: 10px 10px 12px !important;
+  margin-bottom: 8px !important;
+}
+
+/* Give the message area more room */
+.pami-assistant-message {
+  min-height: 80px !important;
+  max-height: 80px !important;
+  overflow: hidden !important;
+}
+
+/* Keep text compact but more readable */
+.pami-assistant-message p {
+  font-size: 0.60rem !important;
+  line-height: 1.22 !important;
+  margin: 0 0 5px !important;
+}
+
+.pami-assistant-message ul {
+  font-size: 0.56rem !important;
+  line-height: 1.14 !important;
+  padding-left: 12px !important;
+}
+
+.pami-assistant-message li {
+  margin-bottom: 1px !important;
+}
+
+/* The old fade was covering the last lines too much.
+   Keep only a very subtle fade so it doesn't hide content. */
+.pami-assistant-message::after {
+  height: 8px !important;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.35)
+  ) !important;
+}
+
+/* Slightly more room around avatar and buttons */
+.pami-assistant-robot-wrap {
+  margin-bottom: 8px !important;
+}
+
+.pami-assistant-actions {
+  gap: 7px !important;
+}
+
+/* On shorter screens still keep it usable */
+@media (max-height: 820px) {
+  .pami-sidebar-assistant-panel {
+    margin-bottom: 12px !important;
+  }
+
+  .pami-assistant-bubble {
+    min-height: 118px !important;
+    max-height: 118px !important;
+  }
+
+  .pami-assistant-message {
+    min-height: 74px !important;
+    max-height: 74px !important;
+  }
+
+  .pami-assistant-message::after {
+    height: 6px !important;
+  }
+}
+
+
+/* ================================
+   SAFE PATCH: PAMI SIDEBAR SHOW HISTORY BUTTON
+   Gives the assistant panel enough height so both action buttons are visible.
+   Keeps avatar large and keeps a clean bottom margin.
+================================ */
+
+.pami-sidebar-assistant-panel {
+  min-height: 372px !important;
+  max-height: none !important;
+  padding: 9px !important;
+  margin: auto 10px 14px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+/* Keep the bubble readable but not too tall */
+.pami-assistant-bubble {
+  min-height: 118px !important;
+  max-height: 118px !important;
+  padding: 9px 9px 10px !important;
+  margin-bottom: 7px !important;
+  flex: 0 0 auto !important;
+}
+
+.pami-assistant-message {
+  min-height: 74px !important;
+  max-height: 74px !important;
+  overflow: hidden !important;
+}
+
+.pami-assistant-message::after {
+  height: 6px !important;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.22)
+  ) !important;
+}
+
+/* Keep PAMI large, but reserve enough room for buttons */
+.pami-assistant-robot-wrap {
+  height: 118px !important;
+  min-height: 118px !important;
+  margin-top: 4px !important;
+  margin-bottom: 8px !important;
+  flex: 0 0 auto !important;
+  overflow: hidden !important;
+}
+
+.pami-assistant-avatar-image {
+  width: 184px !important;
+  height: 184px !important;
+  object-fit: contain !important;
+  object-position: center top !important;
+  margin-top: -5px !important;
+}
+
+/* Reserve fixed visible area for both buttons */
+.pami-assistant-actions {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 7px !important;
+  margin-top: auto !important;
+  padding-top: 0 !important;
+  flex: 0 0 73px !important;
+  min-height: 73px !important;
+}
+
+.pami-assistant-check-btn,
+.pami-assistant-history-btn {
+  width: 100% !important;
+  min-height: 33px !important;
+  height: 33px !important;
+  border-radius: 12px !important;
+  font-size: 0.61rem !important;
+  font-weight: 850 !important;
+  padding: 0 8px !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.pami-assistant-history-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #7a55d9 !important;
+  border: 1px solid rgba(143, 109, 242, 0.18) !important;
+}
+
+/* On shorter screens, still keep the history button visible */
+@media (max-height: 820px) {
+  .pami-sidebar-assistant-panel {
+    min-height: 356px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .pami-assistant-bubble {
+    min-height: 110px !important;
+    max-height: 110px !important;
+  }
+
+  .pami-assistant-message {
+    min-height: 67px !important;
+    max-height: 67px !important;
+  }
+
+  .pami-assistant-robot-wrap {
+    height: 108px !important;
+    min-height: 108px !important;
+  }
+
+  .pami-assistant-avatar-image {
+    width: 172px !important;
+    height: 172px !important;
+  }
+
+  .pami-assistant-actions {
+    flex-basis: 70px !important;
+    min-height: 70px !important;
+  }
+
+  .pami-assistant-check-btn,
+  .pami-assistant-history-btn {
+    min-height: 32px !important;
+    height: 32px !important;
+    font-size: 0.60rem !important;
+  }
+}
+
+
+/* ================================
+   SAFE PATCH: PAMI SIDEBAR HISTORY FULL BUTTON
+   Adds a little more vertical room so the History button is fully visible.
+================================ */
+
+.pami-sidebar-assistant-panel {
+  min-height: 392px !important;
+  margin: auto 10px 12px !important;
+  padding: 9px !important;
+  overflow: hidden !important;
+}
+
+.pami-assistant-bubble {
+  min-height: 118px !important;
+  max-height: 118px !important;
+  margin-bottom: 7px !important;
+}
+
+.pami-assistant-message {
+  min-height: 74px !important;
+  max-height: 74px !important;
+}
+
+.pami-assistant-robot-wrap {
+  height: 122px !important;
+  min-height: 122px !important;
+  margin-top: 4px !important;
+  margin-bottom: 8px !important;
+}
+
+.pami-assistant-avatar-image {
+  width: 188px !important;
+  height: 188px !important;
+  margin-top: -6px !important;
+}
+
+.pami-assistant-actions {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 7px !important;
+  min-height: 76px !important;
+  flex: 0 0 76px !important;
+  margin-top: auto !important;
+}
+
+.pami-assistant-check-btn,
+.pami-assistant-history-btn {
+  min-height: 34px !important;
+  height: 34px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Keep it safe on shorter screens */
+@media (max-height: 820px) {
+  .pami-sidebar-assistant-panel {
+    min-height: 376px !important;
+    margin-bottom: 10px !important;
+  }
+
+  .pami-assistant-robot-wrap {
+    height: 114px !important;
+    min-height: 114px !important;
+  }
+
+  .pami-assistant-avatar-image {
+    width: 178px !important;
+    height: 178px !important;
+  }
+
+  .pami-assistant-actions {
+    min-height: 74px !important;
+    flex-basis: 74px !important;
+  }
+
+  .pami-assistant-check-btn,
+  .pami-assistant-history-btn {
+    min-height: 33px !important;
+    height: 33px !important;
+  }
+}
+
