@@ -66,131 +66,159 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
     };
 
     return (
-        <>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <span style={{ fontSize: "40px" }}>🧠</span>
-                    <h2 style={{ marginTop: "5px", color: "#333" }}>Node Blueprint Context</h2>
+        <div className="node-details-shell" style={{ "--node-color": nodeColor }}>
+            <div className="node-details-hero">
+                <div className="node-details-hero-main">
+                    <div className="node-details-icon" aria-hidden="true">
+                        <span></span>
+                    </div>
+
+                    <div className="node-details-title-group">
+                        <span className="node-details-kicker">Context Node</span>
+                        <h2>{selectedNode.name || "Untitled node"}</h2>
+                    </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <button onClick={handleDelete} disabled={isDeleting} style={{ background: "transparent", border: "none", cursor: isDeleting ? "not-allowed" : "pointer", fontSize: "20px" }} title="Delete node">
-                        🗑️
+
+                <div className="node-details-actions">
+                    <button
+                        type="button"
+                        className="node-details-action node-details-action-secondary"
+                        onClick={() => onOpenConversation && onOpenConversation(selectedNode)}
+                        title="Open node chat"
+                    >
+                        Open Chat
                     </button>
-                    <button onClick={() => onOpenConversation && onOpenConversation(selectedNode)} style={{ background: "transparent", border: "none", cursor: 'pointer', fontSize: "18px" }} title="Open node chat">
-                        💬 Open Chat
+
+                    <button
+                        type="button"
+                        className="node-details-action node-details-action-danger"
+                        onClick={handleDelete}
+                        disabled={isDeleting}
+                        title="Delete node"
+                    >
+                        {isDeleting ? "Deleting..." : "Delete"}
                     </button>
                 </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "-6px", marginBottom: "8px" }}>
-                <div
-                    title="Node color"
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "5px",
-                        padding: "5px 7px",
-                        borderRadius: "999px",
-                        background: "rgba(255,255,255,0.84)",
-                        border: "1px solid rgba(0,0,0,0.08)",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.06)"
-                    }}
-                >
+            <div className="node-details-color-row">
+                <span className="node-details-color-label">Node color</span>
+                <div className="node-details-color-picker" title="Node color">
                     {nodeColorOptions.map((option) => (
                         <button
                             key={option.value}
                             type="button"
+                            className={`node-details-color-dot ${nodeColor === option.value ? "selected" : ""}`}
                             disabled={isSavingColor}
                             title={option.label}
                             aria-label={`Set node color to ${option.label}`}
                             onClick={() => handleColorSelect(option.value)}
-                            style={{
-                                width: "18px",
-                                height: "18px",
-                                borderRadius: "999px",
-                                border: nodeColor === option.value ? "2px solid #111827" : "2px solid rgba(255,255,255,0.9)",
-                                background: option.value,
-                                color: "white",
-                                cursor: isSavingColor ? "not-allowed" : "pointer",
-                                boxShadow: nodeColor === option.value ? "0 0 0 2px rgba(17,24,39,0.12)" : "0 3px 8px rgba(0,0,0,0.10)",
-                                fontSize: "10px",
-                                fontWeight: "bold",
-                                lineHeight: "12px",
-                                padding: 0,
-                            }}
+                            style={{ "--dot-color": option.value }}
                         >
-                            {nodeColor === option.value ? "✓" : ""}
+                            <span>{nodeColor === option.value ? "✓" : ""}</span>
                         </button>
                     ))}
                 </div>
             </div>
 
-            <div style={{ background: "#f9f9f9", padding: "15px", borderRadius: "16px", border: `2px solid ${nodeColor}`, maxHeight: "400px", overflowY: "auto", marginBottom: "20px" }}>
-                <div style={{ marginBottom: "12px" }}>
-                    <strong style={{ color: "#555", fontSize: "11px", letterSpacing: "0.5px" }}>NODE IDENTIFIER:</strong>
-                    <p style={{ margin: "2px 0 0 0", fontSize: "16px", fontWeight: "bold", color: "#111" }}>{selectedNode.name}</p>
-                </div>
-
-                <div style={{ marginBottom: "12px", background: "#fff", padding: "12px", borderRadius: "12px", borderLeft: `4px solid ${nodeColor}`, boxShadow: "0 2px 6px rgba(0,0,0,0.02)" }}>
-                    <strong style={{ color: nodeColor, fontSize: "11px", letterSpacing: "0.5px", fontWeight: "bold" }}>NODE DESCRIPTION & MISSION OBJECTIVE:</strong>
-                    <p style={{ margin: "6px 0 0 0", color: "#2c3e50", fontStyle: "normal", fontSize: "14px", lineHeight: "1.5" }}>
-                        {selectedNode.goal || "No description or mission objectives have been configured for this intelligence layer."}
-                    </p>
-                </div>
-
-                <div style={{ display: "flex", gap: "15px", marginBottom: "10px" }}>
-                    <div>
-                        <strong style={{ color: "#555", fontSize: "11px" }}>LAYER TYPE:</strong>
-                        <p style={{ margin: "2px 0 0 0", fontSize: "13px", fontWeight: "600", textTransform: "uppercase", color: "#666" }}>{selectedNode.status}</p>
+            <div className="node-details-grid">
+                <section className="node-details-card node-details-summary-card">
+                    <div className="node-details-card-header">
+                        <span className="node-details-card-label">Mission objective</span>
+                        <span className="node-details-status-pill">{selectedNode.status || "context"}</span>
                     </div>
-                </div>
 
-                <hr style={{ border: "none", borderTop: "1px solid #ddd", margin: "15px 0" }} />
+                    <div className="node-details-description node-details-description-primary">
+                        <p>
+                            {selectedNode.goal || "No mission objective has been configured for this intelligence layer."}
+                        </p>
+                    </div>
+                </section>
 
+                <section className="node-details-card node-details-metrics-card">
+                    <span className="node-details-card-label">Node context</span>
+
+                    <div className="node-details-metrics">
+                        <div className="node-details-metric">
+                            <strong>{subNodes.length}</strong>
+                            <span>Sub-nodes</span>
+                        </div>
+
+                        <div className="node-details-metric">
+                            <strong>{nodeTasks.length}</strong>
+                            <span>Tasks</span>
+                        </div>
+
+                        <div className="node-details-metric">
+                            <strong>{selectedNode.status || "context"}</strong>
+                            <span>Layer type</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div className="node-details-body">
                 {isModalDataLoading ? (
-                    <div style={{ textAlign: "center", padding: "20px 0" }}>
-                        <div className="loading-spinner" style={{ margin: "0 auto 10px auto", width: "25px", height: "25px" }}></div>
-                        <p style={{ fontSize: "13px", color: "#666" }}>Querying sub-resources from cloud...</p>
+                    <div className="node-details-loading">
+                        <div className="loading-spinner"></div>
+                        <p>Loading connected node resources...</p>
                     </div>
                 ) : (
                     <>
-                        <div style={{ marginBottom: "15px" }}>
-                            <strong style={{ color: "#f06292", fontSize: "13px" }}>CONNECTED SUB-NODES ({subNodes.length}):</strong>
+                        <section className="node-details-section">
+                            <div className="node-details-section-header">
+                                <div>
+                                    <span className="node-details-section-kicker">Structure</span>
+                                    <h3>Connected sub-nodes</h3>
+                                </div>
+                                <span className="node-details-count">{subNodes.length}</span>
+                            </div>
+
                             {subNodes.length > 0 ? (
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                                <div className="node-details-chip-list">
                                     {subNodes.map((sub, idx) => (
-                                        <span key={idx} style={{ background: "#f06292", color: "white", padding: "4px 10px", borderRadius: "20px", fontSize: "12px", fontWeight: "bold" }}>
-                                            🌿 {sub.header || sub.name || "Sub Node"}
+                                        <span key={idx} className="node-details-chip">
+                                            {sub.header || sub.name || "Sub Node"}
                                         </span>
                                     ))}
                                 </div>
                             ) : (
-                                <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#888" }}>No sub-nodes attached to this context layer.</p>
+                                <p className="node-details-empty">No sub-nodes are attached to this context layer yet.</p>
                             )}
-                        </div>
+                        </section>
 
-                        <div>
-                            <strong style={{ color: "#2f6fed", fontSize: "13px" }}>ACTIVE ATTACHED TASKS ({nodeTasks.length}):</strong>
+                        <section className="node-details-section">
+                            <div className="node-details-section-header">
+                                <div>
+                                    <span className="node-details-section-kicker">Execution</span>
+                                    <h3>Attached tasks</h3>
+                                </div>
+                                <span className="node-details-count">{nodeTasks.length}</span>
+                            </div>
+
                             {nodeTasks.length > 0 ? (
-                                <ul style={{ margin: "6px 0 0 0", paddingLeft: "20px", fontSize: "13px", color: "#333" }}>
+                                <div className="node-details-task-list">
                                     {nodeTasks.map((task, idx) => (
-                                        <li key={idx} style={{ marginBottom: "4px" }}>
-                                            <strong>{task.title || "Task"}</strong> - <span style={{ color: "#666" }}>{task.status || "pending"}</span>
-                                        </li>
+                                        <div key={idx} className="node-details-task-item">
+                                            <div>
+                                                <strong>{task.title || "Task"}</strong>
+                                                <span>{task.status || "pending"}</span>
+                                            </div>
+                                        </div>
                                     ))}
-                                </ul>
+                                </div>
                             ) : (
-                                <p style={{ margin: "4px 0 0 0", fontSize: "13px", color: "#888" }}>No direct active operational tasks configured.</p>
+                                <p className="node-details-empty">No direct active operational tasks are configured for this node.</p>
                             )}
-                        </div>
+                        </section>
                     </>
                 )}
             </div>
 
-            <button type="button" onClick={closeModal} style={{ width: "100%", padding: "12px", background: nodeColor, color: "white", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}>
-                Close Blueprint View
+            <button type="button" className="node-details-close-btn" onClick={closeModal}>
+                Close
             </button>
-        </>
+        </div>
     );
 };
 
@@ -1456,7 +1484,7 @@ const HomePage = () => {
                 </nav>
             </aside>
 
-            <main className="main-content">
+            <main className={`main-content ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
                 <header className="top-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", boxSizing: "border-box", flexShrink: 0 }}>
                     <div className="header-left" style={{ display: "flex", alignItems: "center", flex: "0 0 auto" }}>
                         <button className="menu-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>☰</button>
@@ -1478,21 +1506,21 @@ const HomePage = () => {
                         flex: "1 1 auto",
                         minWidth: 0,
                         justifyContent: "center",
-                        overflowX: "auto"
+                        overflowX: "visible"
                     }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                        <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
                             <span className="header-stat-icon header-stat-icon-nodes" aria-hidden="true"></span><strong className="header-stat-value">{realProjects.length}</strong><span className="header-stat-label">NODES</span>
                         </div>
-                        <div style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                        <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
+                        <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
                             <span className="header-stat-icon header-stat-icon-workers" aria-hidden="true"></span><strong className="header-stat-value">12</strong><span className="header-stat-label">WORKERS</span>
                         </div>
-                        <div style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                        <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
+                        <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
                             <span className="header-stat-icon header-stat-icon-velocity" aria-hidden="true"></span><strong className="header-stat-value">84%</strong><span className="header-stat-label">VELOCITY</span>
                         </div>
-                        <div style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                        <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
+                        <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
                             <span className="header-stat-icon header-stat-icon-uptime" aria-hidden="true"></span><strong className="header-stat-value">99.9%</strong><span className="header-stat-label">UPTIME</span>
                         </div>
                     </div>

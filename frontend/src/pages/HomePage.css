@@ -2942,3 +2942,1580 @@ button[aria-label*="Slack"] {
   z-index: 10000 !important;
 }
 
+/* ================================
+   SAFE PATCH: TOP HEADER STATS POLISH
+   Targets the actual top-header stat elements.
+   Data-readout style with true centering on wide layout,
+   and available-space centering when the sidebar is open.
+   No individual card background, no shadow, no button-like border.
+================================ */
+
+.main-content .top-header {
+  position: relative !important;
+  align-items: center !important;
+  overflow: visible !important;
+}
+
+/* Wide / sidebar-closed layout:
+   true visual center inside the full top bar. */
+.main-content.sidebar-closed .top-header .header-stats-wrapper {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  width: max-content !important;
+  max-width: calc(100% - 520px) !important;
+  min-height: 52px !important;
+
+  gap: 18px !important;
+  margin: 0 !important;
+  padding: 0 10px !important;
+
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+  z-index: 2 !important;
+  pointer-events: none !important;
+}
+
+/* Sidebar-open layout:
+   normal flex flow, centered inside the remaining space between
+   the search area and the right-side controls. */
+.main-content.sidebar-open .top-header .header-stats-wrapper {
+  position: static !important;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
+
+  display: flex !important;
+  flex: 1 1 auto !important;
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  min-height: 52px !important;
+
+  align-items: center !important;
+  justify-content: center !important;
+
+  gap: 14px !important;
+  margin: 0 46px !important;
+  padding: 0 8px !important;
+
+  overflow-x: visible !important;
+  overflow-y: visible !important;
+  pointer-events: auto !important;
+}
+
+/* Fallback: if no sidebar state class is present for any reason. */
+.main-content .top-header .header-stats-wrapper {
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Data item: intentionally not a card/button */
+.main-content .top-header .header-stat-item {
+  height: 42px !important;
+  min-height: 42px !important;
+  padding: 0 2px !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  gap: 9px !important;
+  cursor: default !important;
+  pointer-events: auto !important;
+}
+
+.main-content.sidebar-open .top-header .header-stat-item {
+  gap: 8px !important;
+}
+
+.main-content .top-header .header-stat-separator {
+  height: 26px !important;
+  width: 1px !important;
+  flex: 0 0 1px !important;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(143, 109, 242, 0.20) 22%,
+    rgba(214, 95, 159, 0.20) 78%,
+    transparent 100%
+  ) !important;
+  opacity: 1 !important;
+}
+
+/* Icon: larger and colored, but without button-like box */
+.main-content .top-header .header-stat-icon {
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px !important;
+  flex: 0 0 28px !important;
+  border-radius: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+.main-content .top-header .header-stat-icon::before,
+.main-content .top-header .header-stat-icon::after {
+  transform: scale(1.22) !important;
+  transform-origin: center !important;
+}
+
+.main-content .top-header .header-stat-icon-nodes {
+  color: #d85c9c !important;
+}
+
+.main-content .top-header .header-stat-icon-workers {
+  color: #7a55d9 !important;
+}
+
+.main-content .top-header .header-stat-icon-velocity {
+  color: #26966f !important;
+}
+
+.main-content .top-header .header-stat-icon-uptime {
+  color: #3f7fe8 !important;
+}
+
+.main-content .top-header .header-stat-value {
+  font-size: 1.06rem !important;
+  line-height: 1 !important;
+  font-weight: 880 !important;
+  color: #2f2639 !important;
+  letter-spacing: -0.025em !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.main-content .top-header .header-stat-label {
+  font-size: 0.68rem !important;
+  line-height: 1 !important;
+  font-weight: 760 !important;
+  letter-spacing: 0.09em !important;
+  color: rgba(83, 72, 96, 0.62) !important;
+}
+
+/* Narrow layout: normal flow and tighter spacing to avoid overlap */
+@media (max-width: 1280px) {
+  .main-content .top-header .header-stats-wrapper,
+  .main-content.sidebar-closed .top-header .header-stats-wrapper,
+  .main-content.sidebar-open .top-header .header-stats-wrapper {
+    position: static !important;
+    transform: none !important;
+    left: auto !important;
+    top: auto !important;
+
+    flex: 1 1 auto !important;
+    width: auto !important;
+    max-width: none !important;
+    gap: 10px !important;
+    margin: 0 26px !important;
+    padding: 0 4px !important;
+    pointer-events: auto !important;
+  }
+
+  .main-content .top-header .header-stat-item {
+    height: 38px !important;
+    min-height: 38px !important;
+    gap: 7px !important;
+  }
+
+  .main-content .top-header .header-stat-icon {
+    width: 25px !important;
+    height: 25px !important;
+    min-width: 25px !important;
+    flex-basis: 25px !important;
+  }
+
+  .main-content .top-header .header-stat-value {
+    font-size: 0.98rem !important;
+  }
+
+  .main-content .top-header .header-stat-label {
+    font-size: 0.62rem !important;
+  }
+}
+
+
+/* ================================
+   SAFE PATCH: NODE DETAILS MODAL POLISH
+   Styles the existing NodeDetailsModal as a friendly PAMI intelligence panel.
+   Keeps functionality unchanged.
+================================ */
+
+.node-details-shell {
+  --node-color: #8b5cf6;
+  width: 100%;
+  color: #2f2639;
+}
+
+.node-details-hero {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 22px;
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--node-color) 18%, transparent), transparent 42%),
+    linear-gradient(135deg, rgba(255, 240, 247, 0.92), rgba(247, 242, 255, 0.94));
+  border: 1px solid rgba(214, 95, 159, 0.16);
+  box-shadow: 0 18px 42px rgba(74, 45, 108, 0.10);
+  overflow: hidden;
+}
+
+.node-details-hero::after {
+  content: "";
+  position: absolute;
+  right: -52px;
+  top: -64px;
+  width: 180px;
+  height: 180px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--node-color) 16%, transparent);
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+.node-details-hero-main {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+}
+
+.node-details-icon {
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  border-radius: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid color-mix(in srgb, var(--node-color) 28%, rgba(255, 255, 255, 0.8));
+  box-shadow: 0 12px 26px rgba(74, 45, 108, 0.10);
+}
+
+.node-details-icon span {
+  width: 24px;
+  height: 24px;
+  display: block;
+  background: var(--node-color);
+  -webkit-mask:
+    radial-gradient(circle at 50% 50%, #000 0 5px, transparent 5.5px),
+    radial-gradient(circle at 20% 22%, #000 0 4px, transparent 4.5px),
+    radial-gradient(circle at 80% 22%, #000 0 4px, transparent 4.5px),
+    radial-gradient(circle at 22% 78%, #000 0 4px, transparent 4.5px),
+    radial-gradient(circle at 78% 78%, #000 0 4px, transparent 4.5px),
+    linear-gradient(#000, #000);
+  mask:
+    radial-gradient(circle at 50% 50%, #000 0 5px, transparent 5.5px),
+    radial-gradient(circle at 20% 22%, #000 0 4px, transparent 4.5px),
+    radial-gradient(circle at 80% 22%, #000 0 4px, transparent 4.5px),
+    radial-gradient(circle at 22% 78%, #000 0 4px, transparent 4.5px),
+    radial-gradient(circle at 78% 78%, #000 0 4px, transparent 4.5px),
+    linear-gradient(#000, #000);
+  opacity: 0.95;
+}
+
+.node-details-title-group {
+  min-width: 0;
+}
+
+.node-details-kicker,
+.node-details-card-label,
+.node-details-section-kicker,
+.node-details-identity-label,
+.node-details-color-label {
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(83, 72, 96, 0.58);
+}
+
+.node-details-title-group h2 {
+  margin: 5px 0 7px;
+  font-size: 1.55rem;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+  color: #2f2639;
+}
+
+.node-details-title-group p {
+  margin: 0;
+  max-width: 560px;
+  color: rgba(47, 38, 57, 0.72);
+  font-size: 0.94rem;
+  line-height: 1.55;
+}
+
+.node-details-actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.node-details-action {
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+
+.node-details-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.node-details-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.node-details-action-secondary {
+  color: #5f3dc4;
+  background: rgba(255, 255, 255, 0.74);
+  border: 1px solid rgba(143, 109, 242, 0.24);
+}
+
+.node-details-action-danger {
+  color: #c2415b;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(216, 92, 116, 0.22);
+}
+
+.node-details-color-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 2px 16px;
+}
+
+.node-details-color-picker {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(143, 109, 242, 0.14);
+  box-shadow: 0 10px 24px rgba(74, 45, 108, 0.06);
+}
+
+.node-details-color-dot {
+  --dot-color: #8b5cf6;
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  background: var(--dot-color);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.10);
+  cursor: pointer;
+  padding: 0;
+}
+
+.node-details-color-dot.selected {
+  outline: 2px solid rgba(47, 38, 57, 0.18);
+  outline-offset: 2px;
+}
+
+.node-details-color-dot span {
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.node-details-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(230px, 0.65fr);
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.node-details-card,
+.node-details-section {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(143, 109, 242, 0.13);
+  border-radius: 22px;
+  box-shadow: 0 14px 34px rgba(74, 45, 108, 0.07);
+}
+
+.node-details-card {
+  padding: 18px;
+}
+
+.node-details-card-header,
+.node-details-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.node-details-status-pill,
+.node-details-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  min-width: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--node-color) 13%, #ffffff);
+  color: var(--node-color);
+  border: 1px solid color-mix(in srgb, var(--node-color) 24%, transparent);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.node-details-identity,
+.node-details-description {
+  margin-top: 15px;
+}
+
+.node-details-identity strong {
+  display: block;
+  margin-top: 5px;
+  color: #2f2639;
+  font-size: 1.04rem;
+  line-height: 1.25;
+}
+
+.node-details-description p {
+  margin: 7px 0 0;
+  color: rgba(47, 38, 57, 0.72);
+  line-height: 1.55;
+  font-size: 0.92rem;
+}
+
+.node-details-metrics {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.node-details-metric {
+  padding: 12px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(255, 240, 247, 0.72), rgba(248, 246, 255, 0.78));
+  border: 1px solid rgba(143, 109, 242, 0.10);
+}
+
+.node-details-metric strong {
+  display: block;
+  color: #2f2639;
+  font-size: 1.05rem;
+  line-height: 1.1;
+}
+
+.node-details-metric span {
+  display: block;
+  margin-top: 4px;
+  color: rgba(83, 72, 96, 0.62);
+  font-size: 0.74rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.node-details-body {
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.node-details-section {
+  padding: 18px;
+  margin-bottom: 14px;
+}
+
+.node-details-section-header h3 {
+  margin: 4px 0 0;
+  font-size: 1.02rem;
+  line-height: 1.15;
+  color: #2f2639;
+}
+
+.node-details-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.node-details-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 11px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--node-color) 12%, #ffffff);
+  color: color-mix(in srgb, var(--node-color) 82%, #2f2639);
+  border: 1px solid color-mix(in srgb, var(--node-color) 20%, transparent);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.node-details-task-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.node-details-task-item {
+  padding: 12px 13px;
+  border-radius: 16px;
+  background: rgba(248, 246, 255, 0.72);
+  border: 1px solid rgba(143, 109, 242, 0.12);
+}
+
+.node-details-task-item strong {
+  display: block;
+  color: #2f2639;
+  font-size: 0.9rem;
+}
+
+.node-details-task-item span {
+  display: inline-flex;
+  margin-top: 5px;
+  color: rgba(83, 72, 96, 0.64);
+  font-size: 0.76rem;
+  font-weight: 760;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.node-details-empty {
+  margin: 13px 0 0;
+  color: rgba(83, 72, 96, 0.62);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.node-details-loading {
+  display: grid;
+  place-items: center;
+  padding: 36px 10px;
+  text-align: center;
+  color: rgba(83, 72, 96, 0.66);
+}
+
+.node-details-loading .loading-spinner {
+  width: 28px;
+  height: 28px;
+  margin-bottom: 10px;
+}
+
+.node-details-close-btn {
+  width: 100%;
+  height: 46px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 16px;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--node-color), color-mix(in srgb, var(--node-color) 72%, #7a55d9));
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--node-color) 18%, transparent);
+  font-weight: 850;
+  cursor: pointer;
+}
+
+@media (max-width: 760px) {
+  .node-details-hero {
+    flex-direction: column;
+  }
+
+  .node-details-actions {
+    width: 100%;
+  }
+
+  .node-details-action {
+    flex: 1;
+  }
+
+  .node-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ================================
+   SAFE PATCH: NODE DETAILS COMPACT WIDE SCROLL
+   Makes the existing node details modal wider and more compact.
+   Gives Node identity and Context/Mission separate full-tile scrolling.
+   CSS only. Functionality unchanged.
+================================ */
+
+/* Wider modal only when it contains the node details panel */
+.modal-content:has(.node-details-shell),
+.modal-container:has(.node-details-shell),
+.node-modal:has(.node-details-shell),
+.node-details-modal:has(.node-details-shell),
+[class*="modal"]:has(.node-details-shell),
+[class*="Modal"]:has(.node-details-shell) {
+  width: min(1120px, calc(100vw - 56px)) !important;
+  max-width: min(1120px, calc(100vw - 56px)) !important;
+}
+
+/* Keep the whole panel visually compact */
+.node-details-shell {
+  max-height: calc(100vh - 118px) !important;
+  overflow: hidden !important;
+}
+
+.node-details-hero {
+  padding: 18px 20px !important;
+  border-radius: 24px !important;
+}
+
+.node-details-title-group h2 {
+  font-size: 1.42rem !important;
+  margin: 4px 0 5px !important;
+}
+
+.node-details-title-group p {
+  max-height: 58px !important;
+  overflow-y: auto !important;
+  padding-right: 8px !important;
+  scrollbar-width: thin !important;
+}
+
+/* Wider, less crowded content layout */
+.node-details-grid {
+  grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.45fr) !important;
+  gap: 16px !important;
+  align-items: start !important;
+  margin-bottom: 12px !important;
+}
+
+/* Do not let the summary card make the whole modal tall */
+.node-details-summary-card {
+  max-height: 292px !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: grid !important;
+  grid-template-rows: auto minmax(74px, 0.42fr) minmax(118px, 0.58fr) !important;
+  gap: 12px !important;
+  padding: 16px !important;
+}
+
+/* Header remains fixed inside the card */
+.node-details-summary-card .node-details-card-header {
+  flex: 0 0 auto !important;
+}
+
+/* Node identity tile: the whole tile scrolls */
+.node-details-identity {
+  margin-top: 0 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 12px 14px !important;
+  border-radius: 16px !important;
+  background:
+    linear-gradient(135deg, rgba(255, 240, 247, 0.62), rgba(248, 246, 255, 0.76)) !important;
+  border: 1px solid rgba(143, 109, 242, 0.13) !important;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--node-color) 46%, transparent) !important;
+  scrollbar-width: thin !important;
+}
+
+.node-details-identity strong {
+  display: block !important;
+  margin-top: 6px !important;
+  max-height: none !important;
+  overflow: visible !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  line-height: 1.35 !important;
+}
+
+/* Context tile: the whole tile scrolls, same behavior as identity */
+.node-details-description {
+  margin-top: 0 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 12px 14px !important;
+  border-radius: 16px !important;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(248, 246, 255, 0.72)) !important;
+  border: 1px solid rgba(143, 109, 242, 0.13) !important;
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--node-color) 46%, transparent) !important;
+  scrollbar-width: thin !important;
+}
+
+.node-details-description p {
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  margin: 7px 0 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  line-height: 1.55 !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+/* Keep the metrics card compact */
+.node-details-metrics-card {
+  align-self: start !important;
+  padding: 16px !important;
+}
+
+.node-details-metrics {
+  gap: 8px !important;
+  margin-top: 12px !important;
+}
+
+.node-details-metric {
+  padding: 10px 12px !important;
+}
+
+/* Body below should also stay compact and scroll internally */
+.node-details-body {
+  max-height: 238px !important;
+  overflow-y: auto !important;
+  padding-right: 6px !important;
+  scrollbar-width: thin !important;
+}
+
+.node-details-section {
+  padding: 15px 16px !important;
+  margin-bottom: 10px !important;
+}
+
+.node-details-close-btn {
+  height: 42px !important;
+  margin-top: 2px !important;
+}
+
+/* Unified elegant scrollbar styling */
+.node-details-title-group p::-webkit-scrollbar,
+.node-details-body::-webkit-scrollbar,
+.node-details-identity::-webkit-scrollbar,
+.node-details-description::-webkit-scrollbar {
+  width: 7px !important;
+}
+
+.node-details-title-group p::-webkit-scrollbar-track,
+.node-details-body::-webkit-scrollbar-track,
+.node-details-identity::-webkit-scrollbar-track,
+.node-details-description::-webkit-scrollbar-track {
+  background: rgba(143, 109, 242, 0.07) !important;
+  border-radius: 999px !important;
+}
+
+.node-details-title-group p::-webkit-scrollbar-thumb,
+.node-details-body::-webkit-scrollbar-thumb,
+.node-details-identity::-webkit-scrollbar-thumb,
+.node-details-description::-webkit-scrollbar-thumb {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--node-color) 42%, #f8cfe5),
+      rgba(143, 109, 242, 0.34)
+    ) !important;
+  border-radius: 999px !important;
+  border: 2px solid rgba(255, 255, 255, 0.72) !important;
+}
+
+.node-details-title-group p::-webkit-scrollbar-thumb:hover,
+.node-details-body::-webkit-scrollbar-thumb:hover,
+.node-details-identity::-webkit-scrollbar-thumb:hover,
+.node-details-description::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--node-color) 58%, #f8cfe5),
+      rgba(143, 109, 242, 0.48)
+    ) !important;
+}
+
+/* Responsive safety */
+@media (max-width: 900px) {
+  .modal-content:has(.node-details-shell),
+  .modal-container:has(.node-details-shell),
+  .node-modal:has(.node-details-shell),
+  .node-details-modal:has(.node-details-shell),
+  [class*="modal"]:has(.node-details-shell),
+  [class*="Modal"]:has(.node-details-shell) {
+    width: calc(100vw - 28px) !important;
+    max-width: calc(100vw - 28px) !important;
+  }
+
+  .node-details-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .node-details-summary-card {
+    max-height: 310px !important;
+    grid-template-rows: auto minmax(70px, 0.4fr) minmax(112px, 0.6fr) !important;
+  }
+
+  .node-details-body {
+    max-height: 220px !important;
+  }
+}
+
+
+/* ================================
+   SAFE PATCH: NODE DETAILS SUMMARY CARD SCROLL
+   Keeps the modal size stable.
+   Makes the whole identity/context card scrollable instead of only the text.
+================================ */
+
+/* Do not stretch the whole modal/window */
+.node-details-grid {
+  grid-template-columns: minmax(0, 1.35fr) minmax(230px, 0.65fr) !important;
+  align-items: start !important;
+}
+
+/* The entire identity + context card becomes the scrollable area */
+.node-details-summary-card {
+  max-height: 345px !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding-right: 20px !important;
+  scrollbar-width: thin !important;
+}
+
+/* Keep the right metrics card normal, not stretched */
+.node-details-metrics-card {
+  align-self: start !important;
+}
+
+/* Long identifier protection, but without its own tiny scrollbox */
+.node-details-title-group h2,
+.node-details-identity strong {
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+/* Hero preview should not enlarge the modal */
+.node-details-title-group p {
+  max-height: 74px !important;
+  overflow-y: auto !important;
+  padding-right: 8px !important;
+  scrollbar-width: thin !important;
+}
+
+/* Context text should flow naturally inside the scrollable summary card */
+.node-details-description {
+  min-height: 0 !important;
+}
+
+.node-details-description p {
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+  margin-top: 7px !important;
+  background: transparent !important;
+  border: 0 !important;
+}
+
+/* Slight spacing inside the scrollable card */
+.node-details-identity {
+  margin-top: 15px !important;
+  padding-bottom: 13px !important;
+  border-bottom: 1px solid rgba(143, 109, 242, 0.11) !important;
+}
+
+.node-details-description {
+  margin-top: 15px !important;
+}
+
+/* Subtle scrollbars */
+.node-details-summary-card::-webkit-scrollbar,
+.node-details-title-group p::-webkit-scrollbar {
+  width: 6px !important;
+}
+
+.node-details-summary-card::-webkit-scrollbar-track,
+.node-details-title-group p::-webkit-scrollbar-track {
+  background: rgba(143, 109, 242, 0.06) !important;
+  border-radius: 999px !important;
+}
+
+.node-details-summary-card::-webkit-scrollbar-thumb,
+.node-details-title-group p::-webkit-scrollbar-thumb {
+  background: rgba(143, 109, 242, 0.28) !important;
+  border-radius: 999px !important;
+}
+
+@media (max-width: 760px) {
+  .node-details-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .node-details-summary-card {
+    max-height: 320px !important;
+  }
+}\n\n
+/* ================================
+   SAFE PATCH: NODE DETAILS MODAL POLISH
+   Cleaner centered version of the existing node details modal.
+   Removes duplicate objective text, removes redundant identifier tile,
+   widens the modal, and keeps the design aligned with PAMI.
+================================ */
+
+/* Center the overlay properly */
+.modal-overlay:has(.node-details-shell),
+.modal-backdrop:has(.node-details-shell),
+.node-details-overlay:has(.node-details-shell),
+.node-modal:has(.node-details-shell) {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 18px !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+}
+
+/* Actual modal content only */
+.modal-content:has(.node-details-shell),
+.modal-container:has(.node-details-shell),
+.node-details-modal:has(.node-details-shell) {
+  position: relative !important;
+  left: auto !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+
+  width: min(1180px, calc(100vw - 48px)) !important;
+  max-width: min(1180px, calc(100vw - 48px)) !important;
+  max-height: calc(100vh - 52px) !important;
+
+  margin: 0 auto !important;
+  padding: 18px !important;
+  box-sizing: border-box !important;
+
+  background: linear-gradient(135deg, #fff9fd 0%, #f8f4ff 100%) !important;
+  border: 1px solid rgba(214, 95, 159, 0.14) !important;
+  border-radius: 30px !important;
+  box-shadow: 0 28px 80px rgba(55, 36, 84, 0.18) !important;
+
+  overflow: hidden !important;
+}
+
+/* Main shell */
+.node-details-shell {
+  width: 100% !important;
+  max-height: calc(100vh - 92px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  color: #2f2639 !important;
+}
+
+/* Hero */
+.node-details-hero {
+  flex: 0 0 auto !important;
+  position: relative !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  gap: 20px !important;
+  padding: 18px 20px !important;
+  border-radius: 24px !important;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--node-color) 18%, transparent), transparent 34%),
+    linear-gradient(135deg, rgba(255, 240, 247, 0.92), rgba(247, 242, 255, 0.96)) !important;
+  border: 1px solid rgba(214, 95, 159, 0.16) !important;
+  box-shadow: 0 18px 42px rgba(74, 45, 108, 0.10) !important;
+}
+
+.node-details-hero-main {
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+  min-width: 0 !important;
+}
+
+.node-details-icon {
+  width: 50px !important;
+  height: 50px !important;
+  min-width: 50px !important;
+  border-radius: 18px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(255, 255, 255, 0.74) !important;
+  border: 1px solid color-mix(in srgb, var(--node-color) 26%, rgba(255, 255, 255, 0.82)) !important;
+  box-shadow: 0 12px 26px rgba(74, 45, 108, 0.10) !important;
+}
+
+.node-details-icon span {
+  width: 24px !important;
+  height: 24px !important;
+  display: block !important;
+  background: var(--node-color) !important;
+  -webkit-mask:
+    radial-gradient(circle at 50% 50%, #000 0 5px, transparent 5.5px),
+    radial-gradient(circle at 20% 22%, #000 0 4px, transparent 4.5px),
+    radial-gradient(circle at 80% 22%, #000 0 4px, transparent 4.5px),
+    radial-gradient(circle at 22% 78%, #000 0 4px, transparent 4.5px),
+    radial-gradient(circle at 78% 78%, #000 0 4px, transparent 4.5px),
+    linear-gradient(#000, #000);
+  mask:
+    radial-gradient(circle at 50% 50%, #000 0 5px, transparent 5.5px),
+    radial-gradient(circle at 20% 22%, #000 0 4px, transparent 4.5px),
+    radial-gradient(circle at 80% 22%, #000 0 4px, transparent 4.5px),
+    radial-gradient(circle at 22% 78%, #000 0 4px, transparent 4.5px),
+    radial-gradient(circle at 78% 78%, #000 0 4px, transparent 4.5px),
+    linear-gradient(#000, #000);
+  opacity: 0.95 !important;
+}
+
+.node-details-title-group {
+  min-width: 0 !important;
+}
+
+.node-details-kicker,
+.node-details-card-label,
+.node-details-section-kicker,
+.node-details-color-label {
+  display: inline-flex !important;
+  font-size: 0.68rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.09em !important;
+  text-transform: uppercase !important;
+  color: rgba(83, 72, 96, 0.58) !important;
+}
+
+.node-details-title-group h2 {
+  margin: 4px 0 0 !important;
+  font-size: 1.45rem !important;
+  line-height: 1.08 !important;
+  letter-spacing: -0.035em !important;
+  color: #2f2639 !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+.node-details-actions {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 10px !important;
+  flex: 0 0 auto !important;
+}
+
+.node-details-action {
+  height: 38px !important;
+  padding: 0 14px !important;
+  border-radius: 999px !important;
+  font-weight: 800 !important;
+  font-size: 0.78rem !important;
+  cursor: pointer !important;
+  transition: transform 0.16s ease, box-shadow 0.16s ease !important;
+}
+
+.node-details-action:hover:not(:disabled) {
+  transform: translateY(-1px) !important;
+}
+
+.node-details-action:disabled {
+  cursor: not-allowed !important;
+  opacity: 0.55 !important;
+}
+
+.node-details-action-secondary {
+  color: #5f3dc4 !important;
+  background: rgba(255, 255, 255, 0.74) !important;
+  border: 1px solid rgba(143, 109, 242, 0.24) !important;
+}
+
+.node-details-action-danger {
+  color: #c2415b !important;
+  background: rgba(255, 255, 255, 0.62) !important;
+  border: 1px solid rgba(216, 92, 116, 0.22) !important;
+}
+
+/* Color row */
+.node-details-color-row {
+  flex: 0 0 auto !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 10px 2px 12px !important;
+}
+
+.node-details-color-picker {
+  display: flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+  padding: 7px 9px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.78) !important;
+  border: 1px solid rgba(143, 109, 242, 0.14) !important;
+  box-shadow: 0 10px 24px rgba(74, 45, 108, 0.06) !important;
+}
+
+.node-details-color-dot {
+  --dot-color: #8b5cf6;
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 999px !important;
+  border: 2px solid rgba(255, 255, 255, 0.95) !important;
+  background: var(--dot-color) !important;
+  color: #fff !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.10) !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+}
+
+.node-details-color-dot.selected {
+  outline: 2px solid rgba(47, 38, 57, 0.18) !important;
+  outline-offset: 2px !important;
+}
+
+.node-details-color-dot span {
+  font-size: 0.68rem !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+/* Main content grid */
+.node-details-grid {
+  flex: 0 0 auto !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.75fr) minmax(260px, 0.55fr) !important;
+  gap: 16px !important;
+  align-items: start !important;
+  margin-bottom: 12px !important;
+}
+
+.node-details-card,
+.node-details-section {
+  background: rgba(255, 255, 255, 0.84) !important;
+  border: 1px solid rgba(143, 109, 242, 0.13) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 14px 34px rgba(74, 45, 108, 0.07) !important;
+}
+
+.node-details-card {
+  padding: 16px !important;
+}
+
+.node-details-card-header,
+.node-details-section-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+}
+
+.node-details-status-pill,
+.node-details-count {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 28px !important;
+  min-width: 34px !important;
+  padding: 0 10px !important;
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--node-color) 13%, #ffffff) !important;
+  color: var(--node-color) !important;
+  border: 1px solid color-mix(in srgb, var(--node-color) 24%, transparent) !important;
+  font-size: 0.72rem !important;
+  font-weight: 850 !important;
+  text-transform: uppercase !important;
+}
+
+/* Left card: only mission objective */
+.node-details-summary-card {
+  max-height: 312px !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+
+.node-details-description-primary {
+  flex: 1 1 auto !important;
+  min-height: 210px !important;
+  max-height: 240px !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 14px 16px !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(248, 246, 255, 0.84)) !important;
+  border: 1px solid rgba(143, 109, 242, 0.13) !important;
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--node-color) 48%, transparent),
+    inset -10px 0 18px rgba(255, 255, 255, 0.42) !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: color-mix(in srgb, var(--node-color) 44%, #c8b7ff) rgba(143, 109, 242, 0.07) !important;
+}
+
+.node-details-description-primary p {
+  margin: 0 !important;
+  min-height: 100% !important;
+  line-height: 1.58 !important;
+  color: rgba(47, 38, 57, 0.76) !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+}
+
+/* Right side card */
+.node-details-metrics-card {
+  align-self: start !important;
+  padding: 16px !important;
+}
+
+.node-details-metrics {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 8px !important;
+  margin-top: 12px !important;
+}
+
+.node-details-metric {
+  padding: 10px 12px !important;
+  border-radius: 16px !important;
+  background: linear-gradient(135deg, rgba(255, 240, 247, 0.72), rgba(248, 246, 255, 0.78)) !important;
+  border: 1px solid rgba(143, 109, 242, 0.10) !important;
+}
+
+.node-details-metric strong {
+  display: block !important;
+  color: #2f2639 !important;
+  font-size: 1.05rem !important;
+  line-height: 1.1 !important;
+}
+
+.node-details-metric span {
+  display: block !important;
+  margin-top: 4px !important;
+  color: rgba(83, 72, 96, 0.62) !important;
+  font-size: 0.74rem !important;
+  font-weight: 750 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+}
+
+/* Bottom body */
+.node-details-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: 220px !important;
+  overflow-y: auto !important;
+  padding-right: 6px !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(143, 109, 242, 0.36) rgba(143, 109, 242, 0.07) !important;
+}
+
+.node-details-section {
+  padding: 15px 16px !important;
+  margin-bottom: 10px !important;
+}
+
+.node-details-section-header h3 {
+  margin: 4px 0 0 !important;
+  font-size: 1.02rem !important;
+  line-height: 1.15 !important;
+  color: #2f2639 !important;
+}
+
+.node-details-chip-list {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  margin-top: 14px !important;
+}
+
+.node-details-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 30px !important;
+  padding: 6px 11px !important;
+  border-radius: 999px !important;
+  background: color-mix(in srgb, var(--node-color) 12%, #ffffff) !important;
+  color: color-mix(in srgb, var(--node-color) 82%, #2f2639) !important;
+  border: 1px solid color-mix(in srgb, var(--node-color) 20%, transparent) !important;
+  font-size: 0.78rem !important;
+  font-weight: 760 !important;
+}
+
+.node-details-task-list {
+  display: grid !important;
+  gap: 9px !important;
+  margin-top: 14px !important;
+}
+
+.node-details-task-item {
+  padding: 12px 13px !important;
+  border-radius: 16px !important;
+  background: rgba(248, 246, 255, 0.72) !important;
+  border: 1px solid rgba(143, 109, 242, 0.12) !important;
+}
+
+.node-details-task-item strong {
+  display: block !important;
+  color: #2f2639 !important;
+  font-size: 0.9rem !important;
+}
+
+.node-details-task-item span {
+  display: inline-flex !important;
+  margin-top: 5px !important;
+  color: rgba(83, 72, 96, 0.64) !important;
+  font-size: 0.76rem !important;
+  font-weight: 760 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.06em !important;
+}
+
+.node-details-empty {
+  margin: 13px 0 0 !important;
+  color: rgba(83, 72, 96, 0.62) !important;
+  font-size: 0.9rem !important;
+  line-height: 1.5 !important;
+}
+
+.node-details-loading {
+  display: grid !important;
+  place-items: center !important;
+  padding: 32px 10px !important;
+  text-align: center !important;
+  color: rgba(83, 72, 96, 0.66) !important;
+}
+
+.node-details-loading .loading-spinner {
+  width: 28px !important;
+  height: 28px !important;
+  margin-bottom: 10px !important;
+}
+
+.node-details-close-btn {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  height: 44px !important;
+  margin-top: 2px !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--node-color), color-mix(in srgb, var(--node-color) 72%, #7a55d9)) !important;
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--node-color) 18%, transparent) !important;
+  font-weight: 850 !important;
+  cursor: pointer !important;
+}
+
+/* Refined scrollbar design */
+.node-details-description-primary::-webkit-scrollbar,
+.node-details-body::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+.node-details-description-primary::-webkit-scrollbar-track,
+.node-details-body::-webkit-scrollbar-track {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 240, 247, 0.34),
+      rgba(248, 246, 255, 0.54)
+    ) !important;
+  border-radius: 999px !important;
+  margin: 8px 0 !important;
+}
+
+.node-details-description-primary::-webkit-scrollbar-thumb,
+.node-details-body::-webkit-scrollbar-thumb {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--node-color) 54%, #f8cfe5),
+      rgba(143, 109, 242, 0.42)
+    ) !important;
+  border-radius: 999px !important;
+  border: 2px solid rgba(255, 255, 255, 0.78) !important;
+}
+
+.node-details-description-primary::-webkit-scrollbar-thumb:hover,
+.node-details-body::-webkit-scrollbar-thumb:hover {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--node-color) 68%, #f8cfe5),
+      rgba(143, 109, 242, 0.58)
+    ) !important;
+}
+
+/* Responsive safety */
+@media (max-width: 900px) {
+  .modal-overlay:has(.node-details-shell),
+  .modal-backdrop:has(.node-details-shell),
+  .node-details-overlay:has(.node-details-shell),
+  .node-modal:has(.node-details-shell) {
+    padding: 12px !important;
+  }
+
+  .modal-content:has(.node-details-shell),
+  .modal-container:has(.node-details-shell),
+  .node-details-modal:has(.node-details-shell) {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 24px) !important;
+    padding: 14px !important;
+  }
+
+  .node-details-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .node-details-summary-card {
+    max-height: 300px !important;
+  }
+
+  .node-details-description-primary {
+    min-height: 180px !important;
+    max-height: 220px !important;
+  }
+
+  .node-details-body {
+    max-height: 200px !important;
+  }
+
+  .node-details-hero {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .node-details-actions {
+    width: 100% !important;
+  }
+
+  .node-details-action {
+    flex: 1 !important;
+  }
+}
+
+
+/* ================================
+   SAFE PATCH: NODE MODAL POSITION FIX
+   Fixes only the node-details modal wrapper position/background.
+   Keeps the approved inner content unchanged.
+================================ */
+
+/* Make the node modal overlay cover the full viewport and center its content */
+.modal-overlay:has(.node-details-shell),
+.modal-backdrop:has(.node-details-shell),
+.node-details-overlay:has(.node-details-shell),
+.node-modal:has(.node-details-shell) {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  min-width: 100vw !important;
+  min-height: 100vh !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  padding: 24px !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+
+  background:
+    radial-gradient(circle at 18% 10%, rgba(255, 214, 235, 0.42), transparent 34%),
+    radial-gradient(circle at 82% 90%, rgba(214, 203, 255, 0.36), transparent 38%),
+    rgba(248, 244, 255, 0.46) !important;
+  backdrop-filter: blur(8px) !important;
+
+  overflow: hidden !important;
+  z-index: 10000 !important;
+}
+
+/* Force the actual node modal box to the visual center */
+.modal-content:has(.node-details-shell),
+.modal-container:has(.node-details-shell),
+.node-details-modal:has(.node-details-shell) {
+  position: fixed !important;
+  left: 50% !important;
+  top: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+
+  width: min(1180px, calc(100vw - 64px)) !important;
+  max-width: min(1180px, calc(100vw - 64px)) !important;
+  max-height: calc(100vh - 64px) !important;
+
+  margin: 0 !important;
+  box-sizing: border-box !important;
+
+  background: linear-gradient(135deg, #fff9fd 0%, #f8f4ff 100%) !important;
+  border: 1px solid rgba(214, 95, 159, 0.14) !important;
+  border-radius: 30px !important;
+  box-shadow: 0 30px 90px rgba(55, 36, 84, 0.20) !important;
+
+  overflow: hidden !important;
+  z-index: 10001 !important;
+}
+
+/* Remove gray inner gaps around the approved content */
+.modal-content:has(.node-details-shell) .node-details-shell,
+.modal-container:has(.node-details-shell) .node-details-shell,
+.node-details-modal:has(.node-details-shell) .node-details-shell {
+  margin: 0 !important;
+}
+
+/* Safety: the panel itself should never pull left */
+.node-details-shell {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* Smaller screens */
+@media (max-width: 900px) {
+  .modal-overlay:has(.node-details-shell),
+  .modal-backdrop:has(.node-details-shell),
+  .node-details-overlay:has(.node-details-shell),
+  .node-modal:has(.node-details-shell) {
+    padding: 12px !important;
+  }
+
+  .modal-content:has(.node-details-shell),
+  .modal-container:has(.node-details-shell),
+  .node-details-modal:has(.node-details-shell) {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 24px) !important;
+  }
+}
+
