@@ -15,6 +15,10 @@ from projects_service.schemas.context_tree_schemas import (
 from projects_service.core.config import settings
 
 
+class AIOrganizationError(Exception):
+    """Raised when the AI organization service fails to provide a usable response."""
+
+
 class ContextTreeService:
     """Service for context tree business logic."""
 
@@ -98,7 +102,9 @@ class ContextTreeService:
                     f"Scheduled background AI organize for node {created_node.id} conv={req_conv}"
                 )
             except Exception:
-                await self._ai_organize_node(created_node, project_id, req_conv)
+                await self._ai_organize_node(
+                    created_node, project_id, req_conv, raise_on_no_response=True
+                )
         else:
             # Create AI conversation for this node
             conversation_id = await self._create_ai_conversation(
@@ -182,7 +188,10 @@ class ContextTreeService:
                 except Exception:
                     # If background scheduling fails, fall back to synchronous call
                     await self._ai_organize_node(
-                        created_node, project_id, conversation_id
+                        created_node,
+                        project_id,
+                        conversation_id,
+                        raise_on_no_response=True,
                     )
 
         # If the node has a parent, update the parent's children list
@@ -198,7 +207,10 @@ class ContextTreeService:
                     try:
                         await parent_node.save()
                     except TypeError:
-                        await self._context_tree_repository.update(parent_node)
+                        await self._context_tree_repository.update(
+                            str(parent_node.id),
+                            {"children_ids": parent_node.children_ids},
+                        )
                     self._logger.info(
                         f"Updated parent {request.parent_id} to include child {child_id_str}"
                     )
@@ -265,7 +277,11 @@ class ContextTreeService:
             return None
 
     async def _ai_organize_node(
-        self, node: ContextTreeNode, project_id: str, conversation_id: str
+        self,
+        node: ContextTreeNode,
+        project_id: str,
+        conversation_id: str,
+        raise_on_no_response: bool = False,
     ) -> None:
         """Request AI to analyze and organize node in the tree."""
         try:
@@ -314,6 +330,15 @@ class ContextTreeService:
                                 f"Failed to parse tree-analysis JSON: {traceback.format_exc()}"
                             )
                             ai_suggestion = {}
+                        # If AI returned an empty suggestion and the caller requested
+                        # to be notified, raise an error so upstream callers can
+                        # surface this to users instead of silently continuing.
+                        if raise_on_no_response and (
+                            not ai_suggestion or len(ai_suggestion) == 0
+                        ):
+                            raise AIOrganizationError(
+                                f"AI tree-analysis returned no suggestion for node {node.id}"
+                            )
                         self._logger.info(
                             f"AI suggested organization for node {node.id}: {ai_suggestion.get('reasoning') or 'NO_REASONING'}"
                         )
@@ -321,27 +346,9 @@ class ContextTreeService:
                         # Update node with AI suggestions
                         node.summary = ai_suggestion.get("summary", node.summary)
                         node.topics = ai_suggestion.get("topics", node.topics)
-                        # AI may return a concise header/title for the node; if it doesn't,
-                        # derive a short header from the summary as a sensible fallback.
-                        suggested_header = ai_suggestion.get("header")
-                        if not suggested_header:
-                            summary_text = (
-                                ai_suggestion.get("summary") or node.summary or ""
-                            )
-                            # Take up to first 3 meaningful words from the summary
-                            words = [
-                                w.strip(".,:;()[]\"'")
-                                for w in summary_text.split()
-                                if w.strip()
-                            ]
-                            if len(words) == 0:
-                                suggested_header = None
-                            else:
-                                suggested_header = " ".join(words[:3]).strip().title()
 
-                        node.header = (
-                            suggested_header if suggested_header else node.header
-                        )
+                        # Respect AI-provided header if present; do not derive a fallback locally.
+                        node.header = ai_suggestion.get("header", node.header)
                         suggested_parent = ai_suggestion.get("suggested_parent_id")
 
                         # Update parent if AI suggests a different one
@@ -362,7 +369,8 @@ class ContextTreeService:
                                         await old_parent.save()
                                     except TypeError:
                                         await self._context_tree_repository.update(
-                                            old_parent
+                                            str(old_parent.id),
+                                            {"children_ids": old_parent.children_ids},
                                         )
 
                             # Set new parent
@@ -381,7 +389,8 @@ class ContextTreeService:
                                     await new_parent.save()
                                 except TypeError:
                                     await self._context_tree_repository.update(
-                                        new_parent
+                                        str(new_parent.id),
+                                        {"children_ids": new_parent.children_ids},
                                     )
 
                         try:
@@ -402,9 +411,17 @@ class ContextTreeService:
                         self._logger.error(
                             f"Failed to get AI organization: {response.status} - {text}"
                         )
+                        if raise_on_no_response:
+                            raise AIOrganizationError(
+                                f"AI tree-analysis failed: status={response.status} body={text}"
+                            )
         except Exception as e:
             self._logger.error(f"Error requesting AI organization: {e}")
-            # Don't fail the whole operation if AI organization fails
+            # If the caller explicitly requested that failures be raised, re-raise
+            # an AIOrganizationError so the API layer can return an error to the user.
+            if isinstance(e, AIOrganizationError):
+                raise
+            # Otherwise, swallow the error to avoid blocking node creation
 
     async def get_node(self, node_id: str) -> Optional[ContextTreeNodeResponse]:
         """Get a context tree node by its node_id."""
