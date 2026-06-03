@@ -1,6 +1,6 @@
 ---
-name: aws-ecs-log-reading
-description: "Use when user asks to read ECS logs, check CloudWatch logs, debug deployed AWS service issues, or verify runtime errors in pami-cluster. Keywords: ecs logs, cloudwatch logs, read logs, pami-projects-service, ai_service_url, task definition, deployment issues. Always request fresh temporary AWS credentials first when token is expired."
+name: pami-aws-ecs-log-reading
+description: "Use when user asks to read ECS logs, check CloudWatch logs, debug deployed AWS service issues, or verify runtime errors in pami-cluster. Keywords: ecs logs, cloudwatch logs, read logs, pami-projects-service, ai_service_url, task definition, deployment issues."
 ---
 
 # AWS ECS Log Reading Skill
@@ -9,28 +9,10 @@ description: "Use when user asks to read ECS logs, check CloudWatch logs, debug 
 
 Quickly diagnose runtime backend issues in AWS by reading current ECS/CloudWatch logs and validating active task configuration.
 
-## Required First Step
+## Credential Prerequisite
 
-1. Request fresh temporary AWS credentials from the user if AWS CLI returns auth errors (`ExpiredToken`, `InvalidClientTokenId`, `UnrecognizedClientException`).
-2. Configure AWS CLI profile:
-
-```bash
-mkdir -p ~/.aws
-cat > ~/.aws/credentials << 'EOF'
-[default]
-aws_access_key_id=<ACCESS_KEY>
-aws_secret_access_key=<SECRET_KEY>
-aws_session_token=<SESSION_TOKEN>
-EOF
-cat > ~/.aws/config << 'EOF'
-[default]
-region=us-east-1
-output=json
-EOF
-aws sts get-caller-identity
-```
-
-Stop and ask for updated credentials if `sts get-caller-identity` fails.
+This skill assumes AWS CLI credentials are already configured and valid.
+If AWS auth fails (`ExpiredToken`, `InvalidClientTokenId`, `UnrecognizedClientException`), use the `pami-update-github-secrets` skill first to refresh local credentials and GitHub secrets.
 
 ## Standard Diagnostic Flow
 
