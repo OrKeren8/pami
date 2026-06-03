@@ -73,7 +73,7 @@ class TreeAnalysisService:
             f"analyze_and_organize_node: conversation_id={request.conversation_id} messages={msg_count}"
         )
 
-        # Build tree context description
+        # Build graph context description
         tree_context = self._build_tree_context(request.current_tree)
 
         # Get conversation messages
@@ -89,15 +89,15 @@ class TreeAnalysisService:
             self._logger.debug("conversation_history: <unserializable>")
 
         # Create AI prompt
-        system_prompt = """You are an expert project management AI that organizes project nodes into a hierarchical tree structure.
+        system_prompt = """You are an expert project management AI that organizes project nodes into a sibling-linked knowledge graph.
 
 Your task:
 1. Read the conversation about a project node
-2. Analyze the existing project tree structure
-3. Determine the best parent for this node based on:
-   - Content and purpose discussed in the conversation
-   - Logical hierarchy (goals > tasks > subtasks)
-   - Thematic similarity with existing nodes
+2. Analyze the existing project node graph
+3. Determine which existing nodes should be linked as siblings based on:
+    - Content and purpose discussed in the conversation
+    - Thematic similarity with existing nodes
+    - Complementary scope and relation
 4. Generate a clear summary of the node (1-3 sentences)
 5. Extract relevant topics/tags
 6. Propose a concise header (title) for the node: *exactly* 3 to 5 words, focus on the concrete subject/topic (e.g., use "Birds overview" not "An Informative Overview").
@@ -105,12 +105,12 @@ Your task:
    - Avoid generic lead-in phrases like "An Informative Overview", "Summary of", "Overview of", "Introduction to".
    - If multiple concise options exist, pick the most specific and informative.
 
-Return your analysis as JSON with these fields (use null for missing ids):
-- suggested_parent_id: The ID of the best parent node (or null for root-level)
+Return your analysis as JSON with these fields:
+- suggested_sibling_ids: Array of node IDs that should be linked as siblings
 - header: A concise title (3-5 words)
 - summary: A concise summary of what this node is about
 - topics: Array of relevant topic tags
-- reasoning: Brief explanation of your placement decision"""
+- reasoning: Brief explanation of your link decision"""
 
         user_prompt = f"""Analyze this new project node and suggest its organization:
 
@@ -119,10 +119,10 @@ NODE ID: {request.node_id}
 CONVERSATION ABOUT THIS NODE:
 {conversation_history}
 
-CURRENT PROJECT TREE:
+CURRENT PROJECT GRAPH:
 {tree_context}
 
-Suggest where this node should be placed in the tree, provide a summary, extract topics, and explain your reasoning."""
+Suggest which nodes should be linked as siblings, provide a summary, extract topics, and explain your reasoning."""
 
         try:
             # Call OpenAI
@@ -142,12 +142,15 @@ Suggest where this node should be placed in the tree, provide a summary, extract
             # Log raw model output for debugging
             try:
                 raw_output = response.choices[0].message.content
-                self._logger.debug(f"Raw model output (truncated): {raw_output[:2000]}")
+                self._logger.debug(
+                    f"Raw model output (truncated): {(raw_output or '')[:2000]}"
+                )
             except Exception:
                 self._logger.debug("Raw model output: <unserializable>")
 
             # Parse AI response
-            ai_response = json.loads(response.choices[0].message.content)
+            raw_content = response.choices[0].message.content or "{}"
+            ai_response = json.loads(raw_content)
 
             header = ai_response.get("header")
             summary = ai_response.get("summary", "")
@@ -159,7 +162,7 @@ Suggest where this node should be placed in the tree, provide a summary, extract
 
             return NodeOrganizationResponse(
                 node_id=request.node_id,
-                suggested_parent_id=ai_response.get("suggested_parent_id"),
+                suggested_sibling_ids=ai_response.get("suggested_sibling_ids", []),
                 header=header,
                 summary=summary,
                 topics=ai_response.get("topics", []),
@@ -171,58 +174,38 @@ Suggest where this node should be placed in the tree, provide a summary, extract
             raise
 
     def _build_tree_context(self, nodes: list[TreeNodeData]) -> str:
-        """Build a readable tree context for AI analysis."""
+        """Build a readable graph context for AI analysis."""
         if not nodes:
-            return "Empty tree - this will be the first node."
+            return "Empty graph - this will be the first node."
 
-        # Build tree structure representation
-        tree_lines = ["Project Tree Structure:"]
-        tree_lines.append("=" * 50)
+        lines = ["Project Node Graph:"]
+        lines.append("=" * 50)
 
-        # Create a map of nodes by ID
-        node_map = {node.id: node for node in nodes}
+        for node in nodes:
+            summary_preview = (
+                (node.summary[:50] + "...")
+                if node.summary and len(node.summary) > 50
+                else (node.summary or "")
+            )
+            topics_str = f" [{', '.join(node.topics)}]" if node.topics else ""
+            header_preview = (
+                (node.header[:60] + "...")
+                if node.header and len(node.header) > 60
+                else (node.header or "")
+            )
+            siblings_preview = ", ".join(node.sibling_ids[:6])
+            if len(node.sibling_ids) > 6:
+                siblings_preview += ", ..."
+            lines.append(
+                f"- [{node.node_type}] {node.id[:8]}... : {header_preview}{topics_str}"
+            )
+            if summary_preview:
+                lines.append(f"  Summary: {summary_preview}")
+            lines.append(
+                f"  Siblings: {siblings_preview if siblings_preview else 'none'}"
+            )
 
-        # Find root nodes (no parent)
-        root_nodes = [node for node in nodes if not node.parent_id]
-
-        # Build tree representation recursively
-        for root in root_nodes:
-            self._add_node_to_tree(root, node_map, tree_lines, level=0)
-
-        return "\n".join(tree_lines)
-
-    def _add_node_to_tree(
-        self,
-        node: TreeNodeData,
-        node_map: dict,
-        lines: list,
-        level: int,
-    ):
-        """Recursively add node and children to tree representation."""
-        indent = "  " * level
-        summary_preview = (
-            (node.summary[:50] + "...")
-            if node.summary and len(node.summary) > 50
-            else (node.summary or "")
-        )
-        topics_str = f" [{', '.join(node.topics)}]" if node.topics else ""
-
-        header_preview = (
-            (node.header[:60] + "...")
-            if node.header and len(node.header) > 60
-            else (node.header or "")
-        )
-
-        lines.append(
-            f"{indent}- [{node.node_type}] {node.id[:8]}... : {header_preview}{topics_str}"
-        )
-        if summary_preview:
-            lines.append(f"{indent}  Summary: {summary_preview}")
-
-        # Find and add children
-        children = [n for n in node_map.values() if n.parent_id == node.id]
-        for child in children:
-            self._add_node_to_tree(child, node_map, lines, level + 1)
+        return "\n".join(lines)
 
     def _is_generic_header(self, header: Optional[str]) -> bool:
         """Return True if the header looks generic or uninformative."""

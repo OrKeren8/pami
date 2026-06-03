@@ -1,14 +1,18 @@
 from beanie import Document, PydanticObjectId
 from typing import List, Optional, Union
 from datetime import datetime
-from pydantic import Field
+from pydantic import BaseModel, Field
+
+
+class SiblingLink(BaseModel):
+    sibling_id: str
+    shared_tags: List[str] = Field(default_factory=list)
 
 
 class ContextTreeNode(Document):
     # Accept both ObjectId (PydanticObjectId) and legacy string IDs (UUIDs)
     id: Optional[Union[PydanticObjectId, str]] = None
-    parent_id: Optional[str] = None
-    children_ids: List[str] = Field(default_factory=list)
+    sibling_links: List[SiblingLink] = Field(default_factory=list)
     # `header` is a short title chosen by AI (5 words max, prefer 2-3)
     header: Optional[str] = None
     summary: Optional[str] = (

@@ -311,3 +311,84 @@ class TestAIConversationService:
         # Act & Assert
         with pytest.raises(Exception, match="Bedrock error"):
             await service._call_bedrock_ai(messages)
+
+    @pytest.mark.asyncio
+    async def test_create_conversation_requires_context_and_project(self, service):
+        with pytest.raises(
+            ValueError, match="context_node_id and project_id are required"
+        ):
+            await service.create_conversation("", "")
+
+    @pytest.mark.asyncio
+    async def test_create_conversation_sanitizes_and_truncates_title(
+        self, service, mock_s3_client
+    ):
+        long_title = "bad/title\\name_" + ("x" * 200)
+
+        conversation = await service.create_conversation(
+            "node123", "proj123", long_title
+        )
+
+        assert "/" not in conversation.title
+        assert "\\" not in conversation.title
+        assert len(conversation.title) <= 100
+        mock_s3_client.put_object.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_invalid_payload_returns_none(
+        self, service, mock_s3_client
+    ):
+        mock_s3_client.get_object.return_value = {
+            "Body": MagicMock(
+                read=MagicMock(return_value=b"not-json-or-python-literal")
+            )
+        }
+
+        conversation = await service.get_conversation("conv123")
+
+        assert conversation is None
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_history_respects_limit(
+        self, service, mock_s3_client
+    ):
+        conversation_id = "conv123"
+        messages = [
+            {
+                "role": "user",
+                "content": f"msg-{i}",
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+            for i in range(5)
+        ]
+        conversation_data = {
+            "conversation_id": conversation_id,
+            "context_node_id": "node123",
+            "project_id": "proj123",
+            "title": "Test",
+            "messages": messages,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
+            "status": "active",
+        }
+
+        mock_s3_client.get_object.return_value = {
+            "Body": MagicMock(
+                read=MagicMock(return_value=str(conversation_data).encode())
+            )
+        }
+
+        history = await service.get_conversation_history(conversation_id, limit=2)
+
+        assert history is not None
+        assert len(history["messages"]) == 2
+        assert history["messages"][0]["content"] == "msg-3"
+        assert history["messages"][1]["content"] == "msg-4"
+
+    @pytest.mark.asyncio
+    async def test_call_openai_without_any_backend_raises(self, service):
+        service.bedrock_client = None
+        service.openai_client = None
+
+        with pytest.raises(Exception, match="OpenAI client not initialized"):
+            await service._call_openai([{"role": "user", "content": "hi"}])

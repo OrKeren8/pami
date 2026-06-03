@@ -141,7 +141,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                     <div className="node-details-metrics">
                         <div className="node-details-metric">
                             <strong>{subNodes.length}</strong>
-                            <span>Sub-nodes</span>
+                            <span>Siblings</span>
                         </div>
 
                         <div className="node-details-metric">
@@ -169,7 +169,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                             <div className="node-details-section-header">
                                 <div>
                                     <span className="node-details-section-kicker">Structure</span>
-                                    <h3>Connected sub-nodes</h3>
+                                    <h3>Connected siblings</h3>
                                 </div>
                                 <span className="node-details-count">{subNodes.length}</span>
                             </div>
@@ -178,12 +178,12 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                                 <div className="node-details-chip-list">
                                     {subNodes.map((sub, idx) => (
                                         <span key={idx} className="node-details-chip">
-                                            {sub.header || sub.name || "Sub Node"}
+                                            {sub.header || sub.name || "Related Node"}
                                         </span>
                                     ))}
                                 </div>
                             ) : (
-                                <p className="node-details-empty">No sub-nodes are attached to this context layer yet.</p>
+                                <p className="node-details-empty">No sibling links are attached to this context node yet.</p>
                             )}
                         </section>
 
@@ -360,6 +360,7 @@ const HomePage = () => {
                                             status: updated.node_type || updated.status,
                                             goal: updated.summary || updated.header,
                                             conversation_id: updated.conversation_id || updated.conversationId || null,
+                                            sibling_links: updated.sibling_links || [],
                                             project_id: projectId,
                                             nodeKind: 'context',
                                             header: updated.header,
@@ -618,6 +619,7 @@ const HomePage = () => {
                 status: n.node_type || 'context',
                 goal: n.summary || n.header || 'No snapshot description available.',
                 conversation_id: n.conversation_id || n.conversationId || n.conversation || null,
+                sibling_links: n.sibling_links || [],
                 project_id: pid,
                 nodeKind: "context"
             }));
@@ -702,14 +704,35 @@ const HomePage = () => {
         setIsModalDataLoading(true);
 
         try {
-            console.log(`Fetching live connected data for project: ${node.id}`);
+            const targetProjectId = node.nodeKind === "context"
+                ? (node.project_id || node.projectId || node.project || node.id)
+                : node.id;
+
+            console.log(`Fetching live connected data for project: ${targetProjectId}`);
             const [tasksRes, nodesRes] = await Promise.all([
-                projectsApi.get(`/tasks/projects/${node.id}/tasks`).catch(() => ({ data: [] })),
-                projectsApi.get(`/context-tree/projects/${node.id}/nodes`).catch(() => ({ data: [] }))
+                projectsApi.get(`/tasks/projects/${targetProjectId}/tasks`).catch(() => ({ data: [] })),
+                projectsApi.get(`/context-tree/projects/${targetProjectId}/nodes`).catch(() => ({ data: [] }))
             ]);
 
             setNodeTasks(tasksRes.data || []);
-            setSubNodes(nodesRes.data || []);
+            const allNodes = nodesRes.data || [];
+            if (node.nodeKind === "context") {
+                const selectedNodeId = String(node.id || node._id || (node._id && node._id.$oid) || "");
+                const selectedServerNode = allNodes.find(
+                    (n) => String(n.id || n._id || (n._id && n._id.$oid) || n._id) === selectedNodeId
+                );
+                const siblingIds = new Set(
+                    (selectedServerNode?.sibling_links || node.sibling_links || []).map((link) =>
+                        String(link?.sibling_id || "")
+                    )
+                );
+                const siblingNodes = allNodes.filter((n) =>
+                    siblingIds.has(String(n.id || n._id || (n._id && n._id.$oid) || n._id))
+                );
+                setSubNodes(siblingNodes);
+            } else {
+                setSubNodes(allNodes);
+            }
         } catch (error) {
             console.error("Failed to fetch node sub-resources:", error);
         } finally {
@@ -808,10 +831,12 @@ const HomePage = () => {
             }
 
             const recent = chatMessages.slice(-10).map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+            const latestUserMessage = [...chatMessages]
+                .reverse()
+                .find((m) => (m.role || "").toLowerCase() === "user")?.content;
             const body = {
-                parent_id: null,
-                children_ids: [],
-                text: recent || 'Conversation snapshot',
+                sibling_links: [],
+                header: (latestUserMessage || "Conversation Snapshot").slice(0, 80),
                 summary: (chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].content : '').slice(0, 300),
                 conversation_id: conversationId,
                 messages: chatMessages,
@@ -944,46 +969,83 @@ const HomePage = () => {
             idToEl[id] = el;
         });
 
-        nodes.forEach((el) => {
-            const parentId = el.getAttribute('data-parent-id');
-            if (!parentId) return;
-            const parentEl = idToEl[parentId];
-            if (!parentEl) return;
+        const getStrokeWidthForStrength = (tagCount) => {
+            if (!tagCount || tagCount <= 0) return 0;
+            if (tagCount === 1) return 1;
+            if (tagCount <= 3) return 2;
+            if (tagCount <= 8) return 3;
+            if (tagCount <= 20) return 4;
+            return 5;
+        };
 
-            const parentVisual = parentEl.querySelector('.neural-node-v2') || parentEl;
-            const childVisual = el.querySelector('.neural-node-v2') || el;
+        const containerRect = container.getBoundingClientRect();
+        const vw = Math.max(1, Math.round(containerRect.width));
+        const vh = Math.max(1, Math.round(containerRect.height));
+        svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.setAttribute('width', `${vw}`);
+        svg.setAttribute('height', `${vh}`);
 
-            const pRect = parentVisual.getBoundingClientRect();
-            const cRect = childVisual.getBoundingClientRect();
-            const containerRect = container.getBoundingClientRect();
+        const drawnPairs = new Set();
+        const projectsNodeLists = Object.values(contextNodesMap || {});
 
-            const startX = pRect.left + pRect.width / 2 - containerRect.left;
-            const startY = pRect.top + pRect.height - containerRect.top;
-            const endX = cRect.left + cRect.width / 2 - containerRect.left;
-            const endY = cRect.top - containerRect.top;
+        projectsNodeLists.forEach((projectNodes) => {
+            (projectNodes || []).forEach((node) => {
+                const sourceId = String(node.id || node._id || (node._id && node._id.$oid) || node._id || "");
+                if (!sourceId) return;
 
-            const vw = Math.max(1, Math.round(containerRect.width));
-            const vh = Math.max(1, Math.round(containerRect.height));
-            svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
-            svg.setAttribute('preserveAspectRatio', 'none');
-            svg.setAttribute('width', `${vw}`);
-            svg.setAttribute('height', `${vh}`);
+                const sourceEl = idToEl[sourceId];
+                if (!sourceEl) return;
 
-            const deltaX = Math.max(30, Math.abs(endX - startX) * 0.28);
-            const control1X = startX + (endX > startX ? deltaX : -deltaX);
-            const control2X = endX - (endX > startX ? deltaX : -deltaX);
-            const verticalGap = Math.max(30, (endY - startY) * 0.25);
-            const control1Y = startY + verticalGap;
-            const control2Y = endY - verticalGap;
+                const sourceVisual = sourceEl.querySelector('.neural-node-v2') || sourceEl;
+                const sourceRect = sourceVisual.getBoundingClientRect();
+                const startX = sourceRect.left + sourceRect.width / 2 - containerRect.left;
+                const startY = sourceRect.top + sourceRect.height / 2 - containerRect.top;
 
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            const d = `M ${startX} ${startY} C ${control1X} ${control1Y} ${control2X} ${control2Y} ${endX} ${endY}`;
-            path.setAttribute('d', d);
-            path.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--connector-color') || '#d1d9e2');
-            path.setAttribute('stroke-width', '2');
-            path.setAttribute('fill', 'none');
-            path.setAttribute('stroke-linecap', 'round');
-            svg.appendChild(path);
+                (node.sibling_links || []).forEach((link) => {
+                    const targetId = String(link?.sibling_id || "");
+                    const sharedTags = Array.isArray(link?.shared_tags) ? link.shared_tags : [];
+                    const strength = sharedTags.length;
+
+                    if (!targetId || targetId === sourceId || strength <= 0) return;
+
+                    const pairKey = [sourceId, targetId].sort().join('::');
+                    if (drawnPairs.has(pairKey)) return;
+
+                    const targetEl = idToEl[targetId];
+                    if (!targetEl) return;
+
+                    const targetVisual = targetEl.querySelector('.neural-node-v2') || targetEl;
+                    const targetRect = targetVisual.getBoundingClientRect();
+                    const endX = targetRect.left + targetRect.width / 2 - containerRect.left;
+                    const endY = targetRect.top + targetRect.height / 2 - containerRect.top;
+
+                    const dx = endX - startX;
+                    const dy = endY - startY;
+                    const distance = Math.hypot(dx, dy) || 1;
+                    const normalX = -dy / distance;
+                    const normalY = dx / distance;
+                    const bow = Math.min(48, Math.max(18, distance * 0.08));
+                    const controlX = (startX + endX) / 2 + normalX * bow;
+                    const controlY = (startY + endY) / 2 + normalY * bow;
+
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const d = `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
+                    path.setAttribute('d', d);
+                    path.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--connector-color') || '#d1d9e2');
+                    path.setAttribute('stroke-width', `${getStrokeWidthForStrength(strength)}`);
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('stroke-linecap', 'round');
+                    path.setAttribute('opacity', '0.85');
+
+                    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+                    title.textContent = `${strength} shared tags: ${sharedTags.join(', ')}`;
+                    path.appendChild(title);
+
+                    svg.appendChild(path);
+                    drawnPairs.add(pairKey);
+                });
+            });
         });
     };
 

@@ -1,16 +1,39 @@
-import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-import uuid
 
-from projects_service.models.context_tree import ContextTreeNode
-from projects_service.services.context_tree_service import ContextTreeService
+import pytest
+
+from projects_service.data.context_tree_repository import ContextTreeRepository
+from projects_service.models.context_tree import SiblingLink
 from projects_service.schemas.context_tree_schemas import (
+    ContextTreeNodeResponse,
     CreateContextTreeNodeRequest,
     UpdateContextTreeNodeRequest,
-    ContextTreeNodeResponse,
 )
-from projects_service.data.context_tree_repository import ContextTreeRepository
+from projects_service.services.context_tree_service import ContextTreeService
+
+
+def _build_node(
+    node_id: str,
+    project_id: str,
+    topics: list[str] | None = None,
+    sibling_links: list[SiblingLink] | None = None,
+    conversation_id: str | None = None,
+):
+    node = MagicMock()
+    node.id = node_id
+    node.project_id = project_id
+    node.header = f"Node {node_id}"
+    node.summary = f"Summary {node_id}"
+    node.topics = topics or []
+    node.sibling_links = sibling_links or []
+    node.node_type = "goal"
+    node.color = "#2196f3"
+    node.conversation_id = conversation_id
+    node.created_at = datetime.utcnow()
+    node.updated_at = datetime.utcnow()
+    node.save = AsyncMock(return_value=None)
+    return node
 
 
 class TestContextTreeService:
@@ -23,403 +46,221 @@ class TestContextTreeService:
         return ContextTreeService(mock_repository)
 
     @pytest.mark.asyncio
-    @patch("projects_service.services.context_tree_service.ContextTreeNode")
-    async def test_create_node(self, mock_node_class, service, mock_repository):
-        """Test creating a context tree node."""
-        project_id = "507f1f77bcf86cd799439011"
-        request = CreateContextTreeNodeRequest(
-            # node_id is auto-generated, not provided
-            parent_id="parent-node",
-            children_ids=["child-1", "child-2"],
-            header="Test node",
-            summary="Test summary",
-            topics=["topic1", "topic2"],
-            node_type="goal",
-        )
-
-        # Mock the node instance
-        mock_node_instance = MagicMock()
-        mock_node_class.return_value = mock_node_instance
-
-        # Mock the created node from repository
-        created_node = MagicMock()
-        created_node.id = "550e8400-e29b-41d4-a716-446655440000"  # UUID format - always auto-generated
-        created_node.parent_id = "parent-node"
-        created_node.children_ids = ["child-1", "child-2"]
-        created_node.header = "Test node"
-        created_node.summary = "Test summary"
-        created_node.topics = ["topic1", "topic2"]
-        created_node.project_id = project_id
-        created_node.node_type = "goal"
-        created_node.created_at = datetime.utcnow()
-        created_node.updated_at = datetime.utcnow()
-
-        mock_repository.create = AsyncMock(return_value=created_node)
-
-        result = await service.create_node(project_id, request)
-
-        assert isinstance(result, ContextTreeNodeResponse)
-        assert result.id == "550e8400-e29b-41d4-a716-446655440000"
-        assert result.parent_id == "parent-node"
-        assert result.children_ids == ["child-1", "child-2"]
-        assert result.header == "Test node"
-        assert result.summary == "Test summary"
-        assert result.topics == ["topic1", "topic2"]
-        assert result.node_type == "goal"
-        assert result.project_id == project_id
-
-        # Verify repository was called
-        mock_repository.create.assert_called_once()
-        mock_node_class.assert_called_once()
-
-    @pytest.mark.asyncio
-    @patch("projects_service.services.context_tree_service.ContextTreeNode")
-    async def test_create_node_updates_parent_children(
-        self, mock_node_class, service, mock_repository
-    ):
-        """Test that creating a node with a parent updates the parent's children list."""
-        project_id = "507f1f77bcf86cd799439011"
-        parent_node_id = "parent-uuid-123"
-
-        # Mock existing parent node
-        parent_node = MagicMock()
-        parent_node.id = parent_node_id
-        parent_node.parent_id = None
-        parent_node.children_ids = ["existing-child-1"]  # Already has one child
-        parent_node.header = "Parent Node"
-        parent_node.project_id = project_id
-        parent_node.node_type = "goal"
-        parent_node.created_at = datetime.utcnow()
-        parent_node.updated_at = datetime.utcnow()
-
-        # Mock the child node creation
-        child_request = CreateContextTreeNodeRequest(
-            parent_id=parent_node_id,  # References the parent
-            children_ids=[],
-            header="Child Node",
-            summary="Child summary",
-            topics=["child-topic"],
-            node_type="task",
-        )
-
-        # Mock the node instance for child
-        child_node_instance = MagicMock()
-        child_node_instance.id = str(uuid.uuid4())  # Mock generated UUID
-        child_node_instance.parent_id = child_request.parent_id
-        child_node_instance.children_ids = child_request.children_ids
-        child_node_instance.header = child_request.header
-        child_node_instance.summary = child_request.summary
-        child_node_instance.topics = child_request.topics
-        child_node_instance.project_id = project_id
-        child_node_instance.node_type = child_request.node_type
-        child_node_instance.created_at = datetime.utcnow()
-        child_node_instance.updated_at = datetime.utcnow()
-        mock_node_class.return_value = child_node_instance
-
-        # Mock repository calls
-        mock_repository.create = AsyncMock(
-            side_effect=lambda node: node
-        )  # Return the node that was created
-        mock_repository.get_by_id = AsyncMock(return_value=parent_node)
-        mock_repository.update = AsyncMock(return_value=parent_node)
-
-        # Execute the create operation
-        result = await service.create_node(project_id, child_request)
-
-        # Verify the child was created correctly
-        assert isinstance(result, ContextTreeNodeResponse)
-        assert result.parent_id == parent_node_id
-        assert result.header == "Child Node"
-        assert result.summary == "Child summary"
-        assert result.topics == ["child-topic"]
-        # Assert that the id is a valid UUID
-        assert uuid.UUID(result.id).version == 4
-
-        # Verify the parent was updated to include the child (one of the update
-        # calls may be for persisting conversation_id; accept multiple updates)
-        assert mock_repository.update.call_count >= 1
-        # The parent's children_ids should now include the new child in one of the update calls
-        found = False
-        for call in mock_repository.update.call_args_list:
-            first_arg = call[0][0] if call[0] else None
-            if hasattr(first_arg, "children_ids"):
-                updated_parent = first_arg
-                if (
-                    result.id in updated_parent.children_ids
-                    and "existing-child-1" in updated_parent.children_ids
-                ):
-                    found = True
-                    break
-        assert found, "Parent was not updated to include the new child"
-
-    @pytest.mark.asyncio
     async def test_get_node_found(self, service, mock_repository):
-        """Test getting a node when found."""
-        node_id = "node-1"
-
-        node = MagicMock()
-        node.id = node_id
-        node.parent_id = "parent-node"
-        node.children_ids = ["child-1"]
-        node.header = "Test node"
-        node.summary = "Test summary"
-        node.topics = ["topic1"]
-        node.project_id = "507f1f77bcf86cd799439011"
-        node.node_type = "goal"
-        node.created_at = datetime.utcnow()
-        node.updated_at = datetime.utcnow()
-
+        node = _build_node(
+            node_id="node-1",
+            project_id="project-1",
+            topics=["racing", "cars"],
+            sibling_links=[
+                SiblingLink(sibling_id="node-2", shared_tags=["racing"]),
+            ],
+        )
         mock_repository.get_by_id = AsyncMock(return_value=node)
 
-        result = await service.get_node(node_id)
+        result = await service.get_node("node-1")
 
-        assert result is not None
-        assert result.id == node_id
-        assert result.header == "Test node"
-        assert result.summary == "Test summary"
-        assert result.topics == ["topic1"]
-        assert result.node_type == "goal"
-        mock_repository.get_by_id.assert_called_once_with(node_id)
+        assert isinstance(result, ContextTreeNodeResponse)
+        assert result.id == "node-1"
+        assert result.project_id == "project-1"
+        assert len(result.sibling_links) == 1
+        assert result.sibling_links[0].sibling_id == "node-2"
+        assert result.sibling_links[0].shared_tags == ["racing"]
 
     @pytest.mark.asyncio
     async def test_get_node_not_found(self, service, mock_repository):
-        """Test getting a node when not found."""
-        node_id = "node-1"
-
         mock_repository.get_by_id = AsyncMock(return_value=None)
 
-        result = await service.get_node(node_id)
+        result = await service.get_node("missing")
 
         assert result is None
-        mock_repository.get_by_id.assert_called_once_with(node_id)
-
-    @pytest.mark.asyncio
-    async def test_list_nodes_by_project(self, service, mock_repository):
-        """Test listing nodes by project."""
-        project_id = "507f1f77bcf86cd799439011"
-        node1 = MagicMock()
-        node1.id = "node-1"
-        node1.header = "Node 1"
-        node1.summary = "Summary 1"
-        node1.topics = ["topic1"]
-        node1.project_id = project_id
-        node1.node_type = "goal"
-        node1.parent_id = None
-        node1.children_ids = []
-        node1.created_at = datetime.utcnow()
-        node1.updated_at = datetime.utcnow()
-
-        node2 = MagicMock()
-        node2.id = "node-2"
-        node2.header = "Node 2"
-        node2.summary = "Summary 2"
-        node2.topics = ["topic2"]
-        node2.project_id = project_id
-        node2.node_type = "task"
-        node2.parent_id = None
-        node2.children_ids = []
-        node2.created_at = datetime.utcnow()
-        node2.updated_at = datetime.utcnow()
-
-        nodes = [node1, node2]
-
-        mock_repository.list_by_project = AsyncMock(return_value=nodes)
-
-        result = await service.list_nodes_by_project(project_id)
-
-        assert len(result) == 2
-        assert result[0].id == "node-1"
-        assert result[0].summary == "Summary 1"
-        assert result[0].topics == ["topic1"]
-        assert result[1].id == "node-2"
-        assert result[1].summary == "Summary 2"
-        assert result[1].topics == ["topic2"]
-        assert all(isinstance(r, ContextTreeNodeResponse) for r in result)
-        assert all(r.project_id == project_id for r in result)
-        mock_repository.list_by_project.assert_called_once_with(project_id)
-
-    @pytest.mark.asyncio
-    async def test_update_node_found(self, service, mock_repository):
-        """Test updating a node when found."""
-        node_id = "node-1"
-        request = UpdateContextTreeNodeRequest(
-            header="Updated text",
-            summary="Updated summary",
-            topics=["new-topic"],
-            node_type="task",
-        )
-
-        updated_node = MagicMock()
-        updated_node.id = node_id
-        updated_node.parent_id = "parent-node"
-        updated_node.children_ids = ["child-1"]
-        updated_node.header = "Updated text"
-        updated_node.summary = "Updated summary"
-        updated_node.topics = ["new-topic"]
-        updated_node.project_id = "507f1f77bcf86cd799439011"
-        updated_node.node_type = "task"
-        updated_node.created_at = datetime.utcnow()
-        updated_node.updated_at = datetime.utcnow()
-
-        mock_repository.update = AsyncMock(return_value=updated_node)
-
-        result = await service.update_node(node_id, request)
-
-        assert result is not None
-        assert result.header == "Updated text"
-        assert result.summary == "Updated summary"
-        assert result.topics == ["new-topic"]
-        assert result.node_type == "task"
-        mock_repository.update.assert_called_once()
-        call_args = mock_repository.update.call_args[0]
-        assert call_args[0] == node_id
-        assert "header" in call_args[1]
-        assert "summary" in call_args[1]
-        assert "topics" in call_args[1]
-        assert "node_type" in call_args[1]
-        assert "updated_at" in call_args[1]
-        assert call_args[1]["header"] == "Updated text"
-        assert call_args[1]["summary"] == "Updated summary"
-        assert call_args[1]["topics"] == ["new-topic"]
-        assert call_args[1]["node_type"] == "task"
-
-    @pytest.mark.asyncio
-    async def test_update_node_not_found(self, service, mock_repository):
-        """Test updating a node when not found."""
-        node_id = "node-1"
-        request = UpdateContextTreeNodeRequest(text="Updated text")
-
-        mock_repository.update = AsyncMock(return_value=None)
-
-        result = await service.update_node(node_id, request)
-
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_delete_node_found(self, service, mock_repository):
-        """Test deleting a node when found."""
-        node_id = "node-1"
-
-        # Setup node with parent and children
-        node = MagicMock()
-        node.id = node_id
-        node.parent_id = "parent-1"
-        node.children_ids = ["child-1", "child-2"]
-        node.conversation_id = "conv-123"
-
-        child1 = MagicMock()
-        child1.id = "child-1"
-        child1.parent_id = node_id
-        child1.children_ids = []
-
-        child2 = MagicMock()
-        child2.id = "child-2"
-        child2.parent_id = node_id
-        child2.children_ids = []
-
-        parent = MagicMock()
-        parent.id = "parent-1"
-        parent.parent_id = None
-        parent.children_ids = [node_id]
-
-        # Mock repository behavior: get node, then children, then parent
-        async def get_by_id_side_effect(arg):
-            if arg == node_id:
-                return node
-            if arg == "child-1":
-                return child1
-            if arg == "child-2":
-                return child2
-            if arg == "parent-1":
-                return parent
-            return None
-
-        mock_repository.get_by_id = AsyncMock(side_effect=get_by_id_side_effect)
-        mock_repository.update = AsyncMock(return_value=True)
-        mock_repository.delete = AsyncMock(return_value=True)
-
-        # Patch AI deletion helper on the service to avoid network calls
-        service._delete_ai_conversation = AsyncMock(return_value=True)
-
-        result = await service.delete_node(node_id)
-
-        assert result is True
-        # children should have been reparented and updated
-        assert mock_repository.update.call_count >= 3
-        # repository.delete should be called for the node
-        mock_repository.delete.assert_called_once_with(node_id)
-
-    @pytest.mark.asyncio
-    async def test_delete_node_not_found(self, service, mock_repository):
-        """Test deleting a node when not found."""
-        node_id = "node-1"
-
-        mock_repository.delete = AsyncMock(return_value=False)
-
-        result = await service.delete_node(node_id)
-
-        assert result is False
-        mock_repository.delete.assert_called_once_with(node_id)
 
     @pytest.mark.asyncio
     @patch("projects_service.services.context_tree_service.ContextTreeNode")
     async def test_create_node_with_provided_conversation_id(
-        self, mock_node_class, service, mock_repository
+        self,
+        mock_context_node_class,
+        service,
+        mock_repository,
     ):
-        """When a conversation_id is provided in the request, the service should
-        persist and reuse it and should NOT call the AI create conversation endpoint."""
-        project_id = "507f1f77bcf86cd799439011"
-
-        request = CreateContextTreeNodeRequest(
-            parent_id=None,
-            children_ids=[],
-            header="Conv Node",
-            summary="Conversation based node",
-            topics=["conv-topic"],
-            node_type="conversation",
-            conversation_id="existing-conv-123",
+        project_id = "project-1"
+        created_node = _build_node(
+            node_id="node-1",
+            project_id=project_id,
+            topics=["racing", "cars"],
         )
 
-        # Mock the created node from repository
-        created_node = MagicMock()
-        created_node.id = "550e8400-e29b-41d4-a716-446655440001"
-        created_node.parent_id = None
-        created_node.children_ids = []
-        created_node.header = request.header
-        created_node.summary = request.summary
-        created_node.topics = request.topics
-        created_node.project_id = project_id
-        created_node.node_type = request.node_type
-        created_node.created_at = datetime.utcnow()
-        created_node.updated_at = datetime.utcnow()
-        # provide an async save() to simulate model save path
-        created_node.save = AsyncMock(return_value=None)
-
+        mock_context_node_class.return_value = created_node
         mock_repository.create = AsyncMock(return_value=created_node)
-        # Ensure constructing ContextTreeNode returns our mock instance
-        mock_node_class.return_value = created_node
+        mock_repository.list_by_project = AsyncMock(return_value=[created_node])
+        mock_repository.get_by_id = AsyncMock(return_value=created_node)
 
-        # Patch service methods to detect unwanted calls
         service._create_ai_conversation = AsyncMock(
-            side_effect=AssertionError(
-                "_create_ai_conversation should not be called when conversation_id provided"
-            )
+            side_effect=AssertionError("_create_ai_conversation should not be called")
         )
         service._ai_organize_node = AsyncMock(return_value=None)
 
-        # Execute
+        request = CreateContextTreeNodeRequest(
+            header="Cars",
+            summary="About racing cars",
+            topics=["racing", "cars"],
+            node_type="conversation",
+            conversation_id="conv-1",
+        )
+
         result = await service.create_node(project_id, request)
 
-        # Validate result contains the provided conversation id
         assert isinstance(result, ContextTreeNodeResponse)
-        assert result.conversation_id == "existing-conv-123"
-
-        # Ensure repository create was called and the created node's save() was attempted
-        mock_repository.create.assert_called_once()
-        created_node.save.assert_called()  # persisted best-effort
-
-        # Ensure we did not call _create_ai_conversation
+        assert result.id == "node-1"
+        assert result.conversation_id == "conv-1"
         service._create_ai_conversation.assert_not_called()
-
-        # Ensure ai_organize_node was scheduled/invoked with provided conv id
         service._ai_organize_node.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_recompute_weighted_links_is_symmetric(
+        self, service, mock_repository
+    ):
+        project_id = "project-1"
+        node_a = _build_node("a", project_id, topics=["racing", "cars", "speed"])
+        node_b = _build_node("b", project_id, topics=["racing", "running"])
+        node_c = _build_node("c", project_id, topics=["racing", "cars", "luxury"])
+
+        mock_repository.list_by_project = AsyncMock(
+            return_value=[node_a, node_b, node_c]
+        )
+
+        await service._recompute_weighted_links_for_node(project_id, "a")
+
+        a_map = service._get_link_map(node_a)
+        b_map = service._get_link_map(node_b)
+        c_map = service._get_link_map(node_c)
+
+        assert a_map["b"] == {"racing"}
+        assert a_map["c"] == {"racing", "cars"}
+        assert b_map["a"] == {"racing"}
+        assert c_map["a"] == {"racing", "cars"}
+
+    @pytest.mark.asyncio
+    async def test_update_node_recomputes_links_from_topics(
+        self, service, mock_repository
+    ):
+        project_id = "project-1"
+        node_id = "a"
+
+        existing = _build_node(node_id, project_id, topics=["racing", "cars"])
+        updated = _build_node(node_id, project_id, topics=["running", "fitness"])
+        peer = _build_node("b", project_id, topics=["running", "hydration"])
+
+        mock_repository.get_by_id = AsyncMock(side_effect=[existing, updated])
+        mock_repository.update = AsyncMock(return_value=updated)
+        mock_repository.list_by_project = AsyncMock(return_value=[updated, peer])
+
+        result = await service.update_node(
+            node_id,
+            UpdateContextTreeNodeRequest(topics=["running", "fitness"]),
+        )
+
+        assert isinstance(result, ContextTreeNodeResponse)
+        assert result.id == node_id
+
+        updated_map = service._get_link_map(updated)
+        peer_map = service._get_link_map(peer)
+        assert updated_map["b"] == {"running"}
+        assert peer_map["a"] == {"running"}
+
+    @pytest.mark.asyncio
+    async def test_delete_node_removes_reciprocal_links(self, service, mock_repository):
+        project_id = "project-1"
+        node = _build_node(
+            "a",
+            project_id,
+            topics=["cars"],
+            sibling_links=[SiblingLink(sibling_id="b", shared_tags=["cars"])],
+            conversation_id="conv-1",
+        )
+        peer = _build_node(
+            "b",
+            project_id,
+            topics=["cars"],
+            sibling_links=[SiblingLink(sibling_id="a", shared_tags=["cars"])],
+        )
+
+        mock_repository.get_by_id = AsyncMock(return_value=node)
+        mock_repository.list_by_project = AsyncMock(return_value=[node, peer])
+        mock_repository.delete = AsyncMock(return_value=True)
+
+        service._delete_ai_conversation = AsyncMock(return_value=True)
+
+        deleted = await service.delete_node("a")
+
+        assert deleted is True
+        assert "a" not in service._get_link_map(peer)
+        service._delete_ai_conversation.assert_called_once_with("conv-1")
+        mock_repository.delete.assert_called_once_with("a")
+
+    def test_normalize_topics_deduplicates_and_normalizes_case(self, service):
+        topics = ["Racing", " racing ", "Cars", "cars", ""]
+
+        normalized = service._normalize_topics(topics)
+
+        assert normalized == ["racing", "cars"]
+
+    def test_get_link_map_ignores_invalid_or_empty_links(self, service):
+        node = _build_node(
+            "n1",
+            "p1",
+            sibling_links=[
+                SiblingLink(sibling_id="n2", shared_tags=[]),
+                SiblingLink(sibling_id="", shared_tags=["cars"]),
+                SiblingLink(sibling_id="n3", shared_tags=["cars", "cars"]),
+            ],
+        )
+
+        link_map = service._get_link_map(node)
+
+        assert "n2" not in link_map
+        assert "" not in link_map
+        assert link_map["n3"] == {"cars"}
+
+    @pytest.mark.asyncio
+    async def test_recompute_prunes_stale_links_with_no_shared_tags(
+        self, service, mock_repository
+    ):
+        project_id = "project-1"
+        node_a = _build_node(
+            "a",
+            project_id,
+            topics=["cars"],
+            sibling_links=[SiblingLink(sibling_id="b", shared_tags=["cars"])],
+        )
+        node_b = _build_node(
+            "b",
+            project_id,
+            topics=["running"],
+            sibling_links=[SiblingLink(sibling_id="a", shared_tags=["cars"])],
+        )
+
+        mock_repository.list_by_project = AsyncMock(return_value=[node_a, node_b])
+
+        await service._recompute_weighted_links_for_node(project_id, "a")
+
+        assert service._get_link_map(node_a) == {}
+        assert service._get_link_map(node_b) == {}
+
+    @pytest.mark.asyncio
+    async def test_update_node_not_found_returns_none(self, service, mock_repository):
+        mock_repository.get_by_id = AsyncMock(return_value=None)
+
+        result = await service.update_node(
+            "missing",
+            UpdateContextTreeNodeRequest(topics=["cars"]),
+        )
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_delete_node_not_found_returns_false(self, service, mock_repository):
+        mock_repository.get_by_id = AsyncMock(return_value=None)
+
+        deleted = await service.delete_node("missing")
+
+        assert deleted is False

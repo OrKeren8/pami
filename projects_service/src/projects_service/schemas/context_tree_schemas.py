@@ -1,23 +1,26 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 
 
+class SiblingLinkPayload(BaseModel):
+    sibling_id: str
+    shared_tags: List[str] = Field(default_factory=list)
+
+
 class CreateContextTreeNodeRequest(BaseModel):
-    parent_id: Optional[str] = None
-    children_ids: List[str] = []
+    sibling_links: List[SiblingLinkPayload] = Field(default_factory=list)
     header: Optional[str] = None
     summary: Optional[str] = None
     conversation_id: Optional[str] = None
     messages: Optional[List[dict]] = None
-    topics: List[str] = []
+    topics: List[str] = Field(default_factory=list)
     node_type: str = "goal"
     color: Optional[str] = None
 
 
 class UpdateContextTreeNodeRequest(BaseModel):
-    parent_id: Optional[str] = None
-    children_ids: Optional[List[str]] = None
+    sibling_links: Optional[List[SiblingLinkPayload]] = None
     header: Optional[str] = None
     summary: Optional[str] = None
     topics: Optional[List[str]] = None
@@ -27,8 +30,7 @@ class UpdateContextTreeNodeRequest(BaseModel):
 
 class ContextTreeNodeResponse(BaseModel):
     id: str
-    parent_id: Optional[str]
-    children_ids: List[str]
+    sibling_links: List[SiblingLinkPayload]
     header: Optional[str]
     color: Optional[str] = None
     summary: Optional[str]
