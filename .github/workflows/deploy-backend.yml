@@ -35,6 +35,14 @@ jobs:
 
       - name: Register Projects Service Task Definition
         run: |
+          ALB_DNS=$(aws elbv2 describe-load-balancers --region us-east-1 --query "LoadBalancers[?LoadBalancerName=='pami-alb'].DNSName | [0]" --output text)
+          if [ -z "$ALB_DNS" ] || [ "$ALB_DNS" = "None" ]; then
+            echo "Failed to resolve ALB DNS for pami-alb"
+            exit 1
+          fi
+          AI_SERVICE_URL="http://$ALB_DNS/ai"
+          echo "Using AI_SERVICE_URL=$AI_SERVICE_URL"
+
           cat > task-def.json << EOF
           {
             "family": "pami-projects-service",
@@ -63,7 +71,7 @@ jobs:
                   },
                   {
                     "name": "AI_SERVICE_URL",
-                    "value": "http://pami-alb-550898099.us-east-1.elb.amazonaws.com/ai"
+                    "value": "$AI_SERVICE_URL"
                   }
                 ],
                 "logConfiguration": {
