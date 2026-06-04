@@ -52,7 +52,35 @@ gh secret list
 
 Expected result: the four AWS secrets appear in `gh secret list` with recent update times.
 
-## Step 3: Quick verification command
+## Step 3: Update `.env` files for all services
+
+Run from the repository root. This updates or inserts AWS credentials in each service `.env` file.
+
+```bash
+for f in projects_service/.env ai_conversation_service/.env slack_service/.env; do
+	touch "$f"
+	sed -i '/^AWS_ACCESS_KEY_ID=/d;/^AWS_SECRET_ACCESS_KEY=/d;/^AWS_SESSION_TOKEN=/d;/^AWS_REGION=/d' "$f"
+	{
+		echo "AWS_ACCESS_KEY_ID=<ACCESS_KEY>"
+		echo "AWS_SECRET_ACCESS_KEY=<SECRET_KEY>"
+		echo "AWS_SESSION_TOKEN=<SESSION_TOKEN>"
+		echo "AWS_REGION=us-east-1"
+	} >> "$f"
+done
+```
+
+Optional check (redact before sharing output):
+
+```bash
+for f in projects_service/.env ai_conversation_service/.env slack_service/.env; do
+	echo "== $f =="
+	grep '^AWS_' "$f"
+done
+```
+
+Expected result: each service `.env` contains the four AWS keys with the new values.
+
+## Step 4: Quick verification command
 
 ```bash
 aws ecs describe-services --cluster pami-cluster --services pami-projects-service --region us-east-1 --query "services[0].taskDefinition" --output text
@@ -65,3 +93,4 @@ If this works, credentials are active and AWS CLI access is restored.
 - Do not commit credentials to git.
 - Only set secrets through `gh secret set` (or GitHub UI).
 - Temporary Cloud Labs credentials expire; repeat this skill whenever tokens rotate.
+- `.env` files may appear in `git status`; keep them local and uncommitted.

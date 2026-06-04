@@ -1,23 +1,30 @@
 import axios from 'axios';
 
-// зйбеш щтш двйщд дшащй (Gateway) мфшейчийн, ощйоеъ етх черичси
+const ensureAiPrefix = (baseUrl) => {
+    if (!baseUrl) return baseUrl;
+    const trimmed = String(baseUrl).replace(/\/+$/, '');
+    if (trimmed.endsWith('/ai')) return trimmed;
+    return `${trimmed}/ai`;
+};
+
+// пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ (Gateway) пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 export const projectsApi = axios.create({
     baseURL: process.env.REACT_APP_PROJECTS_API_URL,
     timeout: 8000,
 });
 
-// зйбеш ййтегй мсшеейс д-AI щм аеш
+// пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ-AI пїЅпїЅ пїЅпїЅпїЅ
 export const aiApi = axios.create({
-    baseURL: process.env.REACT_APP_AI_API_URL,
+    baseURL: ensureAiPrefix(process.env.REACT_APP_AI_API_URL),
     timeout: 12000,
 });
 
-// зйбеш ййтегй мсшеейс дсмач щм дзбшйн
+// пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
 export const slackApi = axios.create({
     baseURL: process.env.REACT_APP_SLACK_API_URL,
     timeout: 8000,
 });
 
-// бшйшъ озгм мвйбей мочшд щйщ чшйаеъ йщреъ бчег щощъощеъ б-api длммй
+// пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ-api пїЅпїЅпїЅпїЅпїЅ
 const api = projectsApi;
 export default api;

@@ -19,12 +19,15 @@ def _build_node(
     topics: list[str] | None = None,
     sibling_links: list[SiblingLink] | None = None,
     conversation_id: str | None = None,
+    summary: str | None = None,
 ):
     node = MagicMock()
     node.id = node_id
     node.project_id = project_id
     node.header = f"Node {node_id}"
-    node.summary = f"Summary {node_id}"
+    node.summary = summary or (
+        "This is a detailed summary sentence for testing node correlation behavior."
+    )
     node.topics = topics or []
     node.sibling_links = sibling_links or []
     node.node_type = "goal"
@@ -52,7 +55,7 @@ class TestContextTreeService:
             project_id="project-1",
             topics=["racing", "cars"],
             sibling_links=[
-                SiblingLink(sibling_id="node-2", shared_tags=["racing"]),
+                SiblingLink(sibling_id="node-2", correlation_score=64),
             ],
         )
         mock_repository.get_by_id = AsyncMock(return_value=node)
@@ -64,7 +67,7 @@ class TestContextTreeService:
         assert result.project_id == "project-1"
         assert len(result.sibling_links) == 1
         assert result.sibling_links[0].sibling_id == "node-2"
-        assert result.sibling_links[0].shared_tags == ["racing"]
+        assert result.sibling_links[0].correlation_score == 64
 
     @pytest.mark.asyncio
     async def test_get_node_not_found(self, service, mock_repository):
@@ -116,13 +119,31 @@ class TestContextTreeService:
         service._ai_organize_node.assert_called()
 
     @pytest.mark.asyncio
-    async def test_recompute_weighted_links_is_symmetric(
+    async def test_recompute_correlation_links_is_symmetric(
         self, service, mock_repository
     ):
         project_id = "project-1"
-        node_a = _build_node("a", project_id, topics=["racing", "cars", "speed"])
-        node_b = _build_node("b", project_id, topics=["racing", "running"])
-        node_c = _build_node("c", project_id, topics=["racing", "cars", "luxury"])
+        node_a = _build_node(
+            "a",
+            project_id,
+            summary=(
+                "Racing car rental platform with performance vehicle booking and premium track package management."
+            ),
+        )
+        node_b = _build_node(
+            "b",
+            project_id,
+            summary=(
+                "Running fitness coaching plans for marathon training and hydration strategy tracking."
+            ),
+        )
+        node_c = _build_node(
+            "c",
+            project_id,
+            summary=(
+                "Premium racing car rental service with performance vehicle booking and track package management."
+            ),
+        )
 
         mock_repository.list_by_project = AsyncMock(
             return_value=[node_a, node_b, node_c]
@@ -134,21 +155,40 @@ class TestContextTreeService:
         b_map = service._get_link_map(node_b)
         c_map = service._get_link_map(node_c)
 
-        assert a_map["b"] == {"racing"}
-        assert a_map["c"] == {"racing", "cars"}
-        assert b_map["a"] == {"racing"}
-        assert c_map["a"] == {"racing", "cars"}
+        assert "c" in a_map
+        assert a_map["c"] >= 30
+        assert c_map["a"] == a_map["c"]
+        assert "b" not in a_map
+        assert "a" not in b_map
 
     @pytest.mark.asyncio
-    async def test_update_node_recomputes_links_from_topics(
+    async def test_update_node_recomputes_links_from_summary(
         self, service, mock_repository
     ):
         project_id = "project-1"
         node_id = "a"
 
-        existing = _build_node(node_id, project_id, topics=["racing", "cars"])
-        updated = _build_node(node_id, project_id, topics=["running", "fitness"])
-        peer = _build_node("b", project_id, topics=["running", "hydration"])
+        existing = _build_node(
+            node_id,
+            project_id,
+            summary=(
+                "Racing vehicle marketplace with booking workflow, car catalog, and speed package options."
+            ),
+        )
+        updated = _build_node(
+            node_id,
+            project_id,
+            summary=(
+                "Running fitness coaching plans with hydration reminders and marathon schedule management."
+            ),
+        )
+        peer = _build_node(
+            "b",
+            project_id,
+            summary=(
+                "Running fitness and hydration coaching for marathon athletes with personalized schedules."
+            ),
+        )
 
         mock_repository.get_by_id = AsyncMock(side_effect=[existing, updated])
         mock_repository.update = AsyncMock(return_value=updated)
@@ -156,7 +196,11 @@ class TestContextTreeService:
 
         result = await service.update_node(
             node_id,
-            UpdateContextTreeNodeRequest(topics=["running", "fitness"]),
+            UpdateContextTreeNodeRequest(
+                summary=(
+                    "Running fitness coaching plans with hydration reminders and marathon schedule management."
+                )
+            ),
         )
 
         assert isinstance(result, ContextTreeNodeResponse)
@@ -164,8 +208,8 @@ class TestContextTreeService:
 
         updated_map = service._get_link_map(updated)
         peer_map = service._get_link_map(peer)
-        assert updated_map["b"] == {"running"}
-        assert peer_map["a"] == {"running"}
+        assert updated_map["b"] >= 30
+        assert peer_map["a"] == updated_map["b"]
 
     @pytest.mark.asyncio
     async def test_delete_node_removes_reciprocal_links(self, service, mock_repository):
@@ -174,14 +218,14 @@ class TestContextTreeService:
             "a",
             project_id,
             topics=["cars"],
-            sibling_links=[SiblingLink(sibling_id="b", shared_tags=["cars"])],
+            sibling_links=[SiblingLink(sibling_id="b", correlation_score=55)],
             conversation_id="conv-1",
         )
         peer = _build_node(
             "b",
             project_id,
             topics=["cars"],
-            sibling_links=[SiblingLink(sibling_id="a", shared_tags=["cars"])],
+            sibling_links=[SiblingLink(sibling_id="a", correlation_score=55)],
         )
 
         mock_repository.get_by_id = AsyncMock(return_value=node)
@@ -204,14 +248,14 @@ class TestContextTreeService:
 
         assert normalized == ["racing", "cars"]
 
-    def test_get_link_map_ignores_invalid_or_empty_links(self, service):
+    def test_get_link_map_ignores_invalid_or_low_score_links(self, service):
         node = _build_node(
             "n1",
             "p1",
             sibling_links=[
-                SiblingLink(sibling_id="n2", shared_tags=[]),
-                SiblingLink(sibling_id="", shared_tags=["cars"]),
-                SiblingLink(sibling_id="n3", shared_tags=["cars", "cars"]),
+                SiblingLink(sibling_id="n2", correlation_score=0),
+                SiblingLink(sibling_id="", correlation_score=85),
+                SiblingLink(sibling_id="n3", correlation_score=72),
             ],
         )
 
@@ -219,24 +263,24 @@ class TestContextTreeService:
 
         assert "n2" not in link_map
         assert "" not in link_map
-        assert link_map["n3"] == {"cars"}
+        assert link_map["n3"] == 72
 
     @pytest.mark.asyncio
-    async def test_recompute_prunes_stale_links_with_no_shared_tags(
+    async def test_recompute_prunes_stale_links_with_low_or_zero_correlation(
         self, service, mock_repository
     ):
         project_id = "project-1"
         node_a = _build_node(
             "a",
             project_id,
-            topics=["cars"],
-            sibling_links=[SiblingLink(sibling_id="b", shared_tags=["cars"])],
+            sibling_links=[SiblingLink(sibling_id="b", correlation_score=55)],
+            summary="tiny",
         )
         node_b = _build_node(
             "b",
             project_id,
-            topics=["running"],
-            sibling_links=[SiblingLink(sibling_id="a", shared_tags=["cars"])],
+            sibling_links=[SiblingLink(sibling_id="a", correlation_score=55)],
+            summary="short",
         )
 
         mock_repository.list_by_project = AsyncMock(return_value=[node_a, node_b])

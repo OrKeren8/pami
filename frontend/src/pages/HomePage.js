@@ -969,13 +969,12 @@ const HomePage = () => {
             idToEl[id] = el;
         });
 
-        const getStrokeWidthForStrength = (tagCount) => {
-            if (!tagCount || tagCount <= 0) return 0;
-            if (tagCount === 1) return 1;
-            if (tagCount <= 3) return 2;
-            if (tagCount <= 8) return 3;
-            if (tagCount <= 20) return 4;
-            return 5;
+        const getStrokeWidthForCorrelation = (score) => {
+            const correlation = Number(score || 0);
+            if (correlation < 30) return 0;
+            if (correlation >= 100) return 4;
+            const normalized = (correlation - 30) / 70;
+            return Number((1.2 + normalized * 2.8).toFixed(2));
         };
 
         const containerRect = container.getBoundingClientRect();
@@ -1004,10 +1003,9 @@ const HomePage = () => {
 
                 (node.sibling_links || []).forEach((link) => {
                     const targetId = String(link?.sibling_id || "");
-                    const sharedTags = Array.isArray(link?.shared_tags) ? link.shared_tags : [];
-                    const strength = sharedTags.length;
+                    const correlationScore = Number(link?.correlation_score || 0);
 
-                    if (!targetId || targetId === sourceId || strength <= 0) return;
+                    if (!targetId || targetId === sourceId || correlationScore < 30) return;
 
                     const pairKey = [sourceId, targetId].sort().join('::');
                     if (drawnPairs.has(pairKey)) return;
@@ -1033,13 +1031,13 @@ const HomePage = () => {
                     const d = `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
                     path.setAttribute('d', d);
                     path.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--connector-color') || '#d1d9e2');
-                    path.setAttribute('stroke-width', `${getStrokeWidthForStrength(strength)}`);
+                    path.setAttribute('stroke-width', `${getStrokeWidthForCorrelation(correlationScore)}`);
                     path.setAttribute('fill', 'none');
                     path.setAttribute('stroke-linecap', 'round');
                     path.setAttribute('opacity', '0.85');
 
                     const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-                    title.textContent = `${strength} shared tags: ${sharedTags.join(', ')}`;
+                    title.textContent = `Correlation score: ${Math.round(correlationScore)}/100`;
                     path.appendChild(title);
 
                     svg.appendChild(path);

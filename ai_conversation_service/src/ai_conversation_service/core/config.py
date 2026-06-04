@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
     aws_session_token: str = ""
+    aws_s3_bucket_name: str = ""
 
     # API root path (useful for tests and deployments). Leave empty string for no prefix.
     api_root: str = ""

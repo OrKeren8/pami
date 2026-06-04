@@ -2,7 +2,9 @@ from typing import Dict, Iterable, List, Optional, Set
 from datetime import datetime
 from loguru import logger
 import aiohttp
+import re
 import traceback
+from difflib import SequenceMatcher
 
 from projects_service.data.context_tree_repository import ContextTreeRepository
 from projects_service.models.context_tree import ContextTreeNode, SiblingLink
@@ -20,28 +22,114 @@ class AIOrganizationError(Exception):
 
 
 class ContextTreeService:
-    """Service for weighted sibling-link graph business logic."""
+    """Service for sibling-link graph business logic based on summary similarity."""
+
+    _MIN_CORRELATION_SCORE = 30
+    _MIN_SUMMARY_CHAR_LEN = 30
+    _MIN_SUMMARY_TOKEN_COUNT = 5
+
+    _TOPIC_STOPWORDS = {
+        "about",
+        "also",
+        "and",
+        "are",
+        "been",
+        "between",
+        "for",
+        "from",
+        "have",
+        "just",
+        "like",
+        "more",
+        "node",
+        "project",
+        "that",
+        "the",
+        "this",
+        "with",
+        "your",
+    }
 
     def __init__(self, context_tree_repository: ContextTreeRepository):
         self._logger = logger.bind(service="ContextTreeService")
         self._context_tree_repository = context_tree_repository
 
     @staticmethod
+    def _ai_base_url() -> str:
+        raw = str(getattr(settings, "ai_service_url", "") or "").rstrip("/")
+        if raw.endswith("/ai"):
+            return raw
+        return f"{raw}/ai"
+
+    @staticmethod
     def _node_id(node: ContextTreeNode) -> str:
         return str(getattr(node, "id"))
 
     @staticmethod
-    def _to_str_set(values: Optional[Iterable[str]]) -> Set[str]:
-        if not values:
-            return set()
-        result = set()
-        for value in values:
-            if value is None:
-                continue
-            text = str(value).strip()
-            if text:
-                result.add(text)
-        return result
+    def _clamp_score(score: int) -> int:
+        return max(0, min(100, int(score)))
+
+    def _summary_tokens(self, text: Optional[str]) -> List[str]:
+        if not text:
+            return []
+        return re.findall(r"[A-Za-z][A-Za-z0-9]{2,}", text.lower())
+
+    def _has_meaningful_summary(self, text: Optional[str]) -> bool:
+        if not text:
+            return False
+        if len(text.strip()) < self._MIN_SUMMARY_CHAR_LEN:
+            return False
+        return len(self._summary_tokens(text)) >= self._MIN_SUMMARY_TOKEN_COUNT
+
+    def _summary_similarity_score(
+        self,
+        left_summary: Optional[str],
+        right_summary: Optional[str],
+    ) -> int:
+        if not self._has_meaningful_summary(left_summary):
+            return 0
+        if not self._has_meaningful_summary(right_summary):
+            return 0
+
+        left_tokens = [
+            t for t in self._summary_tokens(left_summary) if t not in self._TOPIC_STOPWORDS
+        ]
+        right_tokens = [
+            t
+            for t in self._summary_tokens(right_summary)
+            if t not in self._TOPIC_STOPWORDS
+        ]
+        if not left_tokens or not right_tokens:
+            return 0
+
+        left_set = set(left_tokens)
+        right_set = set(right_tokens)
+        union = left_set.union(right_set)
+        if not union:
+            return 0
+
+        token_jaccard = len(left_set.intersection(right_set)) / len(union)
+
+        left_bigrams = set(zip(left_tokens, left_tokens[1:]))
+        right_bigrams = set(zip(right_tokens, right_tokens[1:]))
+        if left_bigrams and right_bigrams:
+            bigram_union = left_bigrams.union(right_bigrams)
+            bigram_overlap = (
+                len(left_bigrams.intersection(right_bigrams)) / len(bigram_union)
+                if bigram_union
+                else 0.0
+            )
+        else:
+            bigram_overlap = 0.0
+
+        sequence_ratio = SequenceMatcher(
+            None,
+            " ".join(left_tokens),
+            " ".join(right_tokens),
+        ).ratio()
+
+        weighted = (token_jaccard * 0.55) + (bigram_overlap * 0.25) + (sequence_ratio * 0.20)
+        return self._clamp_score(round(weighted * 100))
 
     def _normalize_topics(self, topics: Optional[Iterable[str]]) -> List[str]:
         seen = set()
@@ -54,46 +142,70 @@ class ContextTreeService:
             normalized.append(token)
         return normalized
 
-    @staticmethod
-    def _extract_link_ids(raw_links: Optional[Iterable]) -> Set[str]:
-        ids: Set[str] = set()
-        for link in raw_links or []:
-            if isinstance(link, dict):
-                sibling_id = link.get("sibling_id")
-            else:
-                sibling_id = getattr(link, "sibling_id", None)
-            if sibling_id:
-                ids.add(str(sibling_id))
-        return ids
+    def _infer_topics(
+        self,
+        header: Optional[str],
+        summary: Optional[str],
+        messages: Optional[List[dict]],
+    ) -> List[str]:
+        """Fallback tag extraction when explicit/AI topics are not yet available."""
+        text_parts: List[str] = []
+        if header:
+            text_parts.append(header)
+        if summary:
+            text_parts.append(summary)
+        for msg in messages or []:
+            content = msg.get("content") if isinstance(msg, dict) else None
+            if content:
+                text_parts.append(str(content))
 
-    def _get_link_map(self, node: ContextTreeNode) -> Dict[str, Set[str]]:
-        link_map: Dict[str, Set[str]] = {}
+        tokens = re.findall(r"[A-Za-z][A-Za-z0-9]{2,}", " ".join(text_parts).lower())
+        inferred: List[str] = []
+        seen = set()
+        for token in tokens:
+            if token in self._TOPIC_STOPWORDS:
+                continue
+            if token in seen:
+                continue
+            seen.add(token)
+            inferred.append(token)
+            if len(inferred) >= 10:
+                break
+        return inferred
+
+    def _get_link_map(self, node: ContextTreeNode) -> Dict[str, int]:
+        link_map: Dict[str, int] = {}
         for link in getattr(node, "sibling_links", []) or []:
             sibling_id = str(getattr(link, "sibling_id", "")).strip()
             if not sibling_id:
                 continue
-            shared_tags = self._to_str_set(getattr(link, "shared_tags", []))
-            if shared_tags:
-                link_map[sibling_id] = shared_tags
+            score = getattr(link, "correlation_score", None)
+            if score is None and isinstance(link, dict):
+                score = link.get("correlation_score")
+
+            # Backward compatibility for old docs persisted as shared_tags.
+            if score is None:
+                tags = getattr(link, "shared_tags", None)
+                if tags is None and isinstance(link, dict):
+                    tags = link.get("shared_tags")
+                if isinstance(tags, list):
+                    score = min(100, len(tags) * 20)
+
+            if score is None:
+                continue
+            score = self._clamp_score(score)
+            if score >= self._MIN_CORRELATION_SCORE:
+                link_map[sibling_id] = score
         return link_map
 
-    def _serialize_link_map(self, link_map: Dict[str, Set[str]]) -> List[SiblingLink]:
+    def _serialize_link_map(self, link_map: Dict[str, int]) -> List[SiblingLink]:
         serialized = []
         for sibling_id in sorted(link_map.keys()):
-            tags = sorted(self._normalize_topics(link_map[sibling_id]))
-            if not tags:
+            score = self._clamp_score(link_map[sibling_id])
+            if score < self._MIN_CORRELATION_SCORE:
                 continue
-            serialized.append(SiblingLink(sibling_id=sibling_id, shared_tags=tags))
+            serialized.append(SiblingLink(sibling_id=sibling_id, correlation_score=score))
         return serialized
-
-    def _shared_tags(
-        self,
-        left_topics: Optional[Iterable[str]],
-        right_topics: Optional[Iterable[str]],
-    ) -> Set[str]:
-        left = set(self._normalize_topics(left_topics))
-        right = set(self._normalize_topics(right_topics))
-        return left.intersection(right)
 
     async def _persist_node_fields(self, node: ContextTreeNode, fields: dict) -> None:
         try:
@@ -107,12 +219,8 @@ class ContextTreeService:
         self,
         project_id: str,
         node_id: str,
-        include_peer_ids: Optional[Set[str]] = None,
     ) -> None:
-        """Recompute weighted sibling links from shared tags and enforce symmetry.
-
-        Strength is represented by len(shared_tags). Links with zero shared tags are removed.
-        """
+        """Recompute sibling links from summary correlation and enforce symmetry."""
         all_nodes = await self._context_tree_repository.list_by_project(project_id)
         node_by_id = {self._node_id(n): n for n in all_nodes}
         source = node_by_id.get(str(node_id))
@@ -120,32 +228,19 @@ class ContextTreeService:
             return
 
         source_id = self._node_id(source)
-        source_topics = self._normalize_topics(getattr(source, "topics", []))
-        include_peer_ids = include_peer_ids or set()
+        source_summary = getattr(source, "summary", None)
 
-        desired_source_map: Dict[str, Set[str]] = {}
+        desired_source_map: Dict[str, int] = {}
         for other in all_nodes:
             other_id = self._node_id(other)
             if other_id == source_id:
                 continue
-            shared = self._shared_tags(source_topics, getattr(other, "topics", []))
-            if shared:
-                desired_source_map[other_id] = shared
-
-        # Explicitly included peers are allowed as candidates, but still pruned
-        # if they end up with zero shared tags by design.
-        for peer_id in include_peer_ids:
-            if peer_id == source_id:
-                continue
-            if peer_id not in node_by_id:
-                continue
-            if peer_id in desired_source_map:
-                continue
-            shared = self._shared_tags(
-                source_topics, getattr(node_by_id[peer_id], "topics", [])
+            score = self._summary_similarity_score(
+                source_summary,
+                getattr(other, "summary", None),
             )
-            if shared:
-                desired_source_map[peer_id] = shared
+            if score >= self._MIN_CORRELATION_SCORE:
+                desired_source_map[other_id] = score
 
         old_source_map = self._get_link_map(source)
         if old_source_map != desired_source_map:
@@ -188,7 +283,7 @@ class ContextTreeService:
         response_links = [
             SiblingLinkPayload(
                 sibling_id=link.sibling_id,
-                shared_tags=self._normalize_topics(link.shared_tags),
+                correlation_score=self._clamp_score(link.correlation_score),
             )
             for link in self._serialize_link_map(self._get_link_map(node))
         ]
@@ -210,7 +305,7 @@ class ContextTreeService:
     async def create_node(
         self, project_id: str, request: CreateContextTreeNodeRequest
     ) -> ContextTreeNodeResponse:
-        """Create a node and compute weighted sibling links by shared AI tags."""
+        """Create a node and compute sibling links by summary correlation."""
         try:
             self._logger.debug(
                 f"create_node called: project_id={project_id} request={request.dict()}"
@@ -221,7 +316,6 @@ class ContextTreeService:
             )
 
         request_topics = self._normalize_topics(request.topics)
-        requested_peer_ids = self._extract_link_ids(getattr(request, "sibling_links", []))
 
         node = ContextTreeNode(
             sibling_links=[],
@@ -235,11 +329,10 @@ class ContextTreeService:
         created_node = await self._context_tree_repository.create(node)
         created_node_id = self._node_id(created_node)
 
-        # Compute initial weighted links only from available tags.
+        # Compute initial sibling links from summary correlation.
         await self._recompute_weighted_links_for_node(
             project_id=project_id,
             node_id=created_node_id,
-            include_peer_ids=requested_peer_ids,
         )
 
         req_conv = getattr(request, "conversation_id", None)
@@ -295,7 +388,7 @@ class ContextTreeService:
                     )
                     async with aiohttp.ClientSession() as session:
                         seed_url = (
-                            f"{settings.ai_service_url}/ai-conversations/"
+                            f"{self._ai_base_url()}/ai-conversations/"
                             f"{conversation_id}/messages"
                         )
                         seed_payload = {
@@ -333,7 +426,7 @@ class ContextTreeService:
     ) -> Optional[str]:
         """Create an AI conversation for a context node."""
         try:
-            url = f"{settings.ai_service_url}/ai-conversations/"
+            url = f"{self._ai_base_url()}/ai-conversations/"
             payload = {
                 "context_node_id": context_node_id,
                 "project_id": project_id,
@@ -385,7 +478,7 @@ class ContextTreeService:
             ]
 
             async with aiohttp.ClientSession() as session:
-                url = f"{settings.ai_service_url}/tree-analysis/organize-node"
+                url = f"{self._ai_base_url()}/tree-analysis/organize-node"
                 payload = {
                     "node_id": self._node_id(node),
                     "conversation_id": conversation_id,
@@ -424,15 +517,9 @@ class ContextTreeService:
                             },
                         )
 
-                        suggested_ids = self._to_str_set(
-                            ai_suggestion.get("suggested_sibling_ids", [])
-                        )
-                        suggested_ids.discard(self._node_id(node))
-
                         await self._recompute_weighted_links_for_node(
                             project_id=project_id,
                             node_id=self._node_id(node),
-                            include_peer_ids=suggested_ids,
                         )
                     else:
                         self._logger.error(
@@ -462,18 +549,17 @@ class ContextTreeService:
     async def update_node(
         self, node_id: str, request: UpdateContextTreeNodeRequest
     ) -> Optional[ContextTreeNodeResponse]:
-        """Update node metadata and recompute weighted sibling links."""
+        """Update node metadata and recompute sibling links by summary correlation."""
         existing = await self._context_tree_repository.get_by_id(node_id)
         if not existing:
             return None
 
         update_data = request.dict(exclude_unset=True)
-        manual_link_ids = self._extract_link_ids(update_data.get("sibling_links", []))
 
         if "topics" in update_data and update_data["topics"] is not None:
             update_data["topics"] = self._normalize_topics(update_data["topics"])
 
-        # Link weights are derived from shared tags; direct link payload is not persisted verbatim.
+        # Link weights are derived from summary correlation; direct link payload is not persisted verbatim.
         update_data.pop("sibling_links", None)
 
         update_data["updated_at"] = datetime.utcnow()
@@ -484,7 +570,6 @@ class ContextTreeService:
         await self._recompute_weighted_links_for_node(
             project_id=str(getattr(node, "project_id")),
             node_id=str(node_id),
-            include_peer_ids=manual_link_ids,
         )
 
         refreshed = await self._context_tree_repository.get_by_id(str(node_id))
@@ -536,7 +621,7 @@ class ContextTreeService:
     async def _delete_ai_conversation(self, conversation_id: str) -> bool:
         """Request AI service to delete a conversation by id."""
         try:
-            url = f"{settings.ai_service_url}/ai-conversations/{conversation_id}"
+            url = f"{self._ai_base_url()}/ai-conversations/{conversation_id}"
             async with aiohttp.ClientSession() as session:
                 async with session.delete(url) as response:
                     status = response.status

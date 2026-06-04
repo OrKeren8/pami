@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 class SiblingLink(BaseModel):
     sibling_id: str
-    shared_tags: List[str] = Field(default_factory=list)
+    correlation_score: int = Field(default=0, ge=0, le=100)
 
 
 class ContextTreeNode(Document):

@@ -40,7 +40,10 @@ class AIConversationService:
 
         # Initialize S3 client
         self.s3_client = None
-        self.bucket_name = f"pami-ai-conversations-{settings.aws_region}"
+        self.bucket_name = (
+            settings.aws_s3_bucket_name
+            or f"pami-ai-conversations-{settings.aws_region}"
+        )
         try:
             # Use IAM role credentials when running on ECS (credentials will be None)
             # Use explicit credentials only when provided (for local development)
@@ -66,6 +69,7 @@ class AIConversationService:
             self._logger.info("S3 client initialized successfully")
         except Exception as e:
             self._logger.error(f"Failed to initialize S3 client: {e}")
+            self.s3_client = None
 
         if self.openai_client and self.s3_client:
             self._logger.info("AI Conversation Service initialized successfully")

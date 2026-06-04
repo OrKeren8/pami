@@ -75,7 +75,7 @@ def _make_test_client(monkeypatch):
     return TestClient(app)
 
 
-def test_context_tree_full_flow_with_weighted_links(monkeypatch):
+def test_context_tree_full_flow_with_summary_correlation_links(monkeypatch):
     client = _make_test_client(monkeypatch)
     project_id = "proj-e2e"
 
@@ -83,7 +83,7 @@ def test_context_tree_full_flow_with_weighted_links(monkeypatch):
         f"/context-tree/projects/{project_id}/nodes",
         json={
             "header": "Racing cars",
-            "summary": "Cars for racing rentals",
+            "summary": "Racing car rental platform with booking workflow, premium vehicles, and performance package options.",
             "topics": ["racing", "cars", "rentals"],
             "node_type": "conversation",
             "conversation_id": "conv-a",
@@ -96,7 +96,7 @@ def test_context_tree_full_flow_with_weighted_links(monkeypatch):
         f"/context-tree/projects/{project_id}/nodes",
         json={
             "header": "Race runners",
-            "summary": "Running competition",
+            "summary": "Running fitness coaching plans for marathon training, hydration strategy, and athlete progress tracking.",
             "topics": ["racing", "running"],
             "node_type": "conversation",
             "conversation_id": "conv-b",
@@ -109,7 +109,7 @@ def test_context_tree_full_flow_with_weighted_links(monkeypatch):
         f"/context-tree/projects/{project_id}/nodes",
         json={
             "header": "Premium racing rentals",
-            "summary": "High-end cars for racing rentals",
+            "summary": "Premium racing car rentals featuring performance vehicles, booking flows, and track session packages.",
             "topics": ["racing", "cars", "rentals", "luxury"],
             "node_type": "conversation",
             "conversation_id": "conv-c",
@@ -120,15 +120,11 @@ def test_context_tree_full_flow_with_weighted_links(monkeypatch):
 
     node_a = client.get(f"/context-tree/nodes/{node_a_id}")
     assert node_a.status_code == 200
-    links_a = {
-        link["sibling_id"]: set(link["shared_tags"])
-        for link in node_a.json()["sibling_links"]
-    }
+    links_a = {link["sibling_id"]: link["correlation_score"] for link in node_a.json()["sibling_links"]}
 
-    assert node_b_id in links_a
     assert node_c_id in links_a
-    assert links_a[node_b_id] == {"racing"}
-    assert links_a[node_c_id] == {"cars", "racing", "rentals"}
+    assert links_a[node_c_id] >= 30
+    assert node_b_id not in links_a
 
     listed = client.get(f"/context-tree/projects/{project_id}/nodes")
     assert listed.status_code == 200
@@ -136,17 +132,20 @@ def test_context_tree_full_flow_with_weighted_links(monkeypatch):
 
     updated = client.put(
         f"/context-tree/nodes/{node_b_id}",
-        json={"topics": ["running", "fitness"]},
+        json={
+            "summary": "Racing car rental platform with premium vehicle booking workflow and performance track package management."
+        },
     )
     assert updated.status_code == 200
 
     node_a_after_update = client.get(f"/context-tree/nodes/{node_a_id}")
     assert node_a_after_update.status_code == 200
     links_after_update = {
-        link["sibling_id"]: set(link["shared_tags"])
+        link["sibling_id"]: link["correlation_score"]
         for link in node_a_after_update.json()["sibling_links"]
     }
-    assert node_b_id not in links_after_update
+    assert node_b_id in links_after_update
+    assert links_after_update[node_b_id] >= 30
     assert node_c_id in links_after_update
 
     deleted = client.delete(f"/context-tree/nodes/{node_c_id}")
