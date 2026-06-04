@@ -959,8 +959,28 @@ html, body, #root {
 }
 
 .tree-svg-overlay path {
-  stroke: rgba(214, 95, 159, 0.26);
-  stroke-width: 2.25;
+  vector-effect: non-scaling-stroke;
+  transition: stroke-width 160ms ease, opacity 160ms ease;
+}
+
+/* Keep correlation lines behind node cards regardless of transforms/stacking contexts. */
+.hierarchical-tree-container .tree-svg-overlay {
+  z-index: 0 !important;
+}
+
+.hierarchical-tree-container .tree-zoom-layer {
+  position: relative;
+  z-index: 2;
+}
+
+.hierarchical-tree-container .tree-node-wrapper {
+  position: relative;
+  z-index: 3;
+}
+
+.hierarchical-tree-container .neural-node-v2 {
+  position: relative;
+  z-index: 4;
 }
 
 .integrations-fixed-container {

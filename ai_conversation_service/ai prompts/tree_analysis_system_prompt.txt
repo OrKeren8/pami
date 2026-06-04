@@ -47,3 +47,15 @@ Scoring policy:
 - Use the full range with realistic separation.
 - You must score every node from CURRENT PROJECT GRAPH and include each ID exactly once.
 - Projects service will create links only for scores >= 30.
+
+Calibration guidance (important):
+- Be slightly generous, not overly strict, when two nodes share the same product/domain context.
+- Do not over-penalize differences in function (e.g., technical vs marketing vs storytelling) if they refer to the same project theme.
+- Keep clearly unrelated topics low, but for same-project thematic overlap prefer moderate scores.
+- Suggested bands:
+	- 0-15: unrelated topics/domains
+	- 16-29: weak relation, mostly incidental overlap
+	- 30-45: same project/domain with different function
+	- 46-65: clear practical overlap or dependency
+	- 66-85: strong overlap in goals/content
+	- 86-100: near-duplicate intent

@@ -972,9 +972,17 @@ const HomePage = () => {
         const getStrokeWidthForCorrelation = (score) => {
             const correlation = Number(score || 0);
             if (correlation < 30) return 0;
-            if (correlation >= 100) return 4;
+            if (correlation >= 100) return 8.0;
             const normalized = (correlation - 30) / 70;
-            return Number((1.2 + normalized * 2.8).toFixed(2));
+            return Number((1.0 + normalized * 7.0).toFixed(2));
+        };
+
+        const getStrokeOpacityForCorrelation = (score) => {
+            const correlation = Number(score || 0);
+            if (correlation < 30) return 0;
+            if (correlation >= 100) return 1;
+            const normalized = (correlation - 30) / 70;
+            return Number((0.18 + normalized * 0.82).toFixed(2));
         };
 
         const containerRect = container.getBoundingClientRect();
@@ -985,8 +993,8 @@ const HomePage = () => {
         svg.setAttribute('width', `${vw}`);
         svg.setAttribute('height', `${vh}`);
 
-        const drawnPairs = new Set();
         const projectsNodeLists = Object.values(contextNodesMap || {});
+        const pairToBest = new Map();
 
         projectsNodeLists.forEach((projectNodes) => {
             (projectNodes || []).forEach((node) => {
@@ -1008,8 +1016,6 @@ const HomePage = () => {
                     if (!targetId || targetId === sourceId || correlationScore < 30) return;
 
                     const pairKey = [sourceId, targetId].sort().join('::');
-                    if (drawnPairs.has(pairKey)) return;
-
                     const targetEl = idToEl[targetId];
                     if (!targetEl) return;
 
@@ -1018,32 +1024,46 @@ const HomePage = () => {
                     const endX = targetRect.left + targetRect.width / 2 - containerRect.left;
                     const endY = targetRect.top + targetRect.height / 2 - containerRect.top;
 
-                    const dx = endX - startX;
-                    const dy = endY - startY;
-                    const distance = Math.hypot(dx, dy) || 1;
-                    const normalX = -dy / distance;
-                    const normalY = dx / distance;
-                    const bow = Math.min(48, Math.max(18, distance * 0.08));
-                    const controlX = (startX + endX) / 2 + normalX * bow;
-                    const controlY = (startY + endY) / 2 + normalY * bow;
-
-                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    const d = `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
-                    path.setAttribute('d', d);
-                    path.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--connector-color') || '#d1d9e2');
-                    path.setAttribute('stroke-width', `${getStrokeWidthForCorrelation(correlationScore)}`);
-                    path.setAttribute('fill', 'none');
-                    path.setAttribute('stroke-linecap', 'round');
-                    path.setAttribute('opacity', '0.85');
-
-                    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-                    title.textContent = `Correlation score: ${Math.round(correlationScore)}/100`;
-                    path.appendChild(title);
-
-                    svg.appendChild(path);
-                    drawnPairs.add(pairKey);
+                    const prev = pairToBest.get(pairKey);
+                    if (!prev || correlationScore > prev.correlationScore) {
+                        pairToBest.set(pairKey, {
+                            sourceId,
+                            targetId,
+                            startX,
+                            startY,
+                            endX,
+                            endY,
+                            correlationScore,
+                        });
+                    }
                 });
             });
+        });
+
+        pairToBest.forEach(({ startX, startY, endX, endY, correlationScore }) => {
+            const dx = endX - startX;
+            const dy = endY - startY;
+            const distance = Math.hypot(dx, dy) || 1;
+            const normalX = -dy / distance;
+            const normalY = dx / distance;
+            const bow = Math.min(48, Math.max(18, distance * 0.08));
+            const controlX = (startX + endX) / 2 + normalX * bow;
+            const controlY = (startY + endY) / 2 + normalY * bow;
+
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const d = `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
+            path.setAttribute('d', d);
+            path.setAttribute('stroke', '#9ca3af');
+            path.setAttribute('stroke-width', `${getStrokeWidthForCorrelation(correlationScore)}`);
+            path.setAttribute('fill', 'none');
+            path.setAttribute('stroke-linecap', 'round');
+            path.setAttribute('opacity', `${getStrokeOpacityForCorrelation(correlationScore)}`);
+
+            const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+            title.textContent = `Correlation score: ${Math.round(correlationScore)}/100`;
+            path.appendChild(title);
+
+            svg.appendChild(path);
         });
     };
 
@@ -1749,8 +1769,8 @@ const HomePage = () => {
                                 ) : realProjects.length > 0 ? (
                                     <div ref={treeContainerRef} className="hierarchical-tree-container" style={{ position: "relative" }}>
                                         <div className="tree-zoom-indicator">{Math.round(treeZoom * 100)}%</div>
-                                        <svg className="tree-svg-overlay" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 5 }} />
-                                        <div className="tree-zoom-layer" style={{ transform: `translate(${treePan.x}px, ${treePan.y}px) scale(${treeZoom})`, transformOrigin: "top center" }}>
+                                        <svg className="tree-svg-overlay" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 1 }} />
+                                        <div className="tree-zoom-layer" style={{ position: "relative", zIndex: 3, transform: `translate(${treePan.x}px, ${treePan.y}px) scale(${treeZoom})`, transformOrigin: "top center" }}>
                                             {renderTree(getTreeStructure())}
                                         </div>
                                     </div>
