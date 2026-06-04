@@ -11,9 +11,8 @@ from ai_conversation_service.core.config import settings
 from ai_conversation_service.core.prompt_loader import load_prompt_file
 
 TREE_ANALYSIS_SYSTEM_PROMPT = load_prompt_file("tree_analysis_system_prompt.txt")
-TREE_ANALYSIS_USER_PROMPT_TEMPLATE = load_prompt_file(
-    "tree_analysis_user_prompt.txt"
-)
+TREE_ANALYSIS_USER_PROMPT_TEMPLATE = load_prompt_file("tree_analysis_user_prompt.txt")
+
 
 class TreeAnalysisService:
     """Service for AI-powered tree organization and node placement."""
@@ -166,4 +165,3 @@ class TreeAnalysisService:
             )
 
         return "\n".join(lines)
-

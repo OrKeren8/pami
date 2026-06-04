@@ -16,8 +16,9 @@ from ai_conversation_service.models.ai_conversation import (
     ConversationMessage,
 )
 
-
-CONVERSATION_CHAT_SYSTEM_PROMPT = load_prompt_file("conversation_chat_system_prompt.txt")
+CONVERSATION_CHAT_SYSTEM_PROMPT = load_prompt_file(
+    "conversation_chat_system_prompt.txt"
+)
 CONVERSATION_CHAT_USER_PROMPT_TEMPLATE = load_prompt_file(
     "conversation_chat_user_prompt.txt"
 )
