@@ -1,4 +1,3 @@
-from typing import Optional
 from loguru import logger
 from openai import AsyncOpenAI
 import json
@@ -9,35 +8,12 @@ from ai_conversation_service.schemas.tree_analysis_schemas import (
     TreeNodeData,
 )
 from ai_conversation_service.core.config import settings
-import re
+from ai_conversation_service.core.prompt_loader import load_prompt_file
 
-# Patterns considered overly generic for headers (lowercase, partial match)
-_GENERIC_HEADER_PATTERNS = [
-    r"^an informative overview$",
-    r"^an informative overview about",
-    r"^an overview$",
-    r"^an overview about",
-    r"^summary",
-    r"^an informative summary",
-    r"^introduction",
-]
-
-_STOPWORDS = {
-    "about",
-    "the",
-    "and",
-    "of",
-    "an",
-    "a",
-    "to",
-    "for",
-    "in",
-    "on",
-    "with",
-    "by",
-    "from",
-}
-
+TREE_ANALYSIS_SYSTEM_PROMPT = load_prompt_file("tree_analysis_system_prompt.txt")
+TREE_ANALYSIS_USER_PROMPT_TEMPLATE = load_prompt_file(
+    "tree_analysis_user_prompt.txt"
+)
 
 class TreeAnalysisService:
     """Service for AI-powered tree organization and node placement."""
@@ -88,41 +64,13 @@ class TreeAnalysisService:
         except Exception:
             self._logger.debug("conversation_history: <unserializable>")
 
-        # Create AI prompt
-        system_prompt = """You are an expert project management AI that organizes project nodes into a sibling-linked knowledge graph.
-
-Your task:
-1. Read the conversation about a project node
-2. Analyze the existing project node graph
-3. Determine which existing nodes should be linked as siblings based on:
-    - Content and purpose discussed in the conversation
-    - Thematic similarity with existing nodes
-    - Complementary scope and relation
-4. Generate a clear summary of the node (1-3 sentences)
-5. Extract relevant topics/tags
-6. Propose a concise header (title) for the node: *exactly* 3 to 5 words, focus on the concrete subject/topic (e.g., use "Birds overview" not "An Informative Overview").
-   - Prefer noun phrases and specific domain words (e.g., "Birds overview", "User auth flow", "Data ingestion pipeline").
-   - Avoid generic lead-in phrases like "An Informative Overview", "Summary of", "Overview of", "Introduction to".
-   - If multiple concise options exist, pick the most specific and informative.
-
-Return your analysis as JSON with these fields:
-- suggested_sibling_ids: Array of node IDs that should be linked as siblings
-- header: A concise title (3-5 words)
-- summary: A concise summary of what this node is about
-- topics: Array of relevant topic tags
-- reasoning: Brief explanation of your link decision"""
-
-        user_prompt = f"""Analyze this new project node and suggest its organization:
-
-NODE ID: {request.node_id}
-
-CONVERSATION ABOUT THIS NODE:
-{conversation_history}
-
-CURRENT PROJECT GRAPH:
-{tree_context}
-
-Suggest which nodes should be linked as siblings, provide a summary, extract topics, and explain your reasoning."""
+        # Create AI prompts from external prompt files.
+        system_prompt = TREE_ANALYSIS_SYSTEM_PROMPT
+        user_prompt = TREE_ANALYSIS_USER_PROMPT_TEMPLATE.format(
+            node_id=request.node_id,
+            conversation_history=conversation_history,
+            tree_context=tree_context,
+        )
 
         try:
             # Call OpenAI
@@ -152,20 +100,32 @@ Suggest which nodes should be linked as siblings, provide a summary, extract top
             raw_content = response.choices[0].message.content or "{}"
             ai_response = json.loads(raw_content)
 
-            header = ai_response.get("header")
-            summary = ai_response.get("summary", "")
+            header = str(ai_response.get("header") or "").strip()
+            summary = str(ai_response.get("summary") or "").strip()
+            topics = ai_response.get("topics")
 
-            # Fallback heuristics: if model returns a missing or overly generic header,
-            # synthesize a concise, concrete 3-5 word header from the summary or conversation.
-            if not header or self._is_generic_header(header):
-                header = self._generate_header(conversation_history, summary)
+            if not header:
+                raise ValueError("AI organization missing required field: header")
+            header_word_count = len(header.split())
+            if header_word_count < 3 or header_word_count > 5:
+                raise ValueError(
+                    f"AI organization header must contain 3-5 words, got {header_word_count}: '{header}'"
+                )
+
+            if not summary or len(summary) < 40:
+                raise ValueError(
+                    "AI organization summary is missing or too short (minimum 40 chars required)"
+                )
+
+            if not isinstance(topics, list) or not topics:
+                raise ValueError("AI organization missing required non-empty topics")
 
             return NodeOrganizationResponse(
                 node_id=request.node_id,
                 suggested_sibling_ids=ai_response.get("suggested_sibling_ids", []),
                 header=header,
                 summary=summary,
-                topics=ai_response.get("topics", []),
+                topics=topics,
                 reasoning=ai_response.get("reasoning", ""),
             )
 
@@ -207,67 +167,3 @@ Suggest which nodes should be linked as siblings, provide a summary, extract top
 
         return "\n".join(lines)
 
-    def _is_generic_header(self, header: Optional[str]) -> bool:
-        """Return True if the header looks generic or uninformative."""
-        if not header:
-            return True
-        h = re.sub(r"[^a-z0-9 ]", "", header.lower()).strip()
-        for p in _GENERIC_HEADER_PATTERNS:
-            if re.search(p, h):
-                return True
-        # If header contains one of these generic tokens and is short, treat as generic
-        if any(
-            tok in h for tok in ("overview", "informative", "summary", "introduction")
-        ):
-            if len(h.split()) <= 4:
-                return True
-        return False
-
-    def _generate_header(self, conversation_history: str, summary: str) -> str:
-        """Generate a 3-5 word concise header from summary or conversation text.
-
-        Strategy:
-        - Prefer to extract noun-phrases by simple heuristics: pick meaningful words,
-          drop stopwords, preserve original order, and title-case the result.
-        - Ensure result has at least 3 words; if not, append most common domain words.
-        - Limit to 5 words.
-        """
-        text = ((summary or "") + " " + (conversation_history or "")).strip()
-        # remove role prefixes and punctuation
-        text = re.sub(r"\b(user|assistant|system):", "", text, flags=re.I)
-        # Tokenize into words
-        words = re.findall(r"[A-Za-z0-9]+", text)
-        # Filter short words and stopwords
-        words = [w for w in words if len(w) > 2 and w.lower() not in _STOPWORDS]
-        if not words:
-            return "Miscellaneous Topic"
-
-        # Preserve first occurrences up to 5 meaningful words
-        selected = []
-        seen = set()
-        for w in words:
-            lw = w.lower()
-            if lw in seen:
-                continue
-            seen.add(lw)
-            selected.append(w)
-            if len(selected) >= 5:
-                break
-
-        header = " ".join(selected[:5]).title()
-
-        # If too short (<3 words), append most common words from text
-        if len(header.split()) < 3:
-            from collections import Counter
-
-            ctr = Counter([w.lower() for w in words])
-            most = [w for w, _ in ctr.most_common() if w not in _STOPWORDS]
-            for w in most:
-                if w.title() not in header:
-                    header = (header + " " + w.title()).strip()
-                if len(header.split()) >= 3:
-                    break
-
-        # Ensure max 5 words
-        header = " ".join(header.split()[:5])
-        return header

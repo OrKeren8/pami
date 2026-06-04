@@ -1,0 +1,12 @@
+Analyze this new project node and suggest its organization.
+
+NODE ID:
+{node_id}
+
+CONVERSATION ABOUT THIS NODE:
+{conversation_history}
+
+CURRENT PROJECT GRAPH:
+{tree_context}
+
+Return the JSON object only.

@@ -507,11 +507,26 @@ class ContextTreeService:
                                 f"AI tree-analysis returned no suggestion for node {self._node_id(node)}"
                             )
 
-                        node.summary = ai_suggestion.get("summary", node.summary)
-                        node.topics = self._normalize_topics(
-                            ai_suggestion.get("topics", node.topics)
-                        )
-                        node.header = ai_suggestion.get("header", node.header)
+                        header = str(ai_suggestion.get("header") or "").strip()
+                        summary = str(ai_suggestion.get("summary") or "").strip()
+                        topics = ai_suggestion.get("topics")
+
+                        if not header:
+                            raise AIOrganizationError(
+                                f"AI tree-analysis missing header for node {self._node_id(node)}"
+                            )
+                        if not summary:
+                            raise AIOrganizationError(
+                                f"AI tree-analysis missing summary for node {self._node_id(node)}"
+                            )
+                        if not isinstance(topics, list) or not topics:
+                            raise AIOrganizationError(
+                                f"AI tree-analysis missing topics for node {self._node_id(node)}"
+                            )
+
+                        node.summary = summary
+                        node.topics = self._normalize_topics(topics)
+                        node.header = header
 
                         await self._persist_node_fields(
                             node,
