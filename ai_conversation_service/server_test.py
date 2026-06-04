@@ -6,8 +6,8 @@ Simple server test
 import subprocess
 import time
 import requests
-import json
-import sys
+
+BASE_URL = "http://127.0.0.1:8007/ai"
 
 
 def test_server():
@@ -37,7 +37,7 @@ def test_server():
         # Test 1: Create conversation
         print("Testing conversation creation...")
         response = requests.post(
-            "http://127.0.0.1:8007/ai-conversations/",
+            f"{BASE_URL}/ai-conversations/",
             json={
                 "context_node_id": "test-node-123",
                 "project_id": "test-project-456",
@@ -54,7 +54,7 @@ def test_server():
             # Test 2: Send message
             print("Testing message sending...")
             msg_response = requests.post(
-                f"http://127.0.0.1:8007/ai-conversations/{conversation_id}/messages",
+                f"{BASE_URL}/ai-conversations/{conversation_id}/messages",
                 json={
                     "message": "Hello! Test message.",
                     "context_snapshot": {"test": "data"},
@@ -66,12 +66,11 @@ def test_server():
                 msg_result = msg_response.json()
                 ai_response = msg_result.get("response", "")
                 print(f"✅ AI Response: {ai_response[:100]}...")
-                print("🎉 SUCCESS: Both S3 storage and AI are working!")
+                print("SUCCESS: Both S3 storage and AI are working!")
             else:
                 print(
                     f"❌ Message failed: {msg_response.status_code} - {msg_response.text}"
                 )
-
         else:
             print(
                 f"❌ Conversation creation failed: {response.status_code} - {response.text}"

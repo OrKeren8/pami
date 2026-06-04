@@ -66,11 +66,6 @@ app.add_middleware(
 app.include_router(ai_conversations_router, prefix="/ai")
 app.include_router(tree_analysis_router, prefix="/ai")
 
-# Backward-compatible alias: some local callers still use `/tree-analysis/...`
-# directly. Keep this mount to prevent 404s during rollout while `/ai/...`
-# remains the canonical path for deployed environments.
-app.include_router(tree_analysis_router)
-
 
 @app.get("/health")
 async def health_check():

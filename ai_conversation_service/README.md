@@ -38,11 +38,11 @@ conversations/{conversation_id}.json
 ### AI Conversations
 
 - `GET /health` - Health check for AI conversation service
-- `POST /ai-conversations/` - Create a new AI conversation for a context node
-- `POST /ai-conversations/{conversation_id}/messages` - Send a message and get AI response
-- `GET /ai-conversations/{conversation_id}` - Get conversation history
-- `GET /ai-conversations/node/{context_node_id}` - List all conversations for a context node
-- `DELETE /ai-conversations/{conversation_id}` - Delete a conversation
+- `POST /ai/ai-conversations/` - Create a new AI conversation for a context node
+- `POST /ai/ai-conversations/{conversation_id}/messages` - Send a message and get AI response
+- `GET /ai/ai-conversations/{conversation_id}` - Get conversation history
+- `GET /ai/ai-conversations/node/{context_node_id}` - List all conversations for a context node
+- `DELETE /ai/ai-conversations/{conversation_id}` - Delete a conversation
 
 ## Configuration
 
