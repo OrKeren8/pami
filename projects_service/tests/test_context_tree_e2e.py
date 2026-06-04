@@ -120,7 +120,10 @@ def test_context_tree_full_flow_with_summary_correlation_links(monkeypatch):
 
     node_a = client.get(f"/context-tree/nodes/{node_a_id}")
     assert node_a.status_code == 200
-    links_a = {link["sibling_id"]: link["correlation_score"] for link in node_a.json()["sibling_links"]}
+    links_a = {
+        link["sibling_id"]: link["correlation_score"]
+        for link in node_a.json()["sibling_links"]
+    }
 
     assert node_c_id in links_a
     assert links_a[node_c_id] >= 30

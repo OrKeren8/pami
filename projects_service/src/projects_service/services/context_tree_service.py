@@ -92,7 +92,9 @@ class ContextTreeService:
             return 0
 
         left_tokens = [
-            t for t in self._summary_tokens(left_summary) if t not in self._TOPIC_STOPWORDS
+            t
+            for t in self._summary_tokens(left_summary)
+            if t not in self._TOPIC_STOPWORDS
         ]
         right_tokens = [
             t
@@ -128,7 +130,9 @@ class ContextTreeService:
             " ".join(right_tokens),
         ).ratio()
 
-        weighted = (token_jaccard * 0.55) + (bigram_overlap * 0.25) + (sequence_ratio * 0.20)
+        weighted = (
+            (token_jaccard * 0.55) + (bigram_overlap * 0.25) + (sequence_ratio * 0.20)
+        )
         return self._clamp_score(round(weighted * 100))
 
     def _normalize_topics(self, topics: Optional[Iterable[str]]) -> List[str]:
@@ -204,7 +208,9 @@ class ContextTreeService:
             score = self._clamp_score(link_map[sibling_id])
             if score < self._MIN_CORRELATION_SCORE:
                 continue
-            serialized.append(SiblingLink(sibling_id=sibling_id, correlation_score=score))
+            serialized.append(
+                SiblingLink(sibling_id=sibling_id, correlation_score=score)
+            )
         return serialized
 
     async def _persist_node_fields(self, node: ContextTreeNode, fields: dict) -> None:
