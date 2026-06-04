@@ -119,7 +119,7 @@ class TestContextTreeService:
         service._ai_organize_node.assert_called()
 
     @pytest.mark.asyncio
-    async def test_recompute_correlation_links_is_symmetric(
+    async def test_recompute_ai_scored_links_is_symmetric(
         self, service, mock_repository
     ):
         project_id = "project-1"
@@ -149,20 +149,24 @@ class TestContextTreeService:
             return_value=[node_a, node_b, node_c]
         )
 
-        await service._recompute_weighted_links_for_node(project_id, "a")
+        await service._recompute_weighted_links_for_node(
+            project_id,
+            "a",
+            include_peer_scores={"c": 78, "b": 22},
+        )
 
         a_map = service._get_link_map(node_a)
         b_map = service._get_link_map(node_b)
         c_map = service._get_link_map(node_c)
 
         assert "c" in a_map
-        assert a_map["c"] >= 30
-        assert c_map["a"] == a_map["c"]
+        assert a_map["c"] == 78
+        assert c_map["a"] == 78
         assert "b" not in a_map
         assert "a" not in b_map
 
     @pytest.mark.asyncio
-    async def test_update_node_recomputes_links_from_summary(
+    async def test_update_node_keeps_ai_score_links_only(
         self, service, mock_repository
     ):
         project_id = "project-1"
@@ -178,6 +182,7 @@ class TestContextTreeService:
         updated = _build_node(
             node_id,
             project_id,
+            sibling_links=[SiblingLink(sibling_id="b", correlation_score=74)],
             summary=(
                 "Running fitness coaching plans with hydration reminders and marathon schedule management."
             ),
@@ -208,8 +213,8 @@ class TestContextTreeService:
 
         updated_map = service._get_link_map(updated)
         peer_map = service._get_link_map(peer)
-        assert updated_map["b"] >= 30
-        assert peer_map["a"] == updated_map["b"]
+        assert updated_map["b"] == 74
+        assert peer_map["a"] == 74
 
     @pytest.mark.asyncio
     async def test_delete_node_removes_reciprocal_links(self, service, mock_repository):

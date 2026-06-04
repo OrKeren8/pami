@@ -5,6 +5,7 @@ import json
 from ai_conversation_service.schemas.tree_analysis_schemas import (
     AnalyzeTreeRequest,
     NodeOrganizationResponse,
+    SiblingScoreSuggestion,
     TreeNodeData,
 )
 from ai_conversation_service.core.config import settings
@@ -119,9 +120,55 @@ class TreeAnalysisService:
             if not isinstance(topics, list) or not topics:
                 raise ValueError("AI organization missing required non-empty topics")
 
+            raw_scored = ai_response.get("sibling_score_suggestions")
+            if not isinstance(raw_scored, list):
+                raise ValueError(
+                    "AI organization missing required array: sibling_score_suggestions"
+                )
+
+            expected_sibling_ids = {str(n.id) for n in request.current_tree}
+            seen_sibling_ids: set[str] = set()
+            scored_suggestions: list[SiblingScoreSuggestion] = []
+            for item in raw_scored:
+                if not isinstance(item, dict):
+                    raise ValueError(
+                        "AI organization sibling score suggestions must be objects"
+                    )
+                sibling_id = str(item.get("sibling_id") or "").strip()
+                if not sibling_id:
+                    raise ValueError(
+                        "AI organization sibling score suggestion missing sibling_id"
+                    )
+                if sibling_id not in expected_sibling_ids:
+                    raise ValueError(
+                        f"AI organization returned unknown sibling_id: {sibling_id}"
+                    )
+                if sibling_id in seen_sibling_ids:
+                    raise ValueError(
+                        f"AI organization returned duplicate sibling_id: {sibling_id}"
+                    )
+                score = item.get("correlation_score")
+                if not isinstance(score, int):
+                    raise ValueError(
+                        "AI organization sibling score must be an integer 0..100"
+                    )
+                seen_sibling_ids.add(sibling_id)
+                scored_suggestions.append(
+                    SiblingScoreSuggestion(
+                        sibling_id=sibling_id,
+                        correlation_score=score,
+                    )
+                )
+
+            missing_siblings = expected_sibling_ids.difference(seen_sibling_ids)
+            if missing_siblings:
+                raise ValueError(
+                    "AI organization must score every existing node in current_tree"
+                )
+
             return NodeOrganizationResponse(
                 node_id=request.node_id,
-                suggested_sibling_ids=ai_response.get("suggested_sibling_ids", []),
+                sibling_score_suggestions=scored_suggestions,
                 header=header,
                 summary=summary,
                 topics=topics,
@@ -156,7 +203,7 @@ class TreeAnalysisService:
             if len(node.sibling_ids) > 6:
                 siblings_preview += ", ..."
             lines.append(
-                f"- [{node.node_type}] {node.id[:8]}... : {header_preview}{topics_str}"
+                f"- [{node.node_type}] {node.id} : {header_preview}{topics_str}"
             )
             if summary_preview:
                 lines.append(f"  Summary: {summary_preview}")
