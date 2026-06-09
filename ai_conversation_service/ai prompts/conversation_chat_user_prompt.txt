@@ -1,0 +1,4 @@
+Use the conversation context below and respond to the latest user message.
+
+Conversation context:
+{messages_text}

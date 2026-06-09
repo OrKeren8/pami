@@ -10,9 +10,17 @@ from botocore.exceptions import ClientError
 from botocore.config import Config
 
 from ai_conversation_service.core.config import settings
+from ai_conversation_service.core.prompt_loader import load_prompt_file
 from ai_conversation_service.models.ai_conversation import (
     Conversation,
     ConversationMessage,
+)
+
+CONVERSATION_CHAT_SYSTEM_PROMPT = load_prompt_file(
+    "conversation_chat_system_prompt.txt"
+)
+CONVERSATION_CHAT_USER_PROMPT_TEMPLATE = load_prompt_file(
+    "conversation_chat_user_prompt.txt"
 )
 
 
@@ -40,7 +48,10 @@ class AIConversationService:
 
         # Initialize S3 client
         self.s3_client = None
-        self.bucket_name = f"pami-ai-conversations-{settings.aws_region}"
+        self.bucket_name = (
+            settings.aws_s3_bucket_name
+            or f"pami-ai-conversations-{settings.aws_region}"
+        )
         try:
             # Use IAM role credentials when running on ECS (credentials will be None)
             # Use explicit credentials only when provided (for local development)
@@ -66,6 +77,7 @@ class AIConversationService:
             self._logger.info("S3 client initialized successfully")
         except Exception as e:
             self._logger.error(f"Failed to initialize S3 client: {e}")
+            self.s3_client = None
 
         if self.openai_client and self.s3_client:
             self._logger.info("AI Conversation Service initialized successfully")
@@ -400,12 +412,18 @@ class AIConversationService:
         # Fallback: call OpenAI Chat Completions
         try:
             prompt = "\n".join([f"{m['role']}: {m['content']}" for m in messages])
+            user_prompt = CONVERSATION_CHAT_USER_PROMPT_TEMPLATE.format(
+                messages_text=prompt
+            )
             self._logger.debug(
                 f"_call_openai prompt_len={len(prompt)} messages_count={len(messages)}"
             )
             resp = await self.openai_client.chat.completions.create(
                 model=settings.openai_model,
-                messages=[{"role": "user", "content": prompt}],
+                messages=[
+                    {"role": "system", "content": CONVERSATION_CHAT_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
             )
             try:
                 out = resp.choices[0].message.content

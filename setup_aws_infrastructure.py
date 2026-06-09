@@ -657,8 +657,9 @@ def enable_cors_on_api(api_endpoint: str):
         print_success(
             f"Updated API {api_id} CORS to allow: {cors_conf['AllowOrigins']}"
         )
-        # Ensure explicit OPTIONS route exists for the target path to return 200
-        target_path = os.environ.get("API_CORS_PATH", "/ai/ai-conversations")
+        # Ensure explicit OPTIONS route exists for preflight requests.
+        # Default to wildcard so all API paths are covered.
+        target_path = os.environ.get("API_CORS_PATH", "/{proxy+}")
         route_key = f"OPTIONS {target_path}"
         try:
             routes = v2.get_routes(ApiId=api_id).get("Items", [])

@@ -1,0 +1,15 @@
+Analyze this new project node and suggest its organization.
+
+NODE ID:
+{node_id}
+
+CONVERSATION ABOUT THIS NODE:
+{conversation_history}
+
+CURRENT PROJECT GRAPH:
+{tree_context}
+
+Ensure the response includes `sibling_score_suggestions` with `sibling_id` and integer `correlation_score` (0-100) for each suggested sibling relation.
+Use a slightly soft calibration for same-project thematic overlap (do not be overly strict).
+
+Return the JSON object only.

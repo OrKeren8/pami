@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
 import api, { projectsApi, slackApi, aiApi } from "../api/axios";
@@ -141,7 +141,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                     <div className="node-details-metrics">
                         <div className="node-details-metric">
                             <strong>{subNodes.length}</strong>
-                            <span>Sub-nodes</span>
+                            <span>Siblings</span>
                         </div>
 
                         <div className="node-details-metric">
@@ -169,7 +169,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                             <div className="node-details-section-header">
                                 <div>
                                     <span className="node-details-section-kicker">Structure</span>
-                                    <h3>Connected sub-nodes</h3>
+                                    <h3>Connected siblings</h3>
                                 </div>
                                 <span className="node-details-count">{subNodes.length}</span>
                             </div>
@@ -178,12 +178,12 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                                 <div className="node-details-chip-list">
                                     {subNodes.map((sub, idx) => (
                                         <span key={idx} className="node-details-chip">
-                                            {sub.header || sub.name || "Sub Node"}
+                                            {sub.header || sub.name || "Related Node"}
                                         </span>
                                     ))}
                                 </div>
                             ) : (
-                                <p className="node-details-empty">No sub-nodes are attached to this context layer yet.</p>
+                                <p className="node-details-empty">No sibling links are attached to this context node yet.</p>
                             )}
                         </section>
 
@@ -226,6 +226,9 @@ const HomePage = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [activePane, setActivePane] = useState("tree");
     const [treeZoom, setTreeZoom] = useState(1);
+    const [connectionForce, setConnectionForce] = useState(58);
+    const [repulsionForce, setRepulsionForce] = useState(34);
+    const [forceSimulationNonce, setForceSimulationNonce] = useState(0);
 
     const getTreePanelSizes = () => {
         const viewportHeight = typeof window === "undefined" ? 780 : window.innerHeight;
@@ -239,6 +242,7 @@ const HomePage = () => {
     const [treeHeight, setTreeHeight] = useState(() => getTreePanelSizes().collapsedHeight);
     const [treePan, setTreePan] = useState({ x: 0, y: 0 });
     const [isTreePanning, setIsTreePanning] = useState(false);
+    const [isBoardDragArmed, setIsBoardDragArmed] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [activeModal, setActiveModal] = useState(null);
     const [realProjects, setRealProjects] = useState([]);
@@ -313,6 +317,39 @@ const HomePage = () => {
     };
     const treeContainerRef = useRef(null);
     const fileInputRef = useRef(null);
+    const forceStateRef = useRef(new Map());
+
+    const siblingPairScores = useMemo(() => {
+        const pairToWeight = new Map();
+
+        Object.values(contextNodesMap || {}).forEach((projectNodes) => {
+            (projectNodes || []).forEach((node) => {
+                const sourceId = String(node.id || node._id || (node._id && node._id.$oid) || node._id || '');
+                if (!sourceId) return;
+
+                (node.sibling_links || []).forEach((link) => {
+                    const targetId = String(link?.sibling_id || '');
+                    const score = Number(link?.correlation_score || 0);
+                    if (!targetId || targetId === sourceId || score < 30) return;
+
+                    const pairKey = [sourceId, targetId].sort().join('::');
+                    const previous = pairToWeight.get(pairKey);
+                    if (!previous || score > previous) {
+                        pairToWeight.set(pairKey, score);
+                    }
+                });
+            });
+        });
+
+        return Array.from(pairToWeight.entries()).map(([pairKey, score]) => {
+            const [leftId, rightId] = pairKey.split('::');
+            return { leftId, rightId, score };
+        });
+    }, [contextNodesMap]);
+
+    const restartForceSimulation = () => {
+        setForceSimulationNonce((currentNonce) => currentNonce + 1);
+    };
 
     const fetchProjects = async () => {
         setIsLoading(true);
@@ -360,6 +397,7 @@ const HomePage = () => {
                                             status: updated.node_type || updated.status,
                                             goal: updated.summary || updated.header,
                                             conversation_id: updated.conversation_id || updated.conversationId || null,
+                                            sibling_links: updated.sibling_links || [],
                                             project_id: projectId,
                                             nodeKind: 'context',
                                             header: updated.header,
@@ -618,6 +656,7 @@ const HomePage = () => {
                 status: n.node_type || 'context',
                 goal: n.summary || n.header || 'No snapshot description available.',
                 conversation_id: n.conversation_id || n.conversationId || n.conversation || null,
+                sibling_links: n.sibling_links || [],
                 project_id: pid,
                 nodeKind: "context"
             }));
@@ -702,14 +741,35 @@ const HomePage = () => {
         setIsModalDataLoading(true);
 
         try {
-            console.log(`Fetching live connected data for project: ${node.id}`);
+            const targetProjectId = node.nodeKind === "context"
+                ? (node.project_id || node.projectId || node.project || node.id)
+                : node.id;
+
+            console.log(`Fetching live connected data for project: ${targetProjectId}`);
             const [tasksRes, nodesRes] = await Promise.all([
-                projectsApi.get(`/tasks/projects/${node.id}/tasks`).catch(() => ({ data: [] })),
-                projectsApi.get(`/context-tree/projects/${node.id}/nodes`).catch(() => ({ data: [] }))
+                projectsApi.get(`/tasks/projects/${targetProjectId}/tasks`).catch(() => ({ data: [] })),
+                projectsApi.get(`/context-tree/projects/${targetProjectId}/nodes`).catch(() => ({ data: [] }))
             ]);
 
             setNodeTasks(tasksRes.data || []);
-            setSubNodes(nodesRes.data || []);
+            const allNodes = nodesRes.data || [];
+            if (node.nodeKind === "context") {
+                const selectedNodeId = String(node.id || node._id || (node._id && node._id.$oid) || "");
+                const selectedServerNode = allNodes.find(
+                    (n) => String(n.id || n._id || (n._id && n._id.$oid) || n._id) === selectedNodeId
+                );
+                const siblingIds = new Set(
+                    (selectedServerNode?.sibling_links || node.sibling_links || []).map((link) =>
+                        String(link?.sibling_id || "")
+                    )
+                );
+                const siblingNodes = allNodes.filter((n) =>
+                    siblingIds.has(String(n.id || n._id || (n._id && n._id.$oid) || n._id))
+                );
+                setSubNodes(siblingNodes);
+            } else {
+                setSubNodes(allNodes);
+            }
         } catch (error) {
             console.error("Failed to fetch node sub-resources:", error);
         } finally {
@@ -808,10 +868,12 @@ const HomePage = () => {
             }
 
             const recent = chatMessages.slice(-10).map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
+            const latestUserMessage = [...chatMessages]
+                .reverse()
+                .find((m) => (m.role || "").toLowerCase() === "user")?.content;
             const body = {
-                parent_id: null,
-                children_ids: [],
-                text: recent || 'Conversation snapshot',
+                sibling_links: [],
+                header: (latestUserMessage || "Conversation Snapshot").slice(0, 80),
                 summary: (chatMessages.length > 0 ? chatMessages[chatMessages.length - 1].content : '').slice(0, 300),
                 conversation_id: conversationId,
                 messages: chatMessages,
@@ -930,7 +992,7 @@ const HomePage = () => {
         );
     };
 
-    const drawConnections = () => {
+    const drawConnections = useCallback(() => {
         const container = treeContainerRef.current;
         if (!container) return;
         const svg = container.querySelector('svg.tree-svg-overlay');
@@ -944,48 +1006,76 @@ const HomePage = () => {
             idToEl[id] = el;
         });
 
-        nodes.forEach((el) => {
-            const parentId = el.getAttribute('data-parent-id');
-            if (!parentId) return;
-            const parentEl = idToEl[parentId];
-            if (!parentEl) return;
+        const containerRect = container.getBoundingClientRect();
 
-            const parentVisual = parentEl.querySelector('.neural-node-v2') || parentEl;
-            const childVisual = el.querySelector('.neural-node-v2') || el;
+        const centers = new Map();
+        Object.entries(idToEl).forEach(([id, el]) => {
+            const visual = el.querySelector('.neural-node-v2') || el;
+            const rect = visual.getBoundingClientRect();
+            centers.set(id, {
+                x: rect.left + rect.width / 2 - containerRect.left,
+                y: rect.top + rect.height / 2 - containerRect.top,
+            });
+        });
 
-            const pRect = parentVisual.getBoundingClientRect();
-            const cRect = childVisual.getBoundingClientRect();
-            const containerRect = container.getBoundingClientRect();
+        const getStrokeWidthForCorrelation = (score) => {
+            const correlation = Number(score || 0);
+            if (correlation < 30) return 0;
+            if (correlation >= 100) return 8.0;
+            const normalized = (correlation - 30) / 70;
+            return Number((1.0 + normalized * 7.0).toFixed(2));
+        };
 
-            const startX = pRect.left + pRect.width / 2 - containerRect.left;
-            const startY = pRect.top + pRect.height - containerRect.top;
-            const endX = cRect.left + cRect.width / 2 - containerRect.left;
-            const endY = cRect.top - containerRect.top;
+        const getStrokeOpacityForCorrelation = (score) => {
+            const correlation = Number(score || 0);
+            if (correlation < 30) return 0;
+            if (correlation >= 100) return 1;
+            const normalized = (correlation - 30) / 70;
+            return Number((0.18 + normalized * 0.82).toFixed(2));
+        };
+        const vw = Math.max(1, Math.round(containerRect.width));
+        const vh = Math.max(1, Math.round(containerRect.height));
+        svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
+        svg.setAttribute('preserveAspectRatio', 'none');
+        svg.setAttribute('width', `${vw}`);
+        svg.setAttribute('height', `${vh}`);
 
-            const vw = Math.max(1, Math.round(containerRect.width));
-            const vh = Math.max(1, Math.round(containerRect.height));
-            svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
-            svg.setAttribute('preserveAspectRatio', 'none');
-            svg.setAttribute('width', `${vw}`);
-            svg.setAttribute('height', `${vh}`);
+        siblingPairScores.forEach(({ leftId, rightId, score }) => {
+            const leftCenter = centers.get(leftId);
+            const rightCenter = centers.get(rightId);
+            if (!leftCenter || !rightCenter) return;
 
-            const deltaX = Math.max(30, Math.abs(endX - startX) * 0.28);
-            const control1X = startX + (endX > startX ? deltaX : -deltaX);
-            const control2X = endX - (endX > startX ? deltaX : -deltaX);
-            const verticalGap = Math.max(30, (endY - startY) * 0.25);
-            const control1Y = startY + verticalGap;
-            const control2Y = endY - verticalGap;
+            const startX = leftCenter.x;
+            const startY = leftCenter.y;
+            const endX = rightCenter.x;
+            const endY = rightCenter.y;
+            const correlationScore = score;
+
+            const dx = endX - startX;
+            const dy = endY - startY;
+            const distance = Math.hypot(dx, dy) || 1;
+            const normalX = -dy / distance;
+            const normalY = dx / distance;
+            const bow = Math.min(48, Math.max(18, distance * 0.08));
+            const controlX = (startX + endX) / 2 + normalX * bow;
+            const controlY = (startY + endY) / 2 + normalY * bow;
 
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            const d = `M ${startX} ${startY} C ${control1X} ${control1Y} ${control2X} ${control2Y} ${endX} ${endY}`;
+            const d = `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
             path.setAttribute('d', d);
-            path.setAttribute('stroke', getComputedStyle(document.documentElement).getPropertyValue('--connector-color') || '#d1d9e2');
-            path.setAttribute('stroke-width', '2');
+            path.setAttribute('stroke', '#9ca3af');
+            path.setAttribute('stroke-width', `${getStrokeWidthForCorrelation(correlationScore)}`);
             path.setAttribute('fill', 'none');
             path.setAttribute('stroke-linecap', 'round');
+            path.setAttribute('opacity', `${getStrokeOpacityForCorrelation(correlationScore)}`);
+
+            const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+            title.textContent = `Correlation score: ${Math.round(correlationScore)}/100`;
+            path.appendChild(title);
+
             svg.appendChild(path);
         });
-    };
+    }, [siblingPairScores]);
 
     useEffect(() => {
         if (activePane !== "tree") return;
@@ -997,7 +1087,298 @@ const HomePage = () => {
             clearTimeout(t);
             window.removeEventListener("resize", drawConnections);
         };
-    }, [realProjects, contextNodesMap, activePane, isLoading, treeZoom, treeHeight, treePan]);
+    }, [realProjects, activePane, isLoading, treeZoom, treeHeight, treePan, drawConnections]);
+
+    useEffect(() => {
+        if (activePane !== "tree") return undefined;
+
+        let animationFrameId = null;
+        let isCancelled = false;
+        let simulationStartTime = null;
+        let calmFrames = 0;
+        let frameCounter = 0;
+
+        const settleDurationMs = 2400;
+        const calmMotionThreshold = 0.11;
+        const calmFramesRequired = 5;
+
+        const runForceStep = (elapsedMs) => {
+            const container = treeContainerRef.current;
+            if (!container) return { maxMotion: 0 };
+
+            const wrappers = Array.from(container.querySelectorAll('.tree-node-wrapper[data-node-id]'));
+            if (wrappers.length === 0) return { maxMotion: 0 };
+
+            const zoom = Math.max(0.1, Number(treeZoom) || 1);
+            const normalizedElapsed = Math.min(1, Math.max(0, elapsedMs / settleDurationMs));
+            const cooling = 1 - normalizedElapsed;
+            const burstMultiplier = 1 + cooling * 0.16;
+            const nodes = [];
+            const idToNode = new Map();
+
+            wrappers.forEach((wrapper) => {
+                const id = String(wrapper.getAttribute('data-node-id') || '');
+                if (!id) return;
+
+                const visual = wrapper.querySelector('.neural-node-v2') || wrapper;
+                const rect = visual.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                const currentTranslateX = Number(wrapper.dataset.translateX || 0) || 0;
+                const currentTranslateY = Number(wrapper.dataset.translateY || 0) || 0;
+                const locked = wrapper.dataset.dragLocked === '1';
+
+                let state = forceStateRef.current.get(id);
+                if (!state) {
+                    state = { vx: 0, vy: 0 };
+                    forceStateRef.current.set(id, state);
+                }
+
+                const node = {
+                    id,
+                    wrapper,
+                    centerX,
+                    centerY,
+                    halfWidth: rect.width / 2,
+                    halfHeight: rect.height / 2,
+                    radius: Math.max(16, Math.max(rect.width, rect.height) / 2),
+                    translateX: currentTranslateX,
+                    translateY: currentTranslateY,
+                    locked,
+                    fx: 0,
+                    fy: 0,
+                    state,
+                };
+
+                nodes.push(node);
+                idToNode.set(id, node);
+            });
+
+            if (nodes.length === 0) return { maxMotion: 0 };
+
+            const activeIds = new Set(nodes.map((node) => node.id));
+            forceStateRef.current.forEach((_, key) => {
+                if (!activeIds.has(key)) {
+                    forceStateRef.current.delete(key);
+                }
+            });
+
+            const repelStrength = (Number(repulsionForce) || 0) / 100;
+            const attractStrength = (Number(connectionForce) || 0) / 100;
+
+            for (let i = 0; i < nodes.length; i += 1) {
+                for (let j = i + 1; j < nodes.length; j += 1) {
+                    const a = nodes[i];
+                    const b = nodes[j];
+
+                    const dx = b.centerX - a.centerX;
+                    const dy = b.centerY - a.centerY;
+                    const distanceSq = dx * dx + dy * dy + 0.01;
+                    const distance = Math.sqrt(distanceSq);
+                    const ux = dx / distance;
+                    const uy = dy / distance;
+
+                    const repulsion = repelStrength * burstMultiplier * 24000 / (distanceSq + 900);
+                    a.fx -= ux * repulsion;
+                    a.fy -= uy * repulsion;
+                    b.fx += ux * repulsion;
+                    b.fy += uy * repulsion;
+
+                    const collisionGap = a.radius + b.radius + 14;
+                    if (distance < collisionGap) {
+                        const overlap = collisionGap - distance;
+                        const collision = (0.045 + cooling * 0.04) * overlap;
+                        a.fx -= ux * collision;
+                        a.fy -= uy * collision;
+                        b.fx += ux * collision;
+                        b.fy += uy * collision;
+                    }
+                }
+            }
+
+            siblingPairScores.forEach(({ leftId, rightId, score }) => {
+                const left = idToNode.get(leftId);
+                const right = idToNode.get(rightId);
+                if (!left || !right) return;
+
+                const dx = right.centerX - left.centerX;
+                const dy = right.centerY - left.centerY;
+                const distance = Math.max(1, Math.hypot(dx, dy));
+                const ux = dx / distance;
+                const uy = dy / distance;
+
+                const normalized = Math.min(1, Math.max(0, (score - 30) / 70));
+                const normalizedBoost = normalized * normalized;
+                const desiredDistance = 340 - normalizedBoost * 300;
+                const stretch = Math.max(0, distance - desiredDistance);
+                const springZone = Math.min(1, stretch / 42);
+                const attraction = attractStrength * burstMultiplier * (0.001 + normalizedBoost * 0.045) * stretch * springZone;
+
+                // Anti-overshoot brake: when already near/inside target distance,
+                // damp inward relative velocity to prevent bounce.
+                if (distance <= desiredDistance + 10) {
+                    const relVx = (right.state.vx || 0) - (left.state.vx || 0);
+                    const relVy = (right.state.vy || 0) - (left.state.vy || 0);
+                    const inwardSpeed = -(relVx * ux + relVy * uy);
+                    if (inwardSpeed > 0) {
+                        const brake = Math.min(0.24, inwardSpeed * 0.2);
+                        left.fx -= ux * brake;
+                        left.fy -= uy * brake;
+                        right.fx += ux * brake;
+                        right.fy += uy * brake;
+                    }
+                }
+
+                left.fx += ux * attraction;
+                left.fy += uy * attraction;
+                right.fx -= ux * attraction;
+                right.fy -= uy * attraction;
+            });
+
+            const damping = 0.96 + cooling * 0.02;
+            const maxSpeed = 0.42 + cooling * 0.95;
+            const containerRect = container.getBoundingClientRect();
+            let maxMotion = 0;
+
+            nodes.forEach((node) => {
+                if (node.locked) {
+                    node.state.vx = 0;
+                    node.state.vy = 0;
+                    return;
+                }
+
+                const centerBiasX = 0;
+                const centerBiasY = 0;
+
+                const maxForce = 0.32 + cooling * 0.7;
+                if (node.fx > maxForce) node.fx = maxForce;
+                if (node.fx < -maxForce) node.fx = -maxForce;
+                if (node.fy > maxForce) node.fy = maxForce;
+                if (node.fy < -maxForce) node.fy = -maxForce;
+
+                const prevVx = node.state.vx;
+                const prevVy = node.state.vy;
+                node.state.vx = node.state.vx * damping + (node.fx + centerBiasX) * 0.24;
+                node.state.vy = node.state.vy * damping + (node.fy + centerBiasY) * 0.24;
+
+                if (prevVx * node.state.vx < 0) {
+                    node.state.vx *= 0.18;
+                }
+                if (prevVy * node.state.vy < 0) {
+                    node.state.vy *= 0.18;
+                }
+
+                const speed = Math.hypot(node.state.vx, node.state.vy);
+                if (speed > maxSpeed) {
+                    const scale = maxSpeed / speed;
+                    node.state.vx *= scale;
+                    node.state.vy *= scale;
+                }
+
+                const edgePadding = 8;
+                const minCenterX = containerRect.left + node.halfWidth + edgePadding;
+                const maxCenterX = containerRect.right - node.halfWidth - edgePadding;
+                const minCenterY = containerRect.top + node.halfHeight + edgePadding;
+                const maxCenterY = containerRect.bottom - node.halfHeight - edgePadding;
+
+                const projectedCenterX = node.centerX + node.state.vx;
+                const projectedCenterY = node.centerY + node.state.vy;
+
+                let correctedVx = node.state.vx;
+                let correctedVy = node.state.vy;
+
+                if (projectedCenterX < minCenterX) {
+                    correctedVx = minCenterX - node.centerX;
+                    node.state.vx = 0;
+                } else if (projectedCenterX > maxCenterX) {
+                    correctedVx = maxCenterX - node.centerX;
+                    node.state.vx = 0;
+                }
+
+                if (projectedCenterY < minCenterY) {
+                    correctedVy = minCenterY - node.centerY;
+                    node.state.vy = 0;
+                } else if (projectedCenterY > maxCenterY) {
+                    correctedVy = maxCenterY - node.centerY;
+                    node.state.vy = 0;
+                }
+
+                const nextX = node.translateX + correctedVx / zoom;
+                const nextY = node.translateY + correctedVy / zoom;
+
+                const frameMotion = Math.hypot(nextX - node.translateX, nextY - node.translateY);
+                if (frameMotion > maxMotion) maxMotion = frameMotion;
+
+                if (elapsedMs > settleDurationMs * 0.65 && frameMotion < 0.04) {
+                    node.state.vx = 0;
+                    node.state.vy = 0;
+                }
+
+                node.wrapper.style.transform = `translate(${nextX}px, ${nextY}px)`;
+                node.wrapper.dataset.translateX = String(Number(nextX.toFixed(2)));
+                node.wrapper.dataset.translateY = String(Number(nextY.toFixed(2)));
+            });
+
+            frameCounter += 1;
+            if (maxMotion > 0.03 || frameCounter % 3 === 0) {
+                drawConnections();
+            }
+            return { maxMotion };
+        };
+
+        const loop = (timestamp) => {
+            if (isCancelled) return;
+
+            if (simulationStartTime === null) {
+                simulationStartTime = timestamp;
+            }
+
+            const elapsedMs = timestamp - simulationStartTime;
+            const { maxMotion } = runForceStep(elapsedMs);
+
+            if (elapsedMs >= settleDurationMs && maxMotion <= calmMotionThreshold) {
+                calmFrames += 1;
+            } else {
+                calmFrames = 0;
+            }
+
+            if (calmFrames >= calmFramesRequired || elapsedMs >= settleDurationMs + 250) {
+                nodesSettleAndStop();
+                return;
+            }
+
+            animationFrameId = window.requestAnimationFrame(loop);
+        };
+
+        const nodesSettleAndStop = () => {
+            const container = treeContainerRef.current;
+            if (!container) return;
+
+            const wrappers = Array.from(container.querySelectorAll('.tree-node-wrapper[data-node-id]'));
+            wrappers.forEach((wrapper) => {
+                const id = String(wrapper.getAttribute('data-node-id') || '');
+                if (!id) return;
+
+                const state = forceStateRef.current.get(id);
+                if (state) {
+                    state.vx = 0;
+                    state.vy = 0;
+                }
+            });
+
+            drawConnections();
+        };
+
+        animationFrameId = window.requestAnimationFrame(loop);
+
+        return () => {
+            isCancelled = true;
+            if (animationFrameId !== null) {
+                window.cancelAnimationFrame(animationFrameId);
+            }
+        };
+    }, [activePane, treeZoom, connectionForce, repulsionForce, forceSimulationNonce, siblingPairScores, drawConnections]);
 
     useEffect(() => {
         const container = treeContainerRef.current;
@@ -1008,6 +1389,15 @@ const HomePage = () => {
         let startY = 0;
         let origX = 0;
         let origY = 0;
+        let dragDrawFrameId = null;
+
+        const scheduleDragRedraw = () => {
+            if (dragDrawFrameId !== null) return;
+            dragDrawFrameId = window.requestAnimationFrame(() => {
+                dragDrawFrameId = null;
+                drawConnections();
+            });
+        };
 
         const onPointerMove = (e) => {
             if (!active) return;
@@ -1023,11 +1413,13 @@ const HomePage = () => {
             active.dataset.translateX = nx;
             active.dataset.translateY = ny;
 
-            drawConnections();
+            scheduleDragRedraw();
         };
 
         const onPointerUp = () => {
             if (!active) return;
+            delete active.dataset.dragLocked;
+            restartForceSimulation();
             active = null;
             window.removeEventListener("pointermove", onPointerMove);
             window.removeEventListener("pointerup", onPointerUp);
@@ -1038,6 +1430,7 @@ const HomePage = () => {
             nodeEl.style.touchAction = "none";
             const down = (e) => {
                 if (e.button !== 0) return;
+                if (isBoardDragArmed || e.detail >= 2) return;
 
                 const wrapper = nodeEl.closest(".tree-node-wrapper");
                 if (!wrapper) return;
@@ -1045,6 +1438,7 @@ const HomePage = () => {
                 e.stopPropagation();
 
                 active = wrapper;
+                wrapper.dataset.dragLocked = "1";
                 startX = e.clientX;
                 startY = e.clientY;
                 origX = parseFloat(wrapper.dataset.translateX || 0) || 0;
@@ -1068,8 +1462,13 @@ const HomePage = () => {
 
             window.removeEventListener("pointermove", onPointerMove);
             window.removeEventListener("pointerup", onPointerUp);
+
+            if (dragDrawFrameId !== null) {
+                window.cancelAnimationFrame(dragDrawFrameId);
+                dragDrawFrameId = null;
+            }
         };
-    }, [realProjects, contextNodesMap, activePane, isLoading, treeZoom]);
+    }, [realProjects, contextNodesMap, activePane, isLoading, treeZoom, drawConnections, isBoardDragArmed]);
 
     const handleTreeWheel = (e) => {
         if (activePane !== "tree") return;
@@ -1143,7 +1542,14 @@ const HomePage = () => {
 
     const handleTreePanPointerDown = (e) => {
         if (activePane !== "tree") return;
-        if (e.button !== 1) return;
+
+        const isDoubleClickLeft = e.button === 0 && e.detail >= 2;
+        const isMiddleMousePan = e.button === 1;
+        const isArmedLeftPan = e.button === 0 && (isBoardDragArmed || isDoubleClickLeft);
+        if (!isMiddleMousePan && !isArmedLeftPan) return;
+        if (isArmedLeftPan) {
+            setIsBoardDragArmed(false);
+        }
 
         e.preventDefault();
         e.stopPropagation();
@@ -1208,6 +1614,17 @@ const HomePage = () => {
 
         window.addEventListener("pointermove", handlePointerMove);
         window.addEventListener("pointerup", handlePointerUp);
+    };
+
+    const handleTreeCanvasDoubleClick = (e) => {
+        if (activePane !== "tree") return;
+
+        const targetElement = e.target;
+        if (targetElement && typeof targetElement.closest === "function" && targetElement.closest(".neural-node-v2")) {
+            return;
+        }
+
+        setIsBoardDragArmed(true);
     };
 
     // הפונקציות המלאות והתקינות של סלאק שממוקמות בצורה נכונה
@@ -1658,6 +2075,33 @@ const HomePage = () => {
                                 <button className={`tab-btn ${activePane === "tree" ? "active" : ""}`} onClick={async () => { setActivePane("tree"); try { await fetchProjects(); } catch (e) { console.error('Failed to refresh projects on tab switch', e); } }}>Project Tree</button>
                                 <button className={`tab-btn ${activePane === "chat" ? "active" : ""}`} onClick={() => { setActivePane("chat"); setConversationId(null); setChatMessages([]); }}>AI Chat</button>
                             </div>
+                            {activePane === "tree" && (
+                                <div className="tree-force-controls">
+                                    <label className="tree-force-control" title="How strongly linked nodes pull toward each other">
+                                        <span>Connection Force</span>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            value={connectionForce}
+                                            onChange={(e) => setConnectionForce(Number(e.target.value))}
+                                        />
+                                        <strong>{connectionForce}</strong>
+                                    </label>
+
+                                    <label className="tree-force-control" title="How strongly all nodes push away from each other">
+                                        <span>Repel Force</span>
+                                        <input
+                                            type="range"
+                                            min="0"
+                                            max="100"
+                                            value={repulsionForce}
+                                            onChange={(e) => setRepulsionForce(Number(e.target.value))}
+                                        />
+                                        <strong>{repulsionForce}</strong>
+                                    </label>
+                                </div>
+                            )}
                         </div>
 
                         <div
@@ -1665,6 +2109,7 @@ const HomePage = () => {
                             style={{ flex: 1, minHeight: 0 }}
                             onWheel={handleTreeWheel}
                             onPointerDown={handleTreePanPointerDown}
+                            onDoubleClick={handleTreeCanvasDoubleClick}
                             onAuxClick={(e) => {
                                 if (e.button === 1) e.preventDefault();
                             }}
@@ -1689,8 +2134,8 @@ const HomePage = () => {
                                 ) : realProjects.length > 0 ? (
                                     <div ref={treeContainerRef} className="hierarchical-tree-container" style={{ position: "relative" }}>
                                         <div className="tree-zoom-indicator">{Math.round(treeZoom * 100)}%</div>
-                                        <svg className="tree-svg-overlay" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 5 }} />
-                                        <div className="tree-zoom-layer" style={{ transform: `translate(${treePan.x}px, ${treePan.y}px) scale(${treeZoom})`, transformOrigin: "top center" }}>
+                                        <svg className="tree-svg-overlay" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 1 }} />
+                                        <div className="tree-zoom-layer" style={{ position: "relative", zIndex: 3, transform: `translate(${treePan.x}px, ${treePan.y}px) scale(${treeZoom})`, transformOrigin: "top center" }}>
                                             {renderTree(getTreeStructure())}
                                         </div>
                                     </div>

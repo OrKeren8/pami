@@ -1,32 +1,34 @@
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
 
 
 class TreeNodeData(BaseModel):
-    """Simplified node data for tree analysis."""
-
     id: str
-    parent_id: Optional[str]
-    header: Optional[str]
-    summary: Optional[str]
-    topics: List[str]
-    node_type: str
+    sibling_ids: List[str] = Field(default_factory=list)
+    header: Optional[str] = None
+    summary: Optional[str] = None
+    topics: List[str] = Field(default_factory=list)
+    node_type: str = "goal"
 
 
 class AnalyzeTreeRequest(BaseModel):
-    """Request to analyze and organize a node in the project tree."""
-
     node_id: str
     conversation_id: str
-    current_tree: List[TreeNodeData]  # All nodes in the project
+    current_tree: List[TreeNodeData] = Field(default_factory=list)
+
+
+class SiblingScoreSuggestion(BaseModel):
+    sibling_id: str
+    correlation_score: int = Field(ge=0, le=100)
 
 
 class NodeOrganizationResponse(BaseModel):
-    """AI's recommendation for node organization and metadata."""
-
     node_id: str
-    suggested_parent_id: Optional[str]
-    header: Optional[str]
+    sibling_score_suggestions: List[SiblingScoreSuggestion] = Field(
+        default_factory=list
+    )
+    header: Optional[str] = None
     summary: str
-    topics: List[str]
-    reasoning: str  # AI explanation for the placement
+    topics: List[str] = Field(default_factory=list)
+    reasoning: str
