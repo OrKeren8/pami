@@ -2558,6 +2558,38 @@ html, body, #root {
   margin-top: 8px !important;
 }
 
+.tree-force-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tree-force-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(143, 109, 242, 0.14);
+  color: #5a4c67;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tree-force-control input[type="range"] {
+  width: 96px;
+  accent-color: #8f6df2;
+}
+
+.tree-force-control strong {
+  min-width: 24px;
+  text-align: right;
+  color: #3d3350;
+}
+
 .dashboard-grid-anchored .tree-resize-handle::before {
   content: "\2195 Resize" !important;
   top: 4px !important;
