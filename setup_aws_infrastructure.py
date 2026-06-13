@@ -801,14 +801,22 @@ def create_amplify_app(
     """Create or update AWS Amplify app for frontend."""
     print_header("Setting up AWS Amplify for Frontend")
 
-    app_name = "pami-frontend"
+    app_name = os.getenv("AMPLIFY_APP_NAME", "pami")
+    repo_url = "https://github.com/OrKeren8/pami"
+    github_token = (
+        github_token
+        or os.getenv("GITHUB_TOKEN")
+        or os.getenv("GH_TOKEN")
+        or os.getenv("AMPLIFY_GITHUB_TOKEN")
+    )
 
     try:
         # Check if app exists
         response = amplify.list_apps()
         existing_app = None
         for app in response.get("apps", []):
-            if app["name"] == app_name:
+            # Reuse existing app by exact name or repository URL.
+            if app.get("name") == app_name or app.get("repository") == repo_url:
                 existing_app = app
                 break
 
@@ -914,15 +922,17 @@ def create_amplify_app(
 
         # Create new app
         if not github_token:
-            print_error("Cannot create Amplify app: GitHub token required")
+            print_error(
+                "Cannot create Amplify app: GitHub token required (set GITHUB_TOKEN or GH_TOKEN)"
+            )
             print_info(
-                "You can create it manually in AWS Console or provide GitHub token"
+                "You can create it manually in AWS Console, provide GitHub token, or authenticate with `gh auth login`"
             )
             return None
 
         app_config = {
             "name": app_name,
-            "repository": "https://github.com/OrKeren8/pami",
+            "repository": repo_url,
             "platform": "WEB",
             "oauthToken": github_token,
             "environmentVariables": {
@@ -1080,7 +1090,7 @@ def print_summary(
                 pass
         print()
         print("Option 2: Re-run this script with GitHub token")
-        print("  Set environment variable: GITHUB_TOKEN=<your-token>")
+        print("  Set environment variable: GITHUB_TOKEN=<your-token> (or GH_TOKEN)")
         print()
 
     print_header("Next Steps")
