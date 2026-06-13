@@ -559,6 +559,65 @@ def create_api_gateway(lb_dns: str) -> Optional[str]:
                 api_id = api["ApiId"]
                 api_endpoint = api["ApiEndpoint"]
                 print_success(f"API Gateway already exists: {api_name}")
+                desired_integration_uri = f"http://{lb_dns}"
+
+                # Ensure the default route points to an integration with the
+                # current ALB DNS. ALB hostnames change when recreated.
+                integrations = apigateway.get_integrations(ApiId=api_id).get(
+                    "Items", []
+                )
+                integration_id = None
+                for integ in integrations:
+                    if (
+                        integ.get("IntegrationType") == "HTTP_PROXY"
+                        and integ.get("IntegrationUri") == desired_integration_uri
+                    ):
+                        integration_id = integ.get("IntegrationId")
+                        break
+
+                if not integration_id:
+                    integration_response = apigateway.create_integration(
+                        ApiId=api_id,
+                        IntegrationType="HTTP_PROXY",
+                        IntegrationUri=desired_integration_uri,
+                        IntegrationMethod="ANY",
+                        PayloadFormatVersion="1.0",
+                    )
+                    integration_id = integration_response.get("IntegrationId")
+                    print_success("Updated API integration to current ALB DNS")
+
+                desired_target = f"integrations/{integration_id}"
+                routes = apigateway.get_routes(ApiId=api_id).get("Items", [])
+                default_route = next(
+                    (route for route in routes if route.get("RouteKey") == "$default"),
+                    None,
+                )
+
+                if default_route:
+                    if default_route.get("Target") != desired_target:
+                        apigateway.update_route(
+                            ApiId=api_id,
+                            RouteId=default_route["RouteId"],
+                            Target=desired_target,
+                        )
+                        print_success("Updated API $default route target")
+                else:
+                    apigateway.create_route(
+                        ApiId=api_id,
+                        RouteKey="$default",
+                        Target=desired_target,
+                    )
+                    print_success("Created API $default route")
+
+                stages = apigateway.get_stages(ApiId=api_id).get("Items", [])
+                if not any(stage.get("StageName") == "$default" for stage in stages):
+                    apigateway.create_stage(
+                        ApiId=api_id,
+                        StageName="$default",
+                        AutoDeploy=True,
+                    )
+                    print_success("Created API $default stage")
+
                 print_info(f"HTTPS URL: {api_endpoint}")
                 return api_endpoint
 
@@ -803,6 +862,14 @@ def create_amplify_app(
 
     app_name = os.getenv("AMPLIFY_APP_NAME", "pami")
     repo_url = "https://github.com/OrKeren8/pami"
+    # Keep SPA deep links (e.g. /dashboard) working after redeploys.
+    spa_rewrite_rules = [
+        {
+            "source": r"</^[^.]+$|\.(?!(css|gif|ico|jpg|jpeg|js|png|txt|svg|woff|woff2|ttf|map|json)$)([^.]+$)/>",
+            "target": "/index.html",
+            "status": "200",
+        }
+    ]
     github_token = (
         github_token
         or os.getenv("GITHUB_TOKEN")
@@ -830,6 +897,7 @@ def create_amplify_app(
             try:
                 amplify.update_app(
                     appId=app_id,
+                    customRules=spa_rewrite_rules,
                     environmentVariables={
                         "REACT_APP_PROJECTS_API_URL": api_base_url,
                         "REACT_APP_SLACK_API_URL": f"{api_base_url}/slack",
@@ -935,6 +1003,7 @@ def create_amplify_app(
             "repository": repo_url,
             "platform": "WEB",
             "oauthToken": github_token,
+            "customRules": spa_rewrite_rules,
             "environmentVariables": {
                 "REACT_APP_PROJECTS_API_URL": api_base_url,
                 "REACT_APP_SLACK_API_URL": f"{api_base_url}/slack",
