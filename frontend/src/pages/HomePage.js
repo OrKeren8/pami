@@ -635,10 +635,6 @@ const HomePage = () => {
 
             const resp = await aiApi.post(`/ai-conversations/${convId}/messages`, {
                 message: userMessage,
-                context_snapshot: {
-                    projects: realProjects.map((p) => ({ id: p.id || p._id, name: p.name })),
-                    project_count: realProjects.length,
-                },
             });
 
             const aiText = resp.data && (resp.data.response || resp.data.text || resp.data.message);
