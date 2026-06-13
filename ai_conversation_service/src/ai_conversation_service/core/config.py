@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     aws_session_token: str = ""
     aws_s3_bucket_name: str = ""
 
+    # Projects service integration
+    # Example: http://localhost:8000 or https://<gateway-host>
+    projects_api_url: str = ""
+
     # API root path (useful for tests and deployments). Leave empty string for no prefix.
     api_root: str = ""
 

@@ -15,6 +15,9 @@ from ai_conversation_service.models.ai_conversation import (
     Conversation,
     ConversationMessage,
 )
+from ai_conversation_service.services.projects_service_client import (
+    ProjectsServiceClient,
+)
 
 CONVERSATION_CHAT_SYSTEM_PROMPT = load_prompt_file(
     "conversation_chat_system_prompt.txt"
@@ -85,6 +88,8 @@ class AIConversationService:
             self._logger.warning(
                 "AI Conversation Service initialized with limited functionality"
             )
+
+        self.projects_service_client = ProjectsServiceClient(settings.projects_api_url)
 
     def _ensure_bucket_exists(self):
         """Ensure the S3 bucket exists, create it if it doesn't."""
@@ -318,9 +323,19 @@ class AIConversationService:
         # Prepare messages for OpenAI
         messages = []
 
-        # Add context if provided
+        # Build context: optional caller snapshot + backend-injected project metadata.
+        effective_context: Dict[str, Any] = {}
         if context_snapshot:
-            context_text = f"Context: {json.dumps(context_snapshot, indent=2)}"
+            effective_context.update(context_snapshot)
+
+        project_metadata = await self.projects_service_client.get_project_metadata(
+            conversation.project_id
+        )
+        if project_metadata:
+            effective_context["project"] = project_metadata
+
+        if effective_context:
+            context_text = f"Context: {json.dumps(effective_context, indent=2)}"
             messages.append({"role": "system", "content": context_text})
 
         # Add conversation history
