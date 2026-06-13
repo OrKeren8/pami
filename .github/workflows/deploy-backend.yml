@@ -184,6 +184,10 @@ jobs:
                   {
                     "name": "OPENAI_API_KEY",
                     "value": "${{ secrets.OPENAI_API_KEY }}"
+                  },
+                  {
+                    "name": "PROJECTS_API_URL",
+                    "value": "${{ secrets.PROJECTS_API_URL }}"
                   }
                 ],
                 "logConfiguration": {
