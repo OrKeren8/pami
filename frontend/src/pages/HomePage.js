@@ -247,6 +247,8 @@ const HomePage = () => {
     const [activeModal, setActiveModal] = useState(null);
     const [realProjects, setRealProjects] = useState([]);
     const [contextNodesMap, setContextNodesMap] = useState({});
+    const [selectedProjectId, setSelectedProjectId] = useState(null);
+    const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
 
     const [selectedNode, setSelectedNode] = useState(null);
     const [nodeTasks, setNodeTasks] = useState([]);
@@ -321,9 +323,9 @@ const HomePage = () => {
 
     const siblingPairScores = useMemo(() => {
         const pairToWeight = new Map();
+        const projectNodes = selectedProjectId ? (contextNodesMap[selectedProjectId] || []) : [];
 
-        Object.values(contextNodesMap || {}).forEach((projectNodes) => {
-            (projectNodes || []).forEach((node) => {
+        (projectNodes || []).forEach((node) => {
                 const sourceId = String(node.id || node._id || (node._id && node._id.$oid) || node._id || '');
                 if (!sourceId) return;
 
@@ -338,17 +340,25 @@ const HomePage = () => {
                         pairToWeight.set(pairKey, score);
                     }
                 });
-            });
         });
 
         return Array.from(pairToWeight.entries()).map(([pairKey, score]) => {
             const [leftId, rightId] = pairKey.split('::');
             return { leftId, rightId, score };
         });
-    }, [contextNodesMap]);
+    }, [contextNodesMap, selectedProjectId]);
 
     const restartForceSimulation = () => {
         setForceSimulationNonce((currentNonce) => currentNonce + 1);
+    };
+
+    const resolveProjectId = (proj) => {
+        if (!proj) return null;
+        if (typeof proj === "string") return proj;
+        if (proj.id) return proj.id;
+        if (proj._id && proj._id.$oid) return proj._id.$oid;
+        if (proj._id) return proj._id;
+        return null;
     };
 
     const fetchProjects = async () => {
@@ -356,10 +366,22 @@ const HomePage = () => {
         try {
             const response = await projectsApi.get("/projects/");
             console.log("Projects fetched:", response.data);
-            setRealProjects(response.data);
-            if (response.data && response.data.length > 0) {
-                const pid = response.data[0].id || response.data[0]._id || (response.data[0]._id && response.data[0]._id.$oid) || null;
-                if (pid) fetchContextNodes(pid);
+            const projects = response.data || [];
+            setRealProjects(projects);
+
+            if (projects.length === 0) {
+                setSelectedProjectId(null);
+                setContextNodesMap({});
+                return;
+            }
+
+            const projectIds = projects.map((proj) => String(resolveProjectId(proj))).filter(Boolean);
+            const hasCurrent = selectedProjectId && projectIds.includes(String(selectedProjectId));
+            const nextSelectedProjectId = hasCurrent ? selectedProjectId : projectIds[0];
+
+            setSelectedProjectId(nextSelectedProjectId);
+            if (nextSelectedProjectId) {
+                await fetchContextNodes(nextSelectedProjectId);
             }
         } catch (error) {
             console.error("Failed to fetch projects:", error);
@@ -434,8 +456,12 @@ const HomePage = () => {
                 status: "active",
             });
             console.log("Project created successfully:", response.data);
-            alert(`Project "${emailInput}" deployed!`);
+            const newProjectId = resolveProjectId(response.data);
+            alert(`Project "${emailInput}" created.`);
             await fetchProjects();
+            if (newProjectId) {
+                await handleProjectSelect(newProjectId);
+            }
             closeModal();
         } catch (error) {
             if (error.response) {
@@ -534,11 +560,10 @@ const HomePage = () => {
     }, []);
 
     useEffect(() => {
-        if (realProjects && realProjects.length > 0) {
-            const pid = realProjects[0].id || realProjects[0]._id || (realProjects[0]._id && realProjects[0]._id.$oid) || realProjects[0]._id || null;
-            if (pid) fetchContextNodes(pid);
-        }
-    }, [realProjects]);
+        if (!selectedProjectId) return;
+        if (contextNodesMap[selectedProjectId]) return;
+        fetchContextNodes(selectedProjectId);
+    }, [selectedProjectId, contextNodesMap]);
 
     // Keep selectedNode in-sync with the freshest data from contextNodesMap.
     // Sometimes the selectedNode object is an earlier snapshot (from the tree),
@@ -576,7 +601,8 @@ const HomePage = () => {
 
     const createAIConversation = async () => {
         try {
-            const projectId = realProjects.length > 0 ? realProjects[0].id || realProjects[0]._id : "general";
+            const fallbackProjectId = realProjects.length > 0 ? resolveProjectId(realProjects[0]) : null;
+            const projectId = selectedProjectId || fallbackProjectId || "general";
             const contextNodeId = "chat-session-" + Date.now();
             const response = await aiApi.post(`/ai-conversations/`, {
                 context_node_id: contextNodeId,
@@ -643,44 +669,21 @@ const HomePage = () => {
         setAssistantAvatarUrl(null);
     };
 
-    const getTreeStructure = () => {
-        if (realProjects.length === 0) return null;
-                const rootChildren = realProjects.map((proj) => {
-            const pid = proj.id || proj._id || (proj._id && proj._id.$oid) || proj._id || 'unknown';
-            const ctxNodes = contextNodesMap[pid] || [];
+    const getProjectTreeNodes = () => {
+        if (!selectedProjectId) return [];
 
-            const children = ctxNodes.map((n) => ({
-                id: n.id || n._id || (n._id && n._id.$oid) || String(n._id),
-                name: n.header ? (n.header.length > 40 ? n.header.slice(0, 40) + '…' : n.header) : 'Context Node',
-                color: n.color || '#8b5cf6',
-                status: n.node_type || 'context',
-                goal: n.summary || n.header || 'No snapshot description available.',
-                conversation_id: n.conversation_id || n.conversationId || n.conversation || null,
-                sibling_links: n.sibling_links || [],
-                project_id: pid,
-                nodeKind: "context"
-            }));
-
-            return {
-                id: pid,
-                name: proj.name || 'Untitled Project',
-                color: proj.color || '#2196f3',
-                status: proj.status || 'Active',
-                goal: proj.goal || 'No goal defined',
-                nodeKind: "project",
-                children,
-            };
-        });
-
-        return {
-            id: 'root',
-            name: 'PAMI Global Core',
-            color: '#f06292',
-            status: 'Root',
-            goal: 'Central orchestration system engine core.',
-            nodeKind: "root",
-            children: rootChildren,
-        };
+        const ctxNodes = contextNodesMap[selectedProjectId] || [];
+        return ctxNodes.map((n) => ({
+            id: n.id || n._id || (n._id && n._id.$oid) || String(n._id),
+            name: n.header ? (n.header.length > 40 ? n.header.slice(0, 40) + '…' : n.header) : 'Context Node',
+            color: n.color || '#8b5cf6',
+            status: n.node_type || 'context',
+            goal: n.summary || n.header || 'No snapshot description available.',
+            conversation_id: n.conversation_id || n.conversationId || n.conversation || null,
+            sibling_links: n.sibling_links || [],
+            project_id: selectedProjectId,
+            nodeKind: "context"
+        }));
     };
 
     const closeModal = () => {
@@ -733,9 +736,20 @@ const HomePage = () => {
         setActiveModal(type);
     };
 
-    const handleNodeClick = async (node) => {
-        if (node.id === "root") return;
+    const handleProjectSelect = async (projectId) => {
+        if (!projectId) return;
+        setSelectedProjectId(projectId);
+        setIsProjectMenuOpen(false);
+        setSelectedNode(null);
+        setNodeTasks([]);
+        setSubNodes([]);
+        if (!contextNodesMap[projectId]) {
+            await fetchContextNodes(projectId);
+        }
+        restartForceSimulation();
+    };
 
+    const handleNodeClick = async (node) => {
         setSelectedNode(node);
         setActiveModal("viewNodeDetails");
         setIsModalDataLoading(true);
@@ -843,15 +857,6 @@ const HomePage = () => {
         }
     };
 
-    const normalizeProjectId = (proj) => {
-        if (!proj) return null;
-        if (typeof proj === 'string') return proj;
-        if (proj.id) return proj.id;
-        if (proj._id) return proj._id && (proj._id.$oid || proj._id) ? (proj._id.$oid || proj._id) : proj._id;
-        if (proj._id && proj._id.$oid) return proj._id.$oid;
-        return null;
-    };
-
     const handleCreateNodeFromConversation = async () => {
         console.log('Create node from conversation triggered');
         try {
@@ -859,8 +864,8 @@ const HomePage = () => {
                 alert('No project available to attach node to.');
                 return;
             }
-            const projectRaw = realProjects[0];
-            const projectId = normalizeProjectId(projectRaw);
+            const projectRaw = realProjects.find((proj) => String(resolveProjectId(proj)) === String(selectedProjectId)) || realProjects[0];
+            const projectId = resolveProjectId(projectRaw);
             console.log('Using project id:', projectId, projectRaw);
             if (!projectId) {
                 alert('Could not determine project id for node creation.');
@@ -1888,7 +1893,7 @@ const HomePage = () => {
                 <>
                     <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
                         <span style={{ fontSize: "40px" }}>📁</span>
-                        <h2>Initialize New Node</h2>
+                        <h2>Create New Project</h2>
                     </div>
                     <form className="modal-form" onSubmit={handleCreateProject}>
                         <div className="input-group" style={{ marginBottom: "15px" }}>
@@ -1900,7 +1905,7 @@ const HomePage = () => {
                             <input type="text" placeholder="Project goals..." value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
                         </div>
                         <button type="submit" className="login-submit-btn" disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#f06292", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}>
-                            {isLoading ? "Processing..." : "Deploy Node"}
+                            {isLoading ? "Processing..." : "Create Project"}
                         </button>
                     </form>
                 </>
@@ -1925,6 +1930,13 @@ const HomePage = () => {
         );
         return renderDefaultIntegrationModal();
     };
+
+    const selectedProject = realProjects.find(
+        (project) => String(resolveProjectId(project)) === String(selectedProjectId)
+    ) || null;
+    const selectedProjectName = selectedProject ? (selectedProject.name || "Untitled Project") : "Select Project";
+    const selectedProjectNodeCount = selectedProjectId ? (contextNodesMap[selectedProjectId] || []).length : 0;
+    const selectedProjectConnectionCount = siblingPairScores.length;
 
     const { expandedHeight: currentTreeExpandedHeight } = getTreePanelSizes();
     const isTreePanelExpanded = treeHeight >= currentTreeExpandedHeight - 5;
@@ -2022,10 +2034,6 @@ const HomePage = () => {
                 <header className="top-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", boxSizing: "border-box", flexShrink: 0 }}>
                     <div className="header-left" style={{ display: "flex", alignItems: "center", flex: "0 0 auto" }}>
                         <button className="menu-toggle" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>☰</button>
-                        <div className="search-bar">
-                            <span className="search-icon">🔍</span>
-                            <input type="text" placeholder="Search the machine memory..." />
-                        </div>
                     </div>
 
                     <div className="header-stats-wrapper" style={{
@@ -2043,11 +2051,11 @@ const HomePage = () => {
                         overflowX: "visible"
                     }}>
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-nodes" aria-hidden="true"></span><strong className="header-stat-value">{realProjects.length}</strong><span className="header-stat-label">NODES</span>
+                            <span className="header-stat-icon header-stat-icon-nodes" aria-hidden="true"></span><strong className="header-stat-value">{selectedProjectNodeCount}</strong><span className="header-stat-label">PROJECT NODES</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-workers" aria-hidden="true"></span><strong className="header-stat-value">12</strong><span className="header-stat-label">WORKERS</span>
+                            <span className="header-stat-icon header-stat-icon-workers" aria-hidden="true"></span><strong className="header-stat-value">{selectedProjectConnectionCount}</strong><span className="header-stat-label">CONNECTIONS</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
@@ -2061,7 +2069,38 @@ const HomePage = () => {
 
                     <div className="header-right" style={{ display: "flex", alignItems: "center", gap: "15px", flex: "0 0 auto" }}>
                         <span className="notification">🔔</span>
-                        <button className="new-node-btn" onClick={() => openModal("createProject")}>+ New Node</button>
+                        <button className="new-node-btn" onClick={() => openModal("createProject")}>+ New Project</button>
+                        <div className="project-switcher">
+                            <button
+                                type="button"
+                                className="project-switcher-btn"
+                                onClick={() => setIsProjectMenuOpen((open) => !open)}
+                                disabled={realProjects.length === 0}
+                            >
+                                {selectedProjectName}
+                                <span className="project-switcher-caret">▾</span>
+                            </button>
+
+                            {isProjectMenuOpen && realProjects.length > 0 && (
+                                <div className="project-switcher-menu">
+                                    {realProjects.map((project) => {
+                                        const projectId = resolveProjectId(project);
+                                        const isActive = String(projectId) === String(selectedProjectId);
+
+                                        return (
+                                            <button
+                                                key={projectId}
+                                                type="button"
+                                                className={`project-switcher-item ${isActive ? "active" : ""}`}
+                                                onClick={() => handleProjectSelect(projectId)}
+                                            >
+                                                {project.name || "Untitled Project"}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </header>
 
@@ -2132,13 +2171,29 @@ const HomePage = () => {
                                         <p>Connecting to Neural Cloud...</p>
                                     </div>
                                 ) : realProjects.length > 0 ? (
-                                    <div ref={treeContainerRef} className="hierarchical-tree-container" style={{ position: "relative" }}>
-                                        <div className="tree-zoom-indicator">{Math.round(treeZoom * 100)}%</div>
-                                        <svg className="tree-svg-overlay" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 1 }} />
-                                        <div className="tree-zoom-layer" style={{ position: "relative", zIndex: 3, transform: `translate(${treePan.x}px, ${treePan.y}px) scale(${treeZoom})`, transformOrigin: "top center" }}>
-                                            {renderTree(getTreeStructure())}
-                                        </div>
-                                    </div>
+                                    (() => {
+                                        const treeNodes = getProjectTreeNodes();
+
+                                        if (treeNodes.length === 0) {
+                                            return (
+                                                <div className="empty-tree-state">
+                                                    <p>No context nodes in this project yet.</p>
+                                                </div>
+                                            );
+                                        }
+
+                                        return (
+                                            <div ref={treeContainerRef} className="hierarchical-tree-container" style={{ position: "relative" }}>
+                                                <div className="tree-zoom-indicator">{Math.round(treeZoom * 100)}%</div>
+                                                <svg className="tree-svg-overlay" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 1 }} />
+                                                <div className="tree-zoom-layer" style={{ position: "relative", zIndex: 3, transform: `translate(${treePan.x}px, ${treePan.y}px) scale(${treeZoom})`, transformOrigin: "top center" }}>
+                                                    <div className="tree-forest">
+                                                        {treeNodes.map((node) => renderTree(node, null))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()
                                 ) : (
                                     <div className="empty-tree-state">
                                         <p>No active nodes found on server.</p>

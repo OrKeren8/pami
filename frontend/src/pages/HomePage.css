@@ -1,5 +1,5 @@
 :root {
-    --sidebar-width: 260px;
+  --sidebar-width: 224px;
     --bg-color: #f8f9fd;
     --primary-purple: #f06292;
     --connector-color: #d1d9e2;
@@ -3062,6 +3062,83 @@ button[aria-label*="Slack"] {
   pointer-events: auto !important;
 }
 
+/* Project selector in top header */
+.main-content .top-header .project-switcher {
+  position: relative;
+  z-index: 1700 !important;
+}
+
+.main-content .top-header .project-switcher-btn {
+  border: 1px solid rgba(214, 95, 159, 0.25);
+  background: linear-gradient(135deg, #fff1f7 0%, #f2ecff 100%);
+  color: #4a2d6c;
+  font-weight: 700;
+  border-radius: 12px;
+  padding: 10px 14px;
+  min-width: 170px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(143, 109, 242, 0.12);
+}
+
+.main-content .top-header .project-switcher-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.main-content .top-header .project-switcher-caret {
+  color: rgba(74, 45, 108, 0.75);
+}
+
+.main-content .top-header .project-switcher-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 220px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(214, 95, 159, 0.22);
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 20px 42px rgba(74, 45, 108, 0.2);
+  z-index: 2200 !important;
+}
+
+.main-content .top-header .project-switcher-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #33283e;
+  text-align: left;
+  border-radius: 10px;
+  padding: 9px 10px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.main-content .top-header .project-switcher-item:hover {
+  background: rgba(214, 95, 159, 0.1);
+}
+
+.main-content .top-header .project-switcher-item.active {
+  background: linear-gradient(135deg, #fce6f1 0%, #eee6ff 100%);
+  color: #5a2f8f;
+}
+
+/* Flat forest so only actual context nodes appear in graph */
+.tree-forest {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 16px 8px 28px;
+}
+
 /* Fallback: if no sidebar state class is present for any reason. */
 .main-content .top-header .header-stats-wrapper {
   align-items: center !important;
@@ -6016,6 +6093,237 @@ button[aria-label*="Slack"] {
   .pami-assistant-history-btn {
     min-height: 33px !important;
     height: 33px !important;
+  }
+}
+
+/* ================================
+   FINAL HOTFIX: RESPONSIVE INTERACTIVITY
+   Keeps the layout usable on laptop/small windows and resolves overlaps.
+================================ */
+
+.sidebar {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding-bottom: 14px !important;
+}
+
+.main-content .top-header {
+  gap: 12px !important;
+  min-width: 0 !important;
+  flex-wrap: nowrap !important;
+  position: relative !important;
+  z-index: 1600 !important;
+  isolation: isolate !important;
+}
+
+.main-content .top-header .header-left,
+.main-content .top-header .header-stats-wrapper,
+.main-content .top-header .header-right {
+  min-width: 0 !important;
+}
+
+.main-content .top-header .header-left {
+  flex: 0 0 auto !important;
+}
+
+.main-content .top-header .header-stats-wrapper,
+.main-content.sidebar-open .top-header .header-stats-wrapper,
+.main-content.sidebar-closed .top-header .header-stats-wrapper {
+  position: static !important;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
+  flex: 1 1 auto !important;
+  width: auto !important;
+  max-width: none !important;
+  margin: 0 10px !important;
+  justify-content: center !important;
+  overflow-x: hidden !important;
+  overflow-y: hidden !important;
+  white-space: nowrap !important;
+}
+
+.main-content .top-header .header-stat-item {
+  gap: 6px !important;
+  font-size: 12px !important;
+}
+
+.main-content .top-header .header-stat-value {
+  font-size: 0.94rem !important;
+}
+
+.main-content .top-header .header-stat-label {
+  font-size: 0.68rem !important;
+}
+
+.main-content .top-header .search-bar {
+  max-width: min(36vw, 420px) !important;
+}
+
+.main-content .top-header .search-bar input {
+  width: clamp(120px, 22vw, 300px) !important;
+}
+
+.main-content .top-header .header-right {
+  gap: 10px !important;
+  flex-shrink: 0 !important;
+}
+
+.main-content .top-header .new-node-btn,
+.main-content .top-header .project-switcher-btn {
+  white-space: nowrap !important;
+}
+
+/* Keep the left helper/assistant fully visible inside sidebar */
+.pami-sidebar-assistant-panel {
+  margin: 12px 8px 10px !important;
+  min-height: 0 !important;
+  max-height: 320px !important;
+  flex: 0 0 auto !important;
+}
+
+.pami-assistant-bubble {
+  min-height: 84px !important;
+  max-height: 84px !important;
+  margin-bottom: 6px !important;
+}
+
+.pami-assistant-message {
+  min-height: 46px !important;
+  max-height: 46px !important;
+}
+
+.pami-assistant-robot-wrap {
+  height: 84px !important;
+  min-height: 84px !important;
+  margin-top: 2px !important;
+  margin-bottom: 4px !important;
+}
+
+.pami-assistant-avatar-image {
+  width: 120px !important;
+  height: 120px !important;
+  margin-top: -2px !important;
+}
+
+.pami-assistant-actions {
+  min-height: 0 !important;
+  flex: 0 0 auto !important;
+  margin-top: 4px !important;
+}
+
+.pami-assistant-check-btn,
+.pami-assistant-history-btn {
+  min-height: 30px !important;
+  height: 30px !important;
+  font-size: 0.58rem !important;
+}
+
+@media (max-width: 1366px) {
+  .main-content {
+    padding: 14px !important;
+  }
+
+  .main-content .top-header {
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+  }
+
+  .main-content .top-header::before {
+    display: none !important;
+  }
+
+  .main-content .top-header .header-left {
+    order: 1;
+    flex: 0 0 auto !important;
+  }
+
+  .main-content .top-header .header-right {
+    order: 2;
+    flex: 0 0 auto !important;
+  }
+
+  .main-content .top-header .header-stats-wrapper,
+  .main-content.sidebar-open .top-header .header-stats-wrapper,
+  .main-content.sidebar-closed .top-header .header-stats-wrapper {
+    order: 2;
+    position: static !important;
+    left: auto !important;
+    top: auto !important;
+    transform: none !important;
+    width: auto !important;
+    max-width: none !important;
+    margin: 0 8px !important;
+    justify-content: center !important;
+    overflow-x: hidden !important;
+    overflow-y: hidden !important;
+    padding-bottom: 0 !important;
+  }
+
+  .main-content .top-header .header-stat-item {
+    flex: 0 0 auto !important;
+  }
+
+  .main-content .top-header .header-stat-separator {
+    display: none !important;
+  }
+
+  /* Minimal stat strip on laptop widths: keep only the two most useful counters */
+  .main-content .top-header .header-stat-item:nth-child(5),
+  .main-content .top-header .header-stat-item:nth-child(7) {
+    display: none !important;
+  }
+
+  .main-content .top-header .header-stat-item {
+    gap: 5px !important;
+    font-size: 11px !important;
+  }
+
+  .main-content .top-header .header-stat-icon {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+  }
+
+  .main-content .top-header .header-stat-value {
+    font-size: 0.88rem !important;
+  }
+
+  .main-content .top-header .header-stat-label {
+    font-size: 0.63rem !important;
+    letter-spacing: 0.02em !important;
+  }
+}
+
+@media (max-height: 820px) {
+  .pami-sidebar-assistant-panel {
+    max-height: 276px !important;
+  }
+
+  .pami-assistant-bubble {
+    min-height: 74px !important;
+    max-height: 74px !important;
+  }
+
+  .pami-assistant-message {
+    min-height: 40px !important;
+    max-height: 40px !important;
+  }
+
+  .pami-assistant-robot-wrap {
+    height: 72px !important;
+    min-height: 72px !important;
+  }
+
+  .pami-assistant-avatar-image {
+    width: 102px !important;
+    height: 102px !important;
+  }
+
+  .pami-assistant-check-btn,
+  .pami-assistant-history-btn {
+    min-height: 28px !important;
+    height: 28px !important;
   }
 }
 
