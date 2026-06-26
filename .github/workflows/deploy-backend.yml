@@ -28,10 +28,10 @@ jobs:
           # Generate a unique tag based on commit SHA
           IMAGE_TAG=${{ github.sha }}
           docker build -t pami-projects-service:$IMAGE_TAG .
-          docker tag pami-projects-service:$IMAGE_TAG 909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:$IMAGE_TAG
-          docker tag pami-projects-service:$IMAGE_TAG 909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
-          docker push 909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:$IMAGE_TAG
-          docker push 909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
+          docker tag pami-projects-service:$IMAGE_TAG 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:$IMAGE_TAG
+          docker tag pami-projects-service:$IMAGE_TAG 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
+          docker push 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:$IMAGE_TAG
+          docker push 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
 
       - name: Register Projects Service Task Definition
         run: |
@@ -50,12 +50,12 @@ jobs:
             "requiresCompatibilities": ["FARGATE"],
             "cpu": "512",
             "memory": "1024",
-            "executionRoleArn": "arn:aws:iam::909189231170:role/LabRole",
-            "taskRoleArn": "arn:aws:iam::909189231170:role/LabRole",
+            "executionRoleArn": "arn:aws:iam::413410781221:role/LabRole",
+            "taskRoleArn": "arn:aws:iam::413410781221:role/LabRole",
             "containerDefinitions": [
               {
                 "name": "pami-projects-service",
-                "image": "909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest",
+                "image": "413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest",
                 "portMappings": [
                   {
                     "containerPort": 8000,
@@ -110,8 +110,8 @@ jobs:
               --task-definition pami-projects-service \
               --desired-count 1 \
               --launch-type FARGATE \
-              --network-configuration "awsvpcConfiguration={subnets=[subnet-047bd3bcf439f9667,subnet-0617c57f1370ef445],securityGroups=[sg-0a6ab09920fd49e29],assignPublicIp=ENABLED}" \
-              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:909189231170:targetgroup/projects-service-tg/5342c6b6e7418012,containerName=pami-projects-service,containerPort=8000" \
+              --network-configuration "awsvpcConfiguration={subnets=[subnet-02b60037f031bd077,subnet-00ac61fe81c2383a2],securityGroups=[sg-09b92835d6629a36a],assignPublicIp=ENABLED}" \
+              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:413410781221:targetgroup/projects-service-tg/ef519713cbdd3397,containerName=pami-projects-service,containerPort=8000" \
               --region us-east-1
           fi
           # Ensure desired count is 1 in case the service existed with 0
@@ -148,10 +148,10 @@ jobs:
           # Generate a unique tag based on commit SHA
           IMAGE_TAG=${{ github.sha }}
           docker build -t pami-ai-conversation-service:$IMAGE_TAG .
-          docker tag pami-ai-conversation-service:$IMAGE_TAG 909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:$IMAGE_TAG
-          docker tag pami-ai-conversation-service:$IMAGE_TAG 909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest
-          docker push 909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:$IMAGE_TAG
-          docker push 909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest
+          docker tag pami-ai-conversation-service:$IMAGE_TAG 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:$IMAGE_TAG
+          docker tag pami-ai-conversation-service:$IMAGE_TAG 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest
+          docker push 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:$IMAGE_TAG
+          docker push 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest
 
       - name: Register AI Conversation Service Task Definition
         run: |
@@ -162,12 +162,12 @@ jobs:
             "requiresCompatibilities": ["FARGATE"],
             "cpu": "512",
             "memory": "1024",
-            "executionRoleArn": "arn:aws:iam::909189231170:role/LabRole",
-            "taskRoleArn": "arn:aws:iam::909189231170:role/LabRole",
+            "executionRoleArn": "arn:aws:iam::413410781221:role/LabRole",
+            "taskRoleArn": "arn:aws:iam::413410781221:role/LabRole",
             "containerDefinitions": [
               {
                 "name": "ai-conversation-service",
-                "image": "909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest",
+                "image": "413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest",
                 "portMappings": [
                   {
                     "containerPort": 8001,
@@ -225,8 +225,8 @@ jobs:
               --task-definition pami-ai-conversation-service \
               --desired-count 1 \
               --launch-type FARGATE \
-              --network-configuration "awsvpcConfiguration={subnets=[subnet-047bd3bcf439f9667,subnet-0617c57f1370ef445],securityGroups=[sg-0a6ab09920fd49e29],assignPublicIp=ENABLED}" \
-              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:909189231170:targetgroup/ai-conversation-service-tg/890f1b53a5f3b1f8,containerName=ai-conversation-service,containerPort=8001" \
+              --network-configuration "awsvpcConfiguration={subnets=[subnet-02b60037f031bd077,subnet-00ac61fe81c2383a2],securityGroups=[sg-09b92835d6629a36a],assignPublicIp=ENABLED}" \
+              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:413410781221:targetgroup/ai-conversation-service-tg/8e834a650e5502dd,containerName=ai-conversation-service,containerPort=8001" \
               --region us-east-1
           fi
 

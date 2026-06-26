@@ -34,11 +34,11 @@ jobs:
           IMAGE_TAG=${{ github.sha }}
 
           docker build -t pami-slack-service:$IMAGE_TAG .
-          docker tag pami-slack-service:$IMAGE_TAG 909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
-          docker tag pami-slack-service:$IMAGE_TAG 909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
+          docker tag pami-slack-service:$IMAGE_TAG 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
+          docker tag pami-slack-service:$IMAGE_TAG 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
 
-          docker push 909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
-          docker push 909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
+          docker push 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
+          docker push 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
 
       - name: Register Task Definition
         run: |
@@ -49,12 +49,12 @@ jobs:
             "requiresCompatibilities": ["FARGATE"],
             "cpu": "512",
             "memory": "1024",
-            "executionRoleArn": "arn:aws:iam::909189231170:role/LabRole",
-            "taskRoleArn": "arn:aws:iam::909189231170:role/LabRole",
+            "executionRoleArn": "arn:aws:iam::413410781221:role/LabRole",
+            "taskRoleArn": "arn:aws:iam::413410781221:role/LabRole",
             "containerDefinitions": [
               {
                 "name": "slack-service",
-                "image": "909189231170.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest",
+                "image": "413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest",
                 "portMappings": [
                   {
                     "containerPort": 8002,
@@ -113,8 +113,8 @@ jobs:
               --task-definition pami-slack-service \
               --desired-count 1 \
               --launch-type FARGATE \
-              --network-configuration "awsvpcConfiguration={subnets=[subnet-047bd3bcf439f9667,subnet-0617c57f1370ef445],securityGroups=[sg-0a6ab09920fd49e29],assignPublicIp=ENABLED}" \
-              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:909189231170:targetgroup/slack-service-tg/07a05ce456b9b8bb,containerName=slack-service,containerPort=8002" \
+              --network-configuration "awsvpcConfiguration={subnets=[subnet-02b60037f031bd077,subnet-00ac61fe81c2383a2],securityGroups=[sg-09b92835d6629a36a],assignPublicIp=ENABLED}" \
+              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:413410781221:targetgroup/slack-service-tg/0272a76f612b8216,containerName=slack-service,containerPort=8002" \
               --region us-east-1
           fi
           # Ensure desired count is 1 in case the service existed with 0
