@@ -1,0 +1,110 @@
+name: Verify Embeddings Access
+
+# Throwaway probe: does OPENAI_API_KEY have access to the embeddings endpoint?
+# The secret never leaves the runner - only HTTP status codes, vector dimensions
+# and public model ids are printed. Delete this branch once the answer is known.
+
+on:
+  push:
+    branches: [chore/verify-embeddings-access]
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Embeddings - text-embedding-3-small (native dims)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          code=$(curl -s -o /tmp/emb.json -w "%{http_code}" \
+            https://api.openai.com/v1/embeddings \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"text-embedding-3-small","input":"pami embedding access probe"}')
+          echo "HTTP $code"
+          python3 - "$code" <<'PY'
+          import json, sys
+          code = sys.argv[1]
+          data = json.load(open("/tmp/emb.json"))
+          if code == "200":
+              print("RESULT: embeddings AVAILABLE")
+              print("  dimensions:", len(data["data"][0]["embedding"]))
+              print("  model     :", data.get("model"))
+              print("  tokens    :", data.get("usage", {}).get("total_tokens"))
+          else:
+              err = data.get("error", {})
+              print("RESULT: embeddings UNAVAILABLE")
+              print("  type   :", err.get("type"))
+              print("  code   :", err.get("code"))
+              print("  message:", err.get("message"))
+          PY
+
+      - name: Embeddings - dimensions=512 truncation
+        if: always()
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          code=$(curl -s -o /tmp/emb512.json -w "%{http_code}" \
+            https://api.openai.com/v1/embeddings \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"text-embedding-3-small","input":"probe","dimensions":512}')
+          echo "HTTP $code"
+          python3 - "$code" <<'PY'
+          import json, sys
+          code = sys.argv[1]
+          data = json.load(open("/tmp/emb512.json"))
+          if code == "200":
+              print("RESULT: 512-dim truncation supported, dims =",
+                    len(data["data"][0]["embedding"]))
+          else:
+              print("RESULT: truncation rejected ->",
+                    data.get("error", {}).get("message"))
+          PY
+
+      - name: Which models can this key see
+        if: always()
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          code=$(curl -s -o /tmp/models.json -w "%{http_code}" \
+            https://api.openai.com/v1/models \
+            -H "Authorization: Bearer $OPENAI_API_KEY")
+          echo "HTTP $code"
+          python3 - "$code" <<'PY'
+          import json, sys
+          code = sys.argv[1]
+          data = json.load(open("/tmp/models.json"))
+          if code != "200":
+              print("RESULT: /v1/models denied ->",
+                    data.get("error", {}).get("message"))
+          else:
+              ids = sorted(m["id"] for m in data.get("data", []))
+              emb = [i for i in ids if "embedding" in i]
+              print("RESULT: key sees", len(ids), "models total")
+              print("  embedding models:", emb or "NONE")
+              print("  all model ids   :", ", ".join(ids))
+          PY
+
+      - name: Control - chat completion on the configured model
+        if: always()
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          code=$(curl -s -o /tmp/chat.json -w "%{http_code}" \
+            https://api.openai.com/v1/chat/completions \
+            -H "Authorization: Bearer $OPENAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"gpt-4.1-mini","max_tokens":5,"messages":[{"role":"user","content":"ping"}]}')
+          echo "HTTP $code"
+          python3 - "$code" <<'PY'
+          import json, sys
+          code = sys.argv[1]
+          data = json.load(open("/tmp/chat.json"))
+          if code == "200":
+              print("RESULT: chat AVAILABLE on", data.get("model"))
+          else:
+              print("RESULT: chat UNAVAILABLE ->",
+                    data.get("error", {}).get("message"))
+          PY
