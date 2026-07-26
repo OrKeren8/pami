@@ -111,7 +111,7 @@ jobs:
               --desired-count 1 \
               --launch-type FARGATE \
               --network-configuration "awsvpcConfiguration={subnets=[subnet-02b60037f031bd077,subnet-00ac61fe81c2383a2],securityGroups=[sg-09b92835d6629a36a],assignPublicIp=ENABLED}" \
-              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:413410781221:targetgroup/projects-service-tg/ef519713cbdd3397,containerName=pami-projects-service,containerPort=8000" \
+              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:413410781221:targetgroup/projects-service-tg/a25b084c1361e50e,containerName=pami-projects-service,containerPort=8000" \
               --region us-east-1
           fi
           # Ensure desired count is 1 in case the service existed with 0
@@ -226,7 +226,7 @@ jobs:
               --desired-count 1 \
               --launch-type FARGATE \
               --network-configuration "awsvpcConfiguration={subnets=[subnet-02b60037f031bd077,subnet-00ac61fe81c2383a2],securityGroups=[sg-09b92835d6629a36a],assignPublicIp=ENABLED}" \
-              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:413410781221:targetgroup/ai-conversation-service-tg/8e834a650e5502dd,containerName=ai-conversation-service,containerPort=8001" \
+              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:413410781221:targetgroup/ai-conversation-service-tg/a55b9d20d67e2cbb,containerName=ai-conversation-service,containerPort=8001" \
               --region us-east-1
           fi
 
