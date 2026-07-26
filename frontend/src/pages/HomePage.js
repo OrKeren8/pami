@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
-import api, { projectsApi, slackApi, aiApi } from "../api/axios";
+import api, { projectsApi, slackApi, aiApi, jiraApi } from "../api/axios";
 
 const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoading, closeModal, fetchProjects, drawConnections, onNodeColorChange, onOpenConversation }) => {
     const [isDeleting, setIsDeleting] = useState(false);
@@ -263,6 +263,8 @@ const HomePage = () => {
     const [channelNameInput, setChannelNameInput] = useState("");
     const [messageChannelInput, setMessageChannelInput] = useState("");
     const [messageTextInput, setMessageTextInput] = useState("");
+    const [jiraConnected, setJiraConnected] = useState(false);
+    const [jiraProjects, setJiraProjects] = useState([]); 
 
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState("");
@@ -729,6 +731,12 @@ const HomePage = () => {
             setActiveModal(slackConnected ? "slackActions" : "slack");
             return;
         }
+
+if (type === "jira") {
+    setActiveModal(jiraConnected ? "jiraActions" : "jira");
+    return;
+}
+
         setActiveModal(type);
     };
 
@@ -797,6 +805,20 @@ const HomePage = () => {
         return response.data.channels || [];
     };
 
+const fetchJiraProjects = async () => {
+    const response = await jiraApi.get("/list-projects");
+
+    if (!response.data || response.data.ok !== true) {
+        throw new Error(
+            response.data && response.data.error
+                ? response.data.error
+                : "Failed to fetch Jira projects."
+        );
+    }
+
+    return response.data.projects || [];
+};
+
     const handleConnect = async (e) => {
         e.preventDefault();
         setIsLoading(true);
@@ -809,6 +831,23 @@ const HomePage = () => {
                 setActiveModal("slackActions");
                 return;
             }
+
+if (activeModal === "jira") {
+    const response = await jiraApi.post("/connection-check");
+
+    if (!response.data || response.data.ok !== true) {
+        throw new Error("Jira connection check failed.");
+    }
+
+    const projects = await fetchJiraProjects();
+
+    setJiraConnected(true);
+    setJiraProjects(projects);
+    alert("Connected successfully to Jira!");
+    setActiveModal("jiraActions");
+    return;
+}
+
             await api.post(`/integrate/${activeModal}`, {
                 email: emailInput,
                 token: tokenInput,
@@ -852,6 +891,74 @@ const HomePage = () => {
             setIsLoading(false);
         }
     };
+
+const handleJiraTestConnection = async () => {
+    setIsLoading(true);
+
+    try {
+        const response = await jiraApi.post("/connection-check");
+
+        if (!response.data || response.data.ok !== true) {
+            throw new Error("Jira connection check failed.");
+        }
+
+        alert("Jira connection is healthy.");
+    } catch (error) {
+        console.error("Jira test connection failed:", error);
+        alert("Jira test connection failed.");
+    } finally {
+        setIsLoading(false);
+    }
+};
+
+const handleListJiraProjects = async () => {
+    setIsLoading(true);
+
+    try {
+        const projects = await fetchJiraProjects();
+        setJiraProjects(projects);
+
+        if (projects.length === 0) {
+            alert("No Jira projects found.");
+            return;
+        }
+
+        alert(`Found ${projects.length} Jira project(s).`);
+    } catch (error) {
+        console.error("Failed to fetch Jira projects:", error);
+        alert("Failed to fetch Jira projects.");
+    } finally {
+        setIsLoading(false);
+    }
+};
+
+const handleCreateJiraTestIssue = async () => {
+    setIsLoading(true);
+
+    try {
+        const projects = jiraProjects.length > 0 ? jiraProjects : await fetchJiraProjects();
+        const projectKey = projects[0] && projects[0].key ? projects[0].key : "SCRUM";
+
+        const response = await jiraApi.post("/issues", {
+            project_key: projectKey,
+            summary: "PAMI frontend Jira integration test",
+            description: "Created from the PAMI frontend through the local Jira service.",
+            issue_type: "Task",
+            labels: ["pami", "frontend", "integration"]
+        });
+
+        if (!response.data || response.data.ok !== true) {
+            throw new Error("Failed to create Jira issue.");
+        }
+
+        alert(`Jira issue created: ${response.data.issue_key}`);
+    } catch (error) {
+        console.error("Failed to create Jira issue:", error);
+        alert("Failed to create Jira issue.");
+    } finally {
+        setIsLoading(false);
+    }
+};
 
     const handleCreateNodeFromConversation = async () => {
         console.log('Create node from conversation triggered');
@@ -1718,6 +1825,74 @@ const HomePage = () => {
         );
     };
 
+const renderJiraActionsModal = () => {
+    return (
+        <>
+            <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
+                <img
+                    src="https://cdn.worldvectorlogo.com/logos/jira-1.svg"
+                    alt="Jira"
+                    style={{ height: "50px", marginBottom: "10px" }}
+                />
+                <h2>Jira Actions</h2>
+                <p style={{ color: "#666", margin: 0 }}>
+                    Jira is connected. You can test the connection, list projects, or create a test issue.
+                </p>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <button
+                    type="button"
+                    onClick={handleJiraTestConnection}
+                    disabled={isLoading}
+                    style={{ width: "100%", padding: "12px", background: "#0052cc", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
+                >
+                    Test Jira Connection
+                </button>
+
+                <button
+                    type="button"
+                    onClick={handleListJiraProjects}
+                    disabled={isLoading}
+                    style={{ width: "100%", padding: "12px", background: "#172b4d", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
+                >
+                    List Jira Projects
+                </button>
+
+                <button
+                    type="button"
+                    onClick={handleCreateJiraTestIssue}
+                    disabled={isLoading}
+                    style={{ width: "100%", padding: "12px", background: "#0f9d58", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
+                >
+                    Create Test Issue
+                </button>
+
+                {jiraProjects.length > 0 && (
+                    <div style={{ marginTop: "8px", padding: "12px", background: "#f5f7fb", borderRadius: "12px", border: "1px solid #e5e7eb" }}>
+                        <strong>Projects:</strong>
+                        <ul style={{ margin: "8px 0 0 18px", padding: 0 }}>
+                            {jiraProjects.map((project) => (
+                                <li key={project.id || project.key}>
+                                    {project.name} ({project.key})
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                <button
+                    type="button"
+                    onClick={() => setActiveModal(null)}
+                    style={{ width: "100%", padding: "12px", background: "#ddd", color: "#333", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}
+                >
+                    Close
+                </button>
+            </div>
+        </>
+    );
+};
+
     const renderDefaultIntegrationModal = () => {
         return (
             <>
@@ -1911,6 +2086,7 @@ const HomePage = () => {
         if (activeModal === "slackActions") return renderSlackActionsModal();
         if (activeModal === "slackCreateChannel") return renderSlackCreateChannelModal();
         if (activeModal === "slackSendMessage") return renderSlackSendMessageModal();
+        if (activeModal === "jiraActions") return renderJiraActionsModal(); 
         if (activeModal === "viewNodeDetails") return (
             <NodeDetailsModal
                 selectedNode={selectedNode}
