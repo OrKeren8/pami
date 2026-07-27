@@ -1,6 +1,10 @@
 name: Deploy Backend Services
 
 on:
+  # Manual runs can target any branch, so a feature branch can be deployed and
+  # tested before it is merged. Note there is a single environment: a manual run
+  # replaces whatever is currently deployed until main is deployed again.
+  workflow_dispatch:
   push:
     branches: [main]
 
