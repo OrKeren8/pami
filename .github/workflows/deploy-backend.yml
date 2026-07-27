@@ -1,6 +1,10 @@
 name: Deploy Backend Services
 
 on:
+  # Manual runs can target any branch, so a feature branch can be deployed and
+  # tested before it is merged. Note there is a single environment: a manual run
+  # replaces whatever is currently deployed until main is deployed again.
+  workflow_dispatch:
   push:
     branches: [main]
 
@@ -160,8 +164,8 @@ jobs:
             "family": "pami-ai-conversation-service",
             "networkMode": "awsvpc",
             "requiresCompatibilities": ["FARGATE"],
-            "cpu": "512",
-            "memory": "1024",
+            "cpu": "1024",
+            "memory": "2048",
             "executionRoleArn": "arn:aws:iam::413410781221:role/LabRole",
             "taskRoleArn": "arn:aws:iam::413410781221:role/LabRole",
             "containerDefinitions": [
@@ -188,6 +192,10 @@ jobs:
                   {
                     "name": "PROJECTS_API_URL",
                     "value": "${{ secrets.PROJECTS_API_URL }}"
+                  },
+                  {
+                    "name": "EMBEDDING_CACHE_DIR",
+                    "value": "/app/.model_cache"
                   }
                 ],
                 "logConfiguration": {
