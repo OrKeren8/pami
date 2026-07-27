@@ -3,7 +3,7 @@ name = "pami-projects-service"
 version = "0.3.0"
 description = "PAMI Projects Management Microservice"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
     { name = "Or Keren", email = "or.keren@example.com" },
     { name = "Roy Kalfon", email = "roy.kalfon@example.com" },
