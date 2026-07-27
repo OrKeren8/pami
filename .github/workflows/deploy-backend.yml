@@ -159,6 +159,18 @@ jobs:
 
       - name: Register AI Conversation Service Task Definition
         run: |
+          # Resolve the projects-service URL from the live ALB rather than a static
+          # secret. The lab rebuild changes the ALB DNS, and a stale secret silently
+          # breaks every outbound call from this service while the reverse direction
+          # keeps working.
+          ALB_DNS=$(aws elbv2 describe-load-balancers --region us-east-1 --query "LoadBalancers[?LoadBalancerName=='pami-alb'].DNSName | [0]" --output text)
+          if [ -z "$ALB_DNS" ] || [ "$ALB_DNS" = "None" ]; then
+            echo "Failed to resolve ALB DNS for pami-alb"
+            exit 1
+          fi
+          PROJECTS_API_URL="http://$ALB_DNS"
+          echo "Using PROJECTS_API_URL=$PROJECTS_API_URL"
+
           cat > task-def.json << EOF
           {
             "family": "pami-ai-conversation-service",
@@ -191,7 +203,7 @@ jobs:
                   },
                   {
                     "name": "PROJECTS_API_URL",
-                    "value": "${{ secrets.PROJECTS_API_URL }}"
+                    "value": "$PROJECTS_API_URL"
                   },
                   {
                     "name": "EMBEDDING_CACHE_DIR",
