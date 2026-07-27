@@ -271,7 +271,7 @@ class TestContextTreeService:
         assert link_map["n3"] == 72
 
     @pytest.mark.asyncio
-    async def test_recompute_prunes_stale_links_with_low_or_zero_correlation(
+    async def test_recompute_prunes_links_scored_below_threshold(
         self, service, mock_repository
     ):
         project_id = "project-1"
@@ -290,7 +290,7 @@ class TestContextTreeService:
 
         mock_repository.list_by_project = AsyncMock(return_value=[node_a, node_b])
 
-        await service._recompute_weighted_links_for_node(project_id, "a")
+        await service._recompute_weighted_links_for_node(project_id, "a", {"b": 10})
 
         assert service._get_link_map(node_a) == {}
         assert service._get_link_map(node_b) == {}

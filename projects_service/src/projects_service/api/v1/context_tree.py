@@ -4,9 +4,16 @@ from projects_service.schemas.context_tree_schemas import (
     CreateContextTreeNodeRequest,
     UpdateContextTreeNodeRequest,
     ContextTreeNodeResponse,
+    UpdateSiblingScoresRequest,
 )
-from projects_service.services.context_tree_service import ContextTreeService
-from projects_service.dependencies import get_context_tree_service
+from projects_service.services.context_tree_service import (
+    ContextTreeService,
+    UnknownSiblingError,
+)
+from projects_service.dependencies import (
+    ContextTreeServiceDep,
+    get_context_tree_service,
+)
 
 router = APIRouter(prefix="/context-tree", tags=["context-tree"])
 
@@ -36,6 +43,24 @@ async def get_node(
     service: ContextTreeService = Depends(get_context_tree_service),
 ):
     node = await service.get_node(node_id)
+    if not node:
+        raise HTTPException(status_code=404, detail="Node not found")
+    return node
+
+
+@router.put("/nodes/{node_id}/sibling-scores", response_model=ContextTreeNodeResponse)
+async def update_sibling_scores(
+    node_id: str,
+    request: UpdateSiblingScoresRequest,
+    context_tree_service: ContextTreeServiceDep,
+):
+    """Apply externally computed sibling correlation scores to a node."""
+    try:
+        node = await context_tree_service.apply_sibling_scores(
+            node_id, request.scores, request.source
+        )
+    except UnknownSiblingError as error:
+        raise HTTPException(status_code=422, detail=str(error))
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
     return node

@@ -11,12 +11,17 @@ from projects_service.schemas.context_tree_schemas import (
     UpdateContextTreeNodeRequest,
     ContextTreeNodeResponse,
     SiblingLinkPayload,
+    SiblingScorePayload,
 )
 from projects_service.core.config import settings
 
 
 class AIOrganizationError(Exception):
     """Raised when the AI organization service fails to provide a usable response."""
+
+
+class UnknownSiblingError(Exception):
+    """Raised when a sibling score references a node outside the project."""
 
 
 class ContextTreeService:
@@ -90,54 +95,61 @@ class ContextTreeService:
         except TypeError:
             await self._context_tree_repository.update(self._node_id(node), fields)
 
+    def _merge_scores(
+        self, existing: Dict[str, int], fresh: Dict[str, int]
+    ) -> Dict[str, int]:
+        """Freshest score wins; peers absent from `fresh` keep their existing score."""
+        merged = dict(existing)
+        for peer_id, score in fresh.items():
+            if score >= self._MIN_CORRELATION_SCORE:
+                merged[peer_id] = score
+            else:
+                merged.pop(peer_id, None)
+        return merged
+
     async def _recompute_weighted_links_for_node(
         self,
         project_id: str,
         node_id: str,
         include_peer_scores: Optional[Dict[str, int]] = None,
+        all_nodes: Optional[List[ContextTreeNode]] = None,
     ) -> None:
-        """Apply AI-provided sibling scores for a node and enforce reciprocal links."""
-        all_nodes = await self._context_tree_repository.list_by_project(project_id)
+        """Apply freshly scored sibling links for a node and mirror them onto peers."""
+        if all_nodes is None:
+            all_nodes = await self._context_tree_repository.list_by_project(project_id)
         node_by_id = {self._node_id(n): n for n in all_nodes}
         source = node_by_id.get(str(node_id))
         if not source:
             return
 
         source_id = self._node_id(source)
-        include_peer_scores = include_peer_scores or {}
 
-        desired_source_map: Dict[str, int] = {}
-        for peer_id, raw_score in include_peer_scores.items():
-            if peer_id == source_id:
+        scored: Dict[str, int] = {}
+        for peer_id, raw_score in (include_peer_scores or {}).items():
+            if peer_id == source_id or peer_id not in node_by_id:
                 continue
-            if peer_id not in node_by_id:
-                continue
-            score = self._clamp_score(raw_score)
-            if score >= self._MIN_CORRELATION_SCORE:
-                desired_source_map[peer_id] = score
+            scored[peer_id] = self._clamp_score(raw_score)
 
         old_source_map = self._get_link_map(source)
-        if old_source_map != desired_source_map:
+        new_source_map = self._merge_scores(old_source_map, scored)
+        if old_source_map != new_source_map:
             await self._persist_node_fields(
                 source,
                 {
-                    "sibling_links": self._serialize_link_map(desired_source_map),
+                    "sibling_links": self._serialize_link_map(new_source_map),
                     "updated_at": datetime.utcnow(),
                 },
             )
 
         for other in all_nodes:
             other_id = self._node_id(other)
-            if other_id == source_id:
+            if other_id == source_id or other_id not in scored:
                 continue
 
             old_other_map = self._get_link_map(other)
-            new_other_map = dict(old_other_map)
-
-            if other_id in desired_source_map:
-                new_other_map[source_id] = desired_source_map[other_id]
-            else:
-                new_other_map.pop(source_id, None)
+            new_other_map = self._merge_scores(
+                old_other_map, {source_id: scored[other_id]}
+            )
 
             if old_other_map != new_other_map:
                 await self._persist_node_fields(
@@ -423,12 +435,6 @@ class ContextTreeService:
                                 )
                             suggested_scores[candidate] = self._clamp_score(raw_score)
 
-                        missing_ids = sorted(available_ids.difference(suggested_scores))
-                        if missing_ids:
-                            raise AIOrganizationError(
-                                "AI tree-analysis must return sibling_score_suggestions for every existing node"
-                            )
-
                         await self._persist_node_fields(
                             node,
                             {
@@ -497,6 +503,41 @@ class ContextTreeService:
         )
 
         refreshed = await self._context_tree_repository.get_by_id(str(node_id))
+        return self._to_response(refreshed or node)
+
+    async def apply_sibling_scores(
+        self,
+        node_id: str,
+        scores: List[SiblingScorePayload],
+        source: str = "embedding",
+    ) -> Optional[ContextTreeNodeResponse]:
+        """Apply externally computed sibling scores and mirror them onto peers."""
+        node = await self._context_tree_repository.get_by_id(node_id)
+        if not node:
+            return None
+
+        node_id_str = str(node_id)
+        project_id = str(getattr(node, "project_id"))
+        all_nodes = await self._context_tree_repository.list_by_project(project_id)
+        known_ids = {self._node_id(n) for n in all_nodes}
+
+        unknown_ids = sorted({s.sibling_id for s in scores}.difference(known_ids))
+        if unknown_ids:
+            raise UnknownSiblingError(
+                f"Unknown sibling ids for node {node_id_str}: {unknown_ids[:5]}"
+            )
+
+        self._logger.info(
+            f"Applying {len(scores)} sibling scores to node {node_id_str} from {source}"
+        )
+        await self._recompute_weighted_links_for_node(
+            project_id=project_id,
+            node_id=node_id_str,
+            include_peer_scores={s.sibling_id: s.correlation_score for s in scores},
+            all_nodes=all_nodes,
+        )
+
+        refreshed = await self._context_tree_repository.get_by_id(node_id_str)
         return self._to_response(refreshed or node)
 
     async def delete_node(self, node_id: str) -> bool:
