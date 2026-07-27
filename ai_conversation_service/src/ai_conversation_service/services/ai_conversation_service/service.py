@@ -1,8 +1,8 @@
+import asyncio
 import json
 import uuid
 from datetime import datetime
 from typing import List, Optional, Dict, Any
-import os
 from loguru import logger
 from openai import AsyncOpenAI
 import boto3
@@ -15,6 +15,11 @@ from ai_conversation_service.models.ai_conversation import (
     Conversation,
     ConversationMessage,
 )
+from ai_conversation_service.agents.conversation_agent import (
+    AgentDeps,
+    build_usage_limits,
+)
+from ai_conversation_service.schemas.retrieval_schemas import SendMessageResult
 from ai_conversation_service.services.projects_service_client import (
     ProjectsServiceClient,
 )
@@ -27,10 +32,25 @@ CONVERSATION_CHAT_USER_PROMPT_TEMPLATE = load_prompt_file(
 )
 
 
-class AIConversationService:
-    """Service for managing AI conversations with OpenAI integration and S3 storage."""
+class ConversationNotFoundError(Exception):
+    """Raised when a conversation id does not resolve to a stored transcript."""
 
-    def __init__(self):
+
+class AIConversationService:
+    """Manages AI conversations over OpenAI with S3 transcript storage.
+
+    The retrieval collaborators are optional: without them the service answers from
+    the current conversation only, instead of failing to start.
+    """
+
+    def __init__(
+        self,
+        projects_service_client: ProjectsServiceClient | None = None,
+        chunk_index_service=None,
+        context_retrieval_service=None,
+        reindex_trigger=None,
+        conversation_agent=None,
+    ):
         self._logger = logger.bind(service="AIConversationService")
 
         # Initialize OpenAI client
@@ -89,7 +109,14 @@ class AIConversationService:
                 "AI Conversation Service initialized with limited functionality"
             )
 
-        self.projects_service_client = ProjectsServiceClient(settings.projects_api_url)
+        self.projects_service_client = projects_service_client or ProjectsServiceClient(
+            settings.projects_api_url
+        )
+        self.chunk_index_service = chunk_index_service
+        self.context_retrieval_service = context_retrieval_service
+        self.reindex_trigger = reindex_trigger
+        self.conversation_agent = conversation_agent
+        self._background_tasks: set[asyncio.Task] = set()
 
     def _ensure_bucket_exists(self):
         """Ensure the S3 bucket exists, create it if it doesn't."""
@@ -306,6 +333,106 @@ class AIConversationService:
                 f"Unexpected error retrieving conversation {conversation_id}: {e}"
             )
             return None
+
+    async def send_message_with_context(
+        self,
+        conversation_id: str,
+        user_message: str,
+        context_snapshot: Optional[Dict] = None,
+    ) -> SendMessageResult:
+        """Answer a message, letting the agent search other conversations if needed."""
+        conversation = await self.get_conversation(conversation_id)
+        if not conversation:
+            raise ConversationNotFoundError(conversation_id)
+
+        if not self.conversation_agent or not self.context_retrieval_service:
+            answer = await self.send_message(
+                conversation_id, user_message, context_snapshot
+            )
+            return SendMessageResult(response=answer)
+
+        history = "\n".join(
+            f"{message.get('role')}: {message.get('content')}"
+            for message in conversation.messages[-20:]
+        )
+        neighbour_note = await self._related_conversations_note(conversation)
+        prompt = (
+            f"{neighbour_note}\n\nConversation so far:\n{history}\n\n"
+            f"Latest user message: {user_message}"
+        )
+
+        deps = AgentDeps(
+            project_id=conversation.project_id,
+            conversation_id=conversation_id,
+            retrieval=self.context_retrieval_service,
+            chunk_index=self.chunk_index_service,
+            transcripts=self,
+        )
+
+        user_msg = {
+            "role": "user",
+            "content": user_message,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+        conversation.messages.append(user_msg)
+        await self._save_conversation(conversation)
+
+        result = await self.conversation_agent.run(
+            prompt, deps=deps, usage_limits=build_usage_limits()
+        )
+        answer = str(result.output)
+
+        conversation.messages.append(
+            {
+                "role": "assistant",
+                "content": answer,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
+        conversation.updated_at = datetime.utcnow().isoformat()
+        await self._save_conversation(conversation)
+
+        self._schedule_reindex(conversation)
+
+        consulted = list(deps.consulted.values())
+        self._logger.info(
+            f"Answered in conversation {conversation_id}; tool_calls={deps.tool_calls}; "
+            f"consulted {[c.conversation_id for c in consulted]}"
+        )
+        return SendMessageResult(
+            response=answer, consulted=consulted, tool_calls_used=deps.tool_calls
+        )
+
+    async def purge_conversation(self, conversation_id: str) -> bool:
+        """Remove a conversation from the search index first, then from S3.
+
+        Index-before-transcript ordering matters: the reverse leaves chunks holding
+        verbatim conversation text that retrieval would keep serving for a transcript
+        that no longer exists. The index delete is unconditional so a retry after a
+        partial failure can always finish the cleanup.
+        """
+        if self.chunk_index_service:
+            await self.chunk_index_service.delete_conversation(conversation_id)
+        return await self.delete_conversation(conversation_id)
+
+    async def force_reindex(self, conversation_id: str) -> bool:
+        """Reindex a conversation now, ignoring the message-count debounce."""
+        if not self.reindex_trigger or not self.chunk_index_service:
+            return False
+
+        conversation = await self.get_conversation(conversation_id)
+        if not conversation:
+            return False
+
+        state = await self.chunk_index_service.state_for(conversation_id)
+        return await self.reindex_trigger.maybe_reindex(
+            conversation_id=conversation_id,
+            project_id=conversation.project_id,
+            node_id=state.node_id if state else conversation.context_node_id,
+            messages=conversation.messages,
+            header=(state.header if state else None) or conversation.title,
+            force=True,
+        )
 
     async def send_message(
         self,
@@ -596,8 +723,7 @@ class AIConversationService:
             key = f"conversations/{conversation_id}.json"
             try:
                 self.s3_client.get_object(Bucket=self.bucket_name, Key=key)
-            except Exception as e:
-                # If object retrieval fails, consider deletion unsuccessful for tests
+            except Exception:
                 self._logger.info(
                     f"Conversation {conversation_id} not found for deletion"
                 )
@@ -627,6 +753,61 @@ class AIConversationService:
     # when available and otherwise call the OpenAI client. The older
     # implementation that directly referenced `self.openai_client.chat` was
     # removed to ensure Bedrock delegation works for tests.
+
+    async def _related_conversations_note(self, conversation) -> str:
+        """Prime the agent with which related conversations it could search."""
+        if not self.chunk_index_service:
+            return ""
+
+        state = await self.chunk_index_service.state_for(conversation.conversation_id)
+        if not state or not state.node_id:
+            return ""
+
+        sibling_node_ids = await self.projects_service_client.get_sibling_node_ids(
+            state.node_id
+        )
+        headers = await self.chunk_index_service.headers_for_nodes(
+            conversation.project_id, sibling_node_ids
+        )
+        if not headers:
+            return ""
+
+        titles = ", ".join(sorted(headers.values()))
+        return (
+            "Related conversations in this project you can search with "
+            f"search_context: {titles}."
+        )
+
+    def _schedule_reindex(self, conversation) -> None:
+        """Reindex in the background; it must never add latency to the answer."""
+        if not self.reindex_trigger:
+            return
+
+        task = asyncio.create_task(self._maybe_reindex(conversation))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    async def _maybe_reindex(self, conversation) -> None:
+        """Every await must sit inside the guard: this runs as a detached task."""
+        if not self.reindex_trigger:
+            return
+
+        try:
+            state = await self.chunk_index_service.state_for(
+                conversation.conversation_id
+            )
+            await self.reindex_trigger.maybe_reindex(
+                conversation_id=conversation.conversation_id,
+                project_id=conversation.project_id,
+                node_id=state.node_id if state else None,
+                messages=conversation.messages,
+                header=state.header if state else None,
+            )
+        except Exception as error:
+            self._logger.error(
+                f"Reindex failed for {conversation.conversation_id}: "
+                f"{type(error).__name__}"
+            )
 
     def _estimate_tokens(self, text: str) -> int:
         """Rough token estimation (1 token ≈ 4 characters for English)."""
