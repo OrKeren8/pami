@@ -54,7 +54,6 @@ def test_send_message_to_conversation():
     response = client.post(
         "/ai/ai-conversations/nonexistent-conversation/messages", json=request_data
     )
-    assert response.status_code in [
-        200,
-        500,
-    ]  # 200 if backend stubbed, 500 if missing infra
+    # 404 is the correct answer for a conversation id that does not resolve;
+    # 200 if the backend is stubbed, 500 only if infrastructure is missing.
+    assert response.status_code in [200, 404, 500]

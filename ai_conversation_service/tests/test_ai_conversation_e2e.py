@@ -9,11 +9,14 @@ from ai_conversation_service.api.v1.ai_conversations import (
 )
 from ai_conversation_service.dependencies import get_ai_conversation_service
 from ai_conversation_service.models.ai_conversation import Conversation
+from ai_conversation_service.schemas.retrieval_schemas import SendMessageResult
 
 
 class InMemoryAIConversationService:
     def __init__(self):
         self.conversations = {}
+        self.chunk_index_service = None
+        self.context_retrieval_service = None
 
     async def create_conversation(
         self, context_node_id: str, project_id: str, title: str | None = None
@@ -49,6 +52,19 @@ class InMemoryAIConversationService:
         )
         conversation.updated_at = datetime.utcnow().isoformat()
         return ai_text
+
+    async def purge_conversation(self, conversation_id: str) -> bool:
+        if self.chunk_index_service:
+            await self.chunk_index_service.delete_conversation(conversation_id)
+        return await self.delete_conversation(conversation_id)
+
+    async def send_message_with_context(
+        self, conversation_id: str, user_message: str, context_snapshot=None
+    ):
+        answer = await self.send_message(
+            conversation_id, user_message, context_snapshot
+        )
+        return SendMessageResult(response=answer)
 
     async def get_conversation_history(self, conversation_id: str, limit=None):
         conversation = self.conversations.get(conversation_id)
