@@ -143,6 +143,35 @@ async def test_graph_expansion_pulls_in_neighbour_conversations(
     assert any(hit.conversation_id == "conv-neighbour" for hit in expanded)
 
 
+async def test_first_index_takes_node_id_from_the_conversation(
+    chunk_index_service, retrieval_service, reindex_trigger, family_messages
+):
+    """On the first index there is no state yet, so node_id must come from the
+    conversation. A null node id strands the conversation outside the graph forever:
+    similarity scoring skips null-node records and the agent never learns the
+    conversation exists. Caught in live QA, not by tests that passed node_id explicitly.
+    """
+    from ai_conversation_service.services.ai_conversation_service.service import (
+        AIConversationService,
+    )
+
+    service = AIConversationService.__new__(AIConversationService)
+    service._logger = __import__("loguru").logger.bind(service="test")
+    service.chunk_index_service = chunk_index_service
+    service.reindex_trigger = reindex_trigger
+
+    conversation = FakeConversation("conv-fresh", "proj-1", list(family_messages))
+    conversation.context_node_id = "node-fresh"
+    conversation.title = "Fresh Conversation"
+
+    await service._maybe_reindex(conversation)
+
+    state = await chunk_index_service.state_for("conv-fresh")
+    assert state is not None, "conversation should have been indexed"
+    assert state.node_id == "node-fresh", "node id must survive the first index"
+    assert state.header == "Fresh Conversation"
+
+
 async def test_send_message_reports_consulted_and_tool_calls(
     chunk_index_service, retrieval_service, reindex_trigger, family_messages
 ):

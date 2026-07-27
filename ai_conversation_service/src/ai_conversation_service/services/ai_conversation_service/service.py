@@ -796,12 +796,16 @@ class AIConversationService:
             state = await self.chunk_index_service.state_for(
                 conversation.conversation_id
             )
+            # Fall back to the conversation's own node id: on the first index there is
+            # no state yet, and a null node id would strand the conversation out of the
+            # graph permanently.
             await self.reindex_trigger.maybe_reindex(
                 conversation_id=conversation.conversation_id,
                 project_id=conversation.project_id,
-                node_id=state.node_id if state else None,
+                node_id=(state.node_id if state else None)
+                or conversation.context_node_id,
                 messages=conversation.messages,
-                header=state.header if state else None,
+                header=(state.header if state else None) or conversation.title,
             )
         except Exception as error:
             self._logger.error(
