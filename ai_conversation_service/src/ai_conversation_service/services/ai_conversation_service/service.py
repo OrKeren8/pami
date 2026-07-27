@@ -754,14 +754,23 @@ class AIConversationService:
     # implementation that directly referenced `self.openai_client.chat` was
     # removed to ensure Bedrock delegation works for tests.
 
+    SEARCHABLE_NOTE = (
+        "This project has other conversations you can search with search_context."
+    )
+
     async def _related_conversations_note(self, conversation) -> str:
-        """Prime the agent with which related conversations it could search."""
+        """Prime the agent with what it can search.
+
+        Always states that other conversations are searchable: naming graph neighbours is
+        a bonus, but an empty note previously left the agent with no hint that retrieval
+        was possible, so it declined instead of searching.
+        """
         if not self.chunk_index_service:
             return ""
 
         state = await self.chunk_index_service.state_for(conversation.conversation_id)
         if not state or not state.node_id:
-            return ""
+            return self.SEARCHABLE_NOTE
 
         sibling_node_ids = await self.projects_service_client.get_sibling_node_ids(
             state.node_id
@@ -770,12 +779,11 @@ class AIConversationService:
             conversation.project_id, sibling_node_ids
         )
         if not headers:
-            return ""
+            return self.SEARCHABLE_NOTE
 
         titles = ", ".join(sorted(headers.values()))
         return (
-            "Related conversations in this project you can search with "
-            f"search_context: {titles}."
+            f"{self.SEARCHABLE_NOTE} Closely related ones: {titles}."
         )
 
     def _schedule_reindex(self, conversation) -> None:
