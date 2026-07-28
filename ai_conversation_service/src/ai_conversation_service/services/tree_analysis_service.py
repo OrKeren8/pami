@@ -151,6 +151,8 @@ class TreeAnalysisService:
 
         state = await self._chunk_index_service.state_for(request.conversation_id)
         if not state:
+            state = await self._index_now(request)
+        if not state:
             return []
 
         similarities = await self._chunk_index_service.conversation_similarities(
@@ -172,6 +174,32 @@ class TreeAnalysisService:
             SiblingScoreSuggestion(sibling_id=node_id, correlation_score=score)
             for node_id, score in scores.items()
         ]
+
+    async def _index_now(self, request: AnalyzeTreeRequest):
+        """Index a conversation immediately so a new node can be linked on creation.
+
+        A freshly created node has only its seed exchange, which sits below the reindex
+        threshold, so no index state exists yet and there would be nothing to score
+        against. `request.node_id` is authoritative here — it comes from the node being
+        created — so this also seeds the correct owning node id.
+        """
+        conversation = await self._ai_conversation_service.get_conversation(
+            request.conversation_id
+        )
+        if not conversation or not conversation.messages:
+            return None
+
+        self._logger.info(
+            f"Indexing conversation {request.conversation_id} on demand so node "
+            f"{request.node_id} can be linked at creation"
+        )
+        return await self._chunk_index_service.reindex_conversation(
+            conversation_id=request.conversation_id,
+            project_id=conversation.project_id,
+            node_id=request.node_id,
+            messages=conversation.messages,
+            header=conversation.title,
+        )
 
     def _build_tree_context(self, nodes: list[TreeNodeData]) -> str:
         """Build a readable graph context for AI analysis."""

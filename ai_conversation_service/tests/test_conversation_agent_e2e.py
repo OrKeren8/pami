@@ -29,6 +29,8 @@ class FakeConversation:
         self.conversation_id = conversation_id
         self.project_id = project_id
         self.messages = messages or []
+        self.context_node_id = f"node-of-{conversation_id}"
+        self.title = f"Conversation {conversation_id}"
 
 
 class FakeTranscripts:
@@ -141,6 +143,52 @@ async def test_graph_expansion_pulls_in_neighbour_conversations(
     expanded = [hit for hit in hits if hit.via == "graph_expansion"]
     assert expanded, "expected a graph-expansion hit from the sibling node"
     assert any(hit.conversation_id == "conv-neighbour" for hit in expanded)
+
+
+async def test_new_node_is_scored_against_peers_immediately(
+    chunk_index_service, family_messages, billing_messages
+):
+    """A node must be linkable the moment it is created.
+
+    At creation a conversation holds only its seed exchange, which is below the reindex
+    threshold — so without indexing on demand there is no vector to score and the node
+    would stay unconnected until several more messages arrived.
+    """
+    from ai_conversation_service.schemas.tree_analysis_schemas import (
+        AnalyzeTreeRequest,
+        TreeNodeData,
+    )
+    from ai_conversation_service.services.tree_analysis_service import (
+        TreeAnalysisService,
+    )
+
+    # An existing, already-indexed peer to score against.
+    await chunk_index_service.reindex_conversation(
+        "conv-peer", "proj-new", "node-peer", family_messages, "Existing Peer"
+    )
+
+    # The new conversation exists but has never been indexed.
+    seed = family_messages[:2]
+
+    class FakeConversationService:
+        async def get_conversation(self, conversation_id):
+            if conversation_id != "conv-new":
+                return None
+            return FakeConversation("conv-new", "proj-new", list(seed))
+
+    service = TreeAnalysisService(FakeConversationService(), None, chunk_index_service)
+    request = AnalyzeTreeRequest(
+        node_id="node-new",
+        conversation_id="conv-new",
+        current_tree=[TreeNodeData(id="node-peer", node_type="conversation")],
+    )
+
+    suggestions = await service._score_siblings(request)
+
+    state = await chunk_index_service.state_for("conv-new")
+    assert state is not None, "conversation must be indexed on demand"
+    assert state.node_id == "node-new"
+    assert [s.sibling_id for s in suggestions] == ["node-peer"]
 
 
 async def test_owning_node_wins_over_a_synthetic_placeholder(
