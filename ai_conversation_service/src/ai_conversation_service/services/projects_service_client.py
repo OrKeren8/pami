@@ -53,6 +53,35 @@ class ProjectsServiceClient:
             )
             return False
 
+    async def get_node_id_for_conversation(
+        self, project_id: str, conversation_id: str
+    ) -> Optional[str]:
+        """Find the context node that owns a conversation.
+
+        A conversation's own `context_node_id` is not authoritative: the UI creates a
+        conversation before any node exists and passes a synthetic placeholder, and
+        nothing updates it once the real node is created. The node itself is the only
+        record that knows the true pairing.
+        """
+        if not self.base_url or not project_id or not conversation_id:
+            return None
+
+        url = f"{self.base_url}/context-tree/projects/{project_id}/nodes"
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
+                response = await client.get(url)
+            if response.status_code != 200:
+                return None
+            for node in response.json() or []:
+                if node.get("conversation_id") == conversation_id:
+                    return str(node.get("id"))
+        except Exception as exc:
+            self._logger.debug(
+                f"Could not resolve node for conversation {conversation_id}: "
+                f"{type(exc).__name__}"
+            )
+        return None
+
     async def get_sibling_node_ids(self, node_id: str) -> List[str]:
         """Node ids linked to the given node, used for 1-hop graph expansion."""
         if not self.base_url or not node_id:

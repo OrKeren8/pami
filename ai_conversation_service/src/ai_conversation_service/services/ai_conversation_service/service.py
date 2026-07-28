@@ -428,7 +428,7 @@ class AIConversationService:
         return await self.reindex_trigger.maybe_reindex(
             conversation_id=conversation_id,
             project_id=conversation.project_id,
-            node_id=state.node_id if state else conversation.context_node_id,
+            node_id=await self._resolve_node_id(conversation, state),
             messages=conversation.messages,
             header=(state.header if state else None) or conversation.title,
             force=True,
@@ -786,6 +786,21 @@ class AIConversationService:
             f"{self.SEARCHABLE_NOTE} Closely related ones: {titles}."
         )
 
+    async def _resolve_node_id(self, conversation, state) -> str | None:
+        """The owning node id, asking projects_service first.
+
+        Prefer the authoritative lookup over any id already stored: conversations created
+        from the UI carry a synthetic `chat-session-…` placeholder, and trusting it sends
+        score pushes to a node that does not exist. Asking first also repairs records
+        already poisoned by that placeholder.
+        """
+        resolved = await self.projects_service_client.get_node_id_for_conversation(
+            conversation.project_id, conversation.conversation_id
+        )
+        if resolved:
+            return resolved
+        return (state.node_id if state else None) or conversation.context_node_id
+
     def _schedule_reindex(self, conversation) -> None:
         """Reindex in the background; it must never add latency to the answer."""
         if not self.reindex_trigger:
@@ -804,14 +819,10 @@ class AIConversationService:
             state = await self.chunk_index_service.state_for(
                 conversation.conversation_id
             )
-            # Fall back to the conversation's own node id: on the first index there is
-            # no state yet, and a null node id would strand the conversation out of the
-            # graph permanently.
             await self.reindex_trigger.maybe_reindex(
                 conversation_id=conversation.conversation_id,
                 project_id=conversation.project_id,
-                node_id=(state.node_id if state else None)
-                or conversation.context_node_id,
+                node_id=await self._resolve_node_id(conversation, state),
                 messages=conversation.messages,
                 header=(state.header if state else None) or conversation.title,
             )

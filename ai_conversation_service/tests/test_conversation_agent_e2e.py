@@ -143,8 +143,38 @@ async def test_graph_expansion_pulls_in_neighbour_conversations(
     assert any(hit.conversation_id == "conv-neighbour" for hit in expanded)
 
 
+async def test_owning_node_wins_over_a_synthetic_placeholder(
+    chunk_index_service, reindex_trigger, projects_client, family_messages
+):
+    """The UI creates a conversation before any node exists and stores a synthetic
+    `chat-session-…` id that nothing ever updates. Trusting it sends score pushes to a
+    node that does not exist, so the conversation never joins the graph. The owning node
+    reported by projects_service must win — which also repairs poisoned records.
+    """
+    from ai_conversation_service.services.ai_conversation_service.service import (
+        AIConversationService,
+    )
+
+    service = AIConversationService.__new__(AIConversationService)
+    service._logger = __import__("loguru").logger.bind(service="test")
+    service.chunk_index_service = chunk_index_service
+    service.reindex_trigger = reindex_trigger
+    service.projects_service_client = projects_client
+    projects_client._node_for_conversation["conv-ui"] = "node-real"
+
+    conversation = FakeConversation("conv-ui", "proj-1", list(family_messages))
+    conversation.context_node_id = "chat-session-1785224372024"
+    conversation.title = "PAMI Chat Session"
+
+    await service._maybe_reindex(conversation)
+
+    state = await chunk_index_service.state_for("conv-ui")
+    assert state is not None
+    assert state.node_id == "node-real", "synthetic placeholder must not win"
+
+
 async def test_first_index_takes_node_id_from_the_conversation(
-    chunk_index_service, retrieval_service, reindex_trigger, family_messages
+    chunk_index_service, retrieval_service, reindex_trigger, projects_client, family_messages
 ):
     """On the first index there is no state yet, so node_id must come from the
     conversation. A null node id strands the conversation outside the graph forever:
@@ -159,6 +189,7 @@ async def test_first_index_takes_node_id_from_the_conversation(
     service._logger = __import__("loguru").logger.bind(service="test")
     service.chunk_index_service = chunk_index_service
     service.reindex_trigger = reindex_trigger
+    service.projects_service_client = projects_client
 
     conversation = FakeConversation("conv-fresh", "proj-1", list(family_messages))
     conversation.context_node_id = "node-fresh"

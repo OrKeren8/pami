@@ -60,6 +60,13 @@ class RecordingProjectsClient:
     def __init__(self, sibling_map: dict[str, list[str]] | None = None):
         self.pushed: list[tuple[str, dict[str, int]]] = []
         self._sibling_map = sibling_map or {}
+        # conversation_id -> the node that owns it, as projects_service would report
+        self._node_for_conversation: dict[str, str] = {}
+
+    async def get_node_id_for_conversation(
+        self, project_id: str, conversation_id: str
+    ) -> str | None:
+        return self._node_for_conversation.get(conversation_id)
 
     async def push_sibling_scores(
         self, node_id: str, scores: dict, source: str = "embedding"
