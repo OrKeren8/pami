@@ -12,9 +12,17 @@ MIN_CORRELATION_SCORE = 30
 # AI-written boilerplate that inflates cross-topic similarity. Re-measure against
 # message-text embeddings before trusting these for scoring.
 CALIBRATION: dict[str, tuple[float, float]] = {
+    # All-message centroids. Kept only so pre-existing records stay readable; new
+    # conversations are scored with the `/user` variant below.
     "bge-small-en-v1.5@384": (0.46, 0.95),
+    # User-messages-only centroids. Measured 2026-07-28 on labelled pairs of real
+    # conversation text: unrelated 0.469, related 0.620, near-duplicate 0.93. The
+    # ceiling is 0.85 rather than 0.95 so a genuinely related pair lands near 41
+    # instead of scraping the 30 threshold. Two labelled points only — re-measure
+    # once more clean conversations exist.
+    "bge-small-en-v1.5@384/user": (0.46, 0.85),
 }
-DEFAULT_CALIBRATION = (0.46, 0.95)
+DEFAULT_CALIBRATION = (0.46, 0.85)
 
 
 def cosine(left: list[float], right: list[float]) -> float:

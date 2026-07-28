@@ -60,13 +60,14 @@ class ChunkIndexService:
             vectors=vectors,
         )
 
-        centroid = self._centroid(vectors)
+        graph_vector, graph_model = await self._graph_vector(messages, vectors)
         state = await self._advance_index_state(
             conversation_id=conversation_id,
             project_id=project_id,
             node_id=node_id,
             header=header,
-            centroid=centroid,
+            centroid=graph_vector,
+            embedding_model=graph_model,
             last_index=len(messages) - 1,
             message_count=len(messages),
         )
@@ -302,6 +303,31 @@ class ChunkIndexService:
             ]
         )
 
+    async def _graph_vector(
+        self, messages: list[dict], chunk_vectors: list[list[float]]
+    ) -> tuple[list[float], str]:
+        """The vector used to score one conversation against another.
+
+        Built from the user's own messages only. Assistant replies carry near-identical
+        stock phrasing in every conversation, which measurably drags unrelated
+        conversations together (0.47 -> 0.60 on a labelled pair). Retrieval chunks keep
+        both roles — the facts often live in the reply — so only this vector changes.
+
+        Each message is embedded separately and averaged rather than concatenated: the
+        model truncates at 512 tokens, so a long conversation joined into one string
+        would silently lose its later half.
+        """
+        user_texts = [
+            self._content_of(message).strip()
+            for message in messages or []
+            if self._role_of(message) == "user" and self._content_of(message).strip()
+        ]
+        if not user_texts:
+            return self._centroid(chunk_vectors), self._embedder.model_id
+
+        vectors = await self._embedder.embed(user_texts)
+        return self._centroid(vectors), f"{self._embedder.model_id}/user"
+
     def _rank_by_cosine(
         self, query_vector: list[float], chunks: list[ConversationChunk]
     ) -> list[tuple[float, ConversationChunk]]:
@@ -408,6 +434,7 @@ class ChunkIndexService:
         node_id: str | None,
         header: str | None,
         centroid: list[float],
+        embedding_model: str,
         last_index: int,
         message_count: int,
     ) -> ConversationIndexState | None:
@@ -419,7 +446,7 @@ class ChunkIndexService:
         updates: dict = {
             "project_id": project_id,
             "embedding": centroid,
-            "embedding_model": self._embedder.model_id,
+            "embedding_model": embedding_model,
             "updated_at": datetime.now(UTC),
         }
         if node_id:
