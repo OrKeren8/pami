@@ -215,6 +215,42 @@ async def test_atlas_vector_search_path_returns_hits(
     assert all(hit.via == "vector" for hit in hits)
 
 
+async def test_peers_that_are_not_nodes_are_dropped_from_the_push(
+    chunk_index_service, reindex_trigger, projects_client, family_messages
+):
+    """One non-node peer must not sink the whole payload.
+
+    A conversation the user never turned into a node keeps a synthetic id. Naming it as
+    a sibling makes projects_service answer 422 and reject every score in the request,
+    so the valid links are lost too.
+    """
+    await chunk_index_service.reindex_conversation(
+        "conv-real", "proj-1", "node-real", family_messages, "Real Node"
+    )
+    await chunk_index_service.reindex_conversation(
+        "conv-orphan",
+        "proj-1",
+        "chat-session-1785224521262",
+        family_messages,
+        "Never Materialised",
+    )
+    projects_client.known_node_ids = {"node-real", "node-source"}
+
+    await reindex_trigger.maybe_reindex(
+        conversation_id="conv-source",
+        project_id="proj-1",
+        node_id="node-source",
+        messages=family_messages,
+        header="Source",
+        force=True,
+    )
+
+    assert projects_client.pushed, "a push should still happen"
+    _, scores = projects_client.pushed[-1]
+    assert "chat-session-1785224521262" not in scores
+    assert "node-real" in scores
+
+
 async def test_chunk_upsert_is_idempotent(chunk_index_service, family_messages):
     """Re-indexing the same messages must not duplicate chunks."""
     await chunk_index_service.reindex_conversation(

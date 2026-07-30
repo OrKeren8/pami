@@ -63,10 +63,16 @@ class RecordingProjectsClient:
         # conversation_id -> the node that owns it, as projects_service would report
         self._node_for_conversation: dict[str, str] = {}
 
+        # None means "cannot determine", which disables peer filtering
+        self.known_node_ids: set | None = None
+
     async def get_node_id_for_conversation(
         self, project_id: str, conversation_id: str
     ) -> str | None:
         return self._node_for_conversation.get(conversation_id)
+
+    async def get_project_node_ids(self, project_id: str) -> set | None:
+        return self.known_node_ids
 
     async def push_sibling_scores(
         self, node_id: str, scores: dict, source: str = "embedding"

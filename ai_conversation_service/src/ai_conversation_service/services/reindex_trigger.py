@@ -71,6 +71,32 @@ class ReindexTrigger:
         if not similarities:
             return
 
+        # Keep only peers that exist as context nodes. Conversations the user never
+        # turned into a node are still indexed for retrieval, but naming one as a
+        # sibling makes projects_service reject the entire payload, losing the valid
+        # links along with it.
+        known_node_ids = await self._projects_service_client.get_project_node_ids(
+            project_id
+        )
+        if known_node_ids is not None:
+            if node_id not in known_node_ids:
+                self._logger.info(
+                    f"Skipping score push: node {node_id} is not a context node"
+                )
+                return
+            dropped = set(similarities).difference(known_node_ids)
+            if dropped:
+                self._logger.info(
+                    f"Dropping {len(dropped)} peers that are not context nodes"
+                )
+            similarities = {
+                peer: value
+                for peer, value in similarities.items()
+                if peer in known_node_ids
+            }
+        if not similarities:
+            return
+
         state = await self._chunk_index_service.state_for(conversation_id)
         model_id = state.embedding_model if state else ""
         scores = top_k_scores(similarities, model_id, settings.sibling_top_k)

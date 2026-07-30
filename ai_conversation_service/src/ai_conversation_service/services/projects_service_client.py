@@ -82,6 +82,29 @@ class ProjectsServiceClient:
             )
         return None
 
+    async def get_project_node_ids(self, project_id: str) -> Optional[set]:
+        """Every context-node id in a project, or None if it cannot be determined.
+
+        Used to drop peers that are not real nodes before pushing scores: a conversation
+        the user never materialised into a node still gets indexed for retrieval, but
+        naming it as a sibling makes projects_service reject the whole payload.
+        """
+        if not self.base_url or not project_id:
+            return None
+
+        url = f"{self.base_url}/context-tree/projects/{project_id}/nodes"
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
+                response = await client.get(url)
+            if response.status_code != 200:
+                return None
+            return {str(node.get("id")) for node in response.json() or []}
+        except Exception as exc:
+            self._logger.debug(
+                f"Could not list nodes for project {project_id}: {type(exc).__name__}"
+            )
+            return None
+
     async def get_sibling_node_ids(self, node_id: str) -> List[str]:
         """Node ids linked to the given node, used for 1-hop graph expansion."""
         if not self.base_url or not node_id:
