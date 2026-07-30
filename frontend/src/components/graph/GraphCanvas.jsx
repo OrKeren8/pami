@@ -233,8 +233,12 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
         return node.id !== focusId && !neighbourIds.has(node.id);
     };
 
+    // States render as overlays INSIDE the viewport rather than replacing it. Returning a
+    // different tree here left `viewportRef` null on first mount, so the measure and zoom
+    // effects — which run once — silently bound to nothing and the canvas stayed blank.
+    let overlay = null;
     if (error) {
-        return (
+        overlay = (
             <div className="graph-state graph-state-error">
                 <p>The conversation graph could not be loaded.</p>
                 <button type="button" className="graph-action" onClick={onRetry}>
@@ -242,20 +246,16 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
                 </button>
             </div>
         );
-    }
-
-    if (isLoading) {
-        return (
+    } else if (isLoading) {
+        overlay = (
             <div className="graph-state graph-state-loading" aria-busy="true">
                 {[0, 1, 2, 3, 4, 5].map((index) => (
                     <span key={index} className="graph-skeleton-pill" />
                 ))}
             </div>
         );
-    }
-
-    if (!sourceNodes.length) {
-        return (
+    } else if (!sourceNodes.length) {
+        overlay = (
             <div className="graph-state graph-state-empty">
                 <p>No conversations in this project yet.</p>
                 <span>Start a chat and the graph will fill in as conversations connect.</span>
@@ -312,6 +312,8 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
                         ))}
                     </div>
                 </div>
+
+                {overlay}
             </div>
         </div>
     );
