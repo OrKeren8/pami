@@ -1,23 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { forceLink, forceManyBody, forceSimulation, forceX, forceY } from 'd3-force';
+import { forceLink, forceSimulation, forceX, forceY } from 'd3-force';
 
 import { rectCollide } from '../lib/graph/rectCollide';
+import { unlinkedRepel } from '../lib/graph/unlinkedRepel';
 
 const PILL_WIDTH = 168;
 const PILL_HEIGHT = 32;
 const COLLIDE_PADDING = 10;
 
-const CHARGE_BASE = -420;
-const LINK_STRENGTH_BASE = 0.15;
-const LINK_STRENGTH_RANGE = 0.55;
-// The shortest link must still clear the collide minimum (pill width + padding), or the
-// link force and the collide force fight forever and hub nodes sit on top of each other.
-const LINK_DISTANCE_MIN = PILL_WIDTH + COLLIDE_PADDING + 14;
-const LINK_DISTANCE_MAX = 430;
-const CENTER_STRENGTH = 0.04;
+// Every link pulls identically, the way Obsidian treats them: being connected is the fact
+// that matters, and correlation_score already speaks through line thickness. Score-scaled
+// physics also made hub nodes fight their own strongest links.
+const LINK_STRENGTH = 0.7;
+// Must clear the collide minimum (pill width + padding), or the link force and the collide
+// force fight forever and connected pills sit on top of each other.
+const LINK_DISTANCE = PILL_WIDTH + COLLIDE_PADDING + 24;
+// Weak on purpose: anything stronger compresses the whole graph into one ball and erases
+// the distance difference between connected and unconnected conversations.
+const CENTER_STRENGTH = 0.012;
 const DRAG_ALPHA_TARGET = 0.3;
 const RESCORE_ALPHA_TARGET = 0.1;
-const WARMUP_TICKS = 200;
+const WARMUP_TICKS = 320;
 const SETTLE_TICKS = 320;
 
 const pinStorageKey = (projectId) => `pami.graph.pins.${projectId}`;
@@ -75,6 +78,13 @@ export function useForceGraph({
         () => Math.max(0.1, (Number(repulsionForce) || 0) / 34),
         [repulsionForce]
     );
+    // Once link strength saturates at 1, the only way "pull them closer" stays meaningful is
+    // to shorten the target distance as well. Floored at 1 so the distance never drops below
+    // the collide minimum and starts a fight the layout cannot win.
+    const linkDistanceScale = useMemo(
+        () => Math.min(1.6, Math.max(1, Math.sqrt(58 / Math.max(10, Number(connectionForce) || 58)))),
+        [connectionForce]
+    );
 
     const scheduleRender = useCallback(() => {
         if (frameRef.current) return;
@@ -125,30 +135,17 @@ export function useForceGraph({
             .map((link) => ({ ...link }));
 
         const simulation = forceSimulation(simulationNodes)
-            .force(
-                'charge',
-                forceManyBody()
-                    .strength(CHARGE_BASE * chargeScale)
-                    .theta(0.9)
-                    .distanceMax(1400)
-            )
+            .force('repel', unlinkedRepel(chargeScale).links(simulationLinks))
             .force(
                 'link',
                 forceLink(simulationLinks)
                     .id((node) => node.id)
-                    .distance(
-                        (link) =>
-                            LINK_DISTANCE_MIN +
-                            (1 - Math.min(100, Math.max(0, link.score)) / 100) *
-                                (LINK_DISTANCE_MAX - LINK_DISTANCE_MIN)
-                    )
-                    .strength(
-                        (link) =>
-                            (LINK_STRENGTH_BASE + (link.score / 100) * LINK_STRENGTH_RANGE) *
-                            linkStrengthScale
-                    )
+                    .distance(LINK_DISTANCE * linkDistanceScale)
+                    // Clamped to 1: d3 treats link strength as a fraction, and a slider at
+                    // maximum would otherwise overshoot and destabilise the layout.
+                    .strength(Math.min(1, LINK_STRENGTH * linkStrengthScale))
             )
-            .force('collide', rectCollide(COLLIDE_PADDING, 0.95))
+            .force('collide', rectCollide(COLLIDE_PADDING, 1, 3))
             .force('x', forceX(centerX).strength(CENTER_STRENGTH))
             .force('y', forceY(centerY).strength(CENTER_STRENGTH))
             .velocityDecay(0.4);
@@ -176,7 +173,18 @@ export function useForceGraph({
                 frameRef.current = null;
             }
         };
-    }, [nodes, links, width, height, centerX, centerY, chargeScale, linkStrengthScale, scheduleRender]);
+    }, [
+        nodes,
+        links,
+        width,
+        height,
+        centerX,
+        centerY,
+        chargeScale,
+        linkStrengthScale,
+        linkDistanceScale,
+        scheduleRender
+    ]);
 
     const reheat = useCallback((target = RESCORE_ALPHA_TARGET) => {
         const simulation = simulationRef.current;
