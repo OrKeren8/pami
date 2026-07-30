@@ -2,6 +2,11 @@ import numpy as np
 
 MIN_CORRELATION_SCORE = 30
 
+# Score by rank position: 1st closest peer, 2nd, and so on. Line thickness in the graph
+# therefore means "this is my Nth closest conversation" rather than an absolute
+# similarity, which saturates within a single project.
+RANK_SCORES = (95, 80, 65, 50, 42, 38, 34, 31)
+
 # Per-model cosine calibration: (floor, ceiling). Cosine is not uniformly
 # distributed over 0..1 and the distribution is model-specific, so these are
 # measured by scripts/measure_calibration.py rather than guessed.
@@ -44,12 +49,43 @@ def cosine_to_score(similarity: float, model_id: str) -> int:
     return max(0, min(100, round(normalized * 100)))
 
 
+def prune_score_if_unrelated(similarity: float, model_id: str) -> int | None:
+    """0 when an existing peer has drifted below the floor, else None.
+
+    None means "say nothing about this peer", which the projects service reads as retain.
+    An edge therefore survives while either conversation still considers the other close,
+    and is only pruned once the similarity itself collapses. Re-scoring these peers by
+    absolute cosine instead would saturate high and defeat the top-k bound.
+    """
+    floor, _ = CALIBRATION.get(model_id, DEFAULT_CALIBRATION)
+    return 0 if similarity < floor else None
+
+
 def top_k_scores(
     similarities: dict[str, float], model_id: str, top_k: int
 ) -> dict[str, int]:
-    """Score the top-k most similar peers, keeping explicit sub-threshold prunes."""
+    """Score a conversation's closest peers by rank, not by absolute cosine.
+
+    Within a single project every conversation shares the project's vocabulary, so
+    absolute cosine saturates: measured across 15 conversations about one project it
+    ranged 0.64-0.99, which links 80% of all possible pairs and produces an unreadable
+    graph. Rank is invariant to that shift — it asks which peers are this conversation's
+    closest, not whether 0.87 is a high number.
+
+    The calibration floor is still applied as a gate, so a peer that is genuinely
+    unrelated is not linked merely for being the closest of very few. Peers below the
+    floor are returned with score 0, which acts as an explicit prune instruction rather
+    than silence.
+    """
+    floor, _ = CALIBRATION.get(model_id, DEFAULT_CALIBRATION)
     ranked = sorted(similarities.items(), key=lambda item: item[1], reverse=True)
-    return {
-        peer_id: cosine_to_score(similarity, model_id)
-        for peer_id, similarity in ranked[:top_k]
-    }
+
+    scores: dict[str, int] = {}
+    for rank, (peer_id, similarity) in enumerate(ranked[:top_k]):
+        if similarity < floor:
+            scores[peer_id] = 0
+            continue
+        scores[peer_id] = (
+            RANK_SCORES[rank] if rank < len(RANK_SCORES) else MIN_CORRELATION_SCORE
+        )
+    return scores

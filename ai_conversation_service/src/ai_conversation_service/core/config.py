@@ -38,7 +38,9 @@ class Settings(BaseSettings):
 
     # Graph refresh
     reindex_message_threshold: int = 3
-    sibling_top_k: int = 8
+    # Each conversation proposes only its closest few peers. Links mirror onto the peer
+    # as well, so real node degree lands a little above this.
+    sibling_top_k: int = 3
 
     # Debug search endpoint: returns snippets across a whole project from a
     # client-supplied project_id, so it stays off unless explicitly enabled.

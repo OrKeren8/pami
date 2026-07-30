@@ -222,7 +222,11 @@ async def test_owning_node_wins_over_a_synthetic_placeholder(
 
 
 async def test_first_index_takes_node_id_from_the_conversation(
-    chunk_index_service, retrieval_service, reindex_trigger, projects_client, family_messages
+    chunk_index_service,
+    retrieval_service,
+    reindex_trigger,
+    projects_client,
+    family_messages,
 ):
     """On the first index there is no state yet, so node_id must come from the
     conversation. A null node id strands the conversation outside the graph forever:

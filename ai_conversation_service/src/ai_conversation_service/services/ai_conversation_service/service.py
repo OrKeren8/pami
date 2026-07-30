@@ -782,9 +782,7 @@ class AIConversationService:
             return self.SEARCHABLE_NOTE
 
         titles = ", ".join(sorted(headers.values()))
-        return (
-            f"{self.SEARCHABLE_NOTE} Closely related ones: {titles}."
-        )
+        return f"{self.SEARCHABLE_NOTE} Closely related ones: {titles}."
 
     async def _resolve_node_id(self, conversation, state) -> str | None:
         """The owning node id, asking projects_service first.

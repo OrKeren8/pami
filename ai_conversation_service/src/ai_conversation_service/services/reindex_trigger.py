@@ -7,7 +7,10 @@ from ai_conversation_service.services.chunk_index_service import ChunkIndexServi
 from ai_conversation_service.services.projects_service_client import (
     ProjectsServiceClient,
 )
-from ai_conversation_service.services.similarity import cosine_to_score, top_k_scores
+from ai_conversation_service.services.similarity import (
+    prune_score_if_unrelated,
+    top_k_scores,
+)
 
 
 class ReindexTrigger:
@@ -101,15 +104,18 @@ class ReindexTrigger:
         model_id = state.embedding_model if state else ""
         scores = top_k_scores(similarities, model_id, settings.sibling_top_k)
 
-        # A peer that already has a link must be re-scored even when it falls
-        # outside top-K. Absence means "retain" on the projects side, so without
-        # this a drifted link could never be pruned.
+        # A peer that already has a link and has now drifted below the floor must be
+        # named explicitly, because absence means "retain" on the projects side and the
+        # link could otherwise never be pruned. Peers that are merely outside top-k are
+        # left unmentioned so the edge survives while either side still ranks the other.
         for peer_node_id in await self._projects_service_client.get_sibling_node_ids(
             node_id
         ):
             if peer_node_id in scores or peer_node_id not in similarities:
                 continue
-            scores[peer_node_id] = cosine_to_score(similarities[peer_node_id], model_id)
+            prune = prune_score_if_unrelated(similarities[peer_node_id], model_id)
+            if prune is not None:
+                scores[peer_node_id] = prune
 
         pushed = await self._projects_service_client.push_sibling_scores(
             node_id, scores
