@@ -1462,7 +1462,8 @@ html, body, #root {
 /* Keep floating integrations from being too dominant */
 .integrations-fixed-container {
   right: 28px;
-  top: 210px;
+  top: 50%;
+  transform: translateY(-50%);
   z-index: 90;
 }
 
