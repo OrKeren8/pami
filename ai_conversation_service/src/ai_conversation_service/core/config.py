@@ -28,6 +28,29 @@ class Settings(BaseSettings):
     # Example: http://localhost:8000 or https://<gateway-host>
     projects_api_url: str = ""
 
+    # MongoDB - conversation chunk / vector index (transcripts stay in S3)
+    mongodb_url: str = "mongodb://localhost:27017"
+    database_name: str = "pami"
+
+    # Embeddings - runs in-process; the OpenAI key has no embedding access
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    embedding_cache_dir: str = ""
+
+    # Graph refresh
+    reindex_message_threshold: int = 3
+    # Each conversation proposes only its closest few peers. Links mirror onto the peer
+    # as well, so real node degree lands a little above this.
+    sibling_top_k: int = 3
+
+    # Debug search endpoint: returns snippets across a whole project from a
+    # client-supplied project_id, so it stays off unless explicitly enabled.
+    enable_retrieval_debug_api: bool = False
+
+    # Retrieval budget
+    retrieval_max_tool_calls: int = 3
+    retrieval_max_conversations: int = 5
+    retrieval_max_injected_tokens: int = 4000
+
     # API root path (useful for tests and deployments). Leave empty string for no prefix.
     api_root: str = ""
 

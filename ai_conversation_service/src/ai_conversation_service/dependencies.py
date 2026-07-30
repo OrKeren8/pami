@@ -1,5 +1,7 @@
 from functools import lru_cache
-from fastapi import Request
+from typing import Annotated
+
+from fastapi import Depends, Request
 
 from ai_conversation_service.core.config import settings
 from ai_conversation_service.services.ai_conversation_service.service import (
@@ -23,6 +25,11 @@ def get_ai_conversation_service(request: Request) -> AIConversationService:
         request.app.state.ai_conversation_service = svc
         return svc
     return request.app.state.ai_conversation_service
+
+
+AIConversationServiceDep = Annotated[
+    AIConversationService, Depends(get_ai_conversation_service)
+]
 
 
 def get_tree_analysis_service(request: Request) -> TreeAnalysisService:

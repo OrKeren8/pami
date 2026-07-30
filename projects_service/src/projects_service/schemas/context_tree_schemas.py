@@ -1,11 +1,21 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Literal, Optional
 from datetime import datetime
 
 
 class SiblingLinkPayload(BaseModel):
     sibling_id: str
     correlation_score: int = Field(default=0, ge=0, le=100)
+
+
+class SiblingScorePayload(BaseModel):
+    sibling_id: str
+    correlation_score: int = Field(ge=0, le=100)
+
+
+class UpdateSiblingScoresRequest(BaseModel):
+    scores: list[SiblingScorePayload] = Field(default_factory=list)
+    source: Literal["embedding", "manual"] = "embedding"
 
 
 class CreateContextTreeNodeRequest(BaseModel):
