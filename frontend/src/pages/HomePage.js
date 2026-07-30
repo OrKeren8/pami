@@ -229,7 +229,7 @@ const HomePage = () => {
         const viewportHeight = typeof window === "undefined" ? 780 : window.innerHeight;
 
         return {
-            collapsedHeight: Math.max(520, viewportHeight - 172),
+            collapsedHeight: Math.max(520, viewportHeight - 126),
             expandedHeight: viewportHeight
         };
     };
@@ -1415,12 +1415,7 @@ const HomePage = () => {
                                 <button className={`tab-btn ${activePane === "tree" ? "active" : ""}`} onClick={async () => { setActivePane("tree"); try { await fetchProjects(); } catch (e) { console.error('Failed to refresh projects on tab switch', e); } }}>Project Tree</button>
                                 <button className={`tab-btn ${activePane === "chat" ? "active" : ""}`} onClick={() => { setActivePane("chat"); setConversationId(null); setChatMessages([]); }}>AI Chat</button>
                             </div>
-                        </div>
 
-                        <div
-                            className="project-tree-canvas tree-resizable-canvas"
-                            style={{ flex: 1, minHeight: 0 }}
-                        >
                             <button
                                 type="button"
                                 className="tree-resize-handle"
@@ -1431,7 +1426,12 @@ const HomePage = () => {
                                 }}
                                 title="Resize tree / chat area"
                             />
+                        </div>
 
+                        <div
+                            className="project-tree-canvas tree-resizable-canvas"
+                            style={{ flex: 1, minHeight: 0 }}
+                        >
                             {activePane === "tree" ? (
                                 realProjects.length > 0 || isLoading ? (
                                     <GraphCanvas

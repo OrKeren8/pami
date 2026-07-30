@@ -6328,3 +6328,36 @@ button[aria-label*="Slack"] {
   }
 }
 
+
+/* Tightens the band between the stats header and the graph itself. The graph used to
+   start 163px below the stats row: panel padding, the tabs row, a 30px reserve for the
+   floating resize pill, and the controls row all stacked up. The pill now lives in the
+   tabs row, so that reserve is gone. */
+.top-header {
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  margin-bottom: 10px !important;
+}
+
+.project-tree-container {
+  padding-top: 8px !important;
+}
+
+.project-tree-header {
+  position: relative;
+  margin-bottom: 2px !important;
+}
+
+.project-tree-header .tree-resize-handle {
+  position: absolute !important;
+  top: 50% !important;
+  right: 6px !important;
+  left: auto !important;
+  transform: translateY(-50%) !important;
+  margin: 0 !important;
+}
+
+.project-tree-canvas.tree-resizable-canvas {
+  margin-top: 0 !important;
+  padding-top: 6px !important;
+}

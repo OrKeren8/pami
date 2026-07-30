@@ -1,4 +1,5 @@
 function GraphControls({
+    containerRef,
     connectionForce,
     repulsionForce,
     onConnectionForce,
@@ -11,7 +12,7 @@ function GraphControls({
     onReset
 }) {
     return (
-        <div className="graph-controls">
+        <div className="graph-controls" ref={containerRef}>
             <div className="graph-controls-search">
                 <input
                     id="graph-search"

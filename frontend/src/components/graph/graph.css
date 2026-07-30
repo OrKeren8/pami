@@ -131,12 +131,23 @@
     outline-offset: 2px;
 }
 
+/* Floats over the canvas instead of taking a row of its own: stacked above the graph it
+   pushed the canvas 49px further from the stats header, which was most of the gap. */
 .graph-controls {
+    position: absolute;
+    z-index: 5;
+    top: 8px;
+    right: 10px;
+    left: 10px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 14px;
-    padding: 0 4px 12px;
+    padding: 6px 14px;
+    border: 1px solid var(--pami-border, rgba(214, 95, 159, 0.16));
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(8px);
 }
 
 .graph-controls-search {
