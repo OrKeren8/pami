@@ -1541,21 +1541,54 @@ const HomePage = () => {
                                 )
                             ) : (
                                 <div className="pami-chat-pane" style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }}>
-                                    <div className="chat-header" style={{ padding: "12px 16px", borderBottom: "1px solid #eee", justifyContent: "space-between", display: "flex" }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                            <strong>PAMI Conversation</strong>
-                                            <span style={{ marginLeft: 12, color: "#666" }}>AI channel</span>
+                                    <div className="chat-header chat-header-row">
+                                        <div className="chat-header-title">
+                                            <strong>AI Chat</strong>
+                                            <span>{selectedProjectName}</span>
                                         </div>
-                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                            <button title="Upload assistant avatar" onClick={triggerAvatarUpload} style={{ background: "transparent", border: "none", cursor: "pointer" }}>📤</button>
-                                            {assistantAvatarUrl && <button title="Clear avatar" onClick={clearAssistantAvatar} style={{ background: "transparent", border: "none", cursor: "pointer" }}>✖️</button>}
+                                        <div className="chat-header-actions">
+                                            <button
+                                                type="button"
+                                                className="chat-icon-btn"
+                                                title="Upload assistant avatar"
+                                                aria-label="Upload assistant avatar"
+                                                onClick={triggerAvatarUpload}
+                                            >
+                                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                    <path d="M8 10.5V2.8m0 0L5.4 5.4M8 2.8l2.6 2.6M2.8 10v2.2a1 1 0 0 0 1 1h8.4a1 1 0 0 0 1-1V10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                            </button>
+                                            {assistantAvatarUrl && (
+                                                <button
+                                                    type="button"
+                                                    className="chat-icon-btn"
+                                                    title="Reset assistant avatar"
+                                                    aria-label="Reset assistant avatar"
+                                                    onClick={clearAssistantAvatar}
+                                                >
+                                                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                        <path d="M4.5 4.5l7 7m0-7l-7 7" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                                                    </svg>
+                                                </button>
+                                            )}
                                             <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleAvatarFile(e.target.files && e.target.files[0])} />
-                                            <button type="button" className="create-node-btn" title="Create node from conversation" onClick={handleCreateNodeFromConversation} style={{ marginLeft: 6 }} disabled={realProjects.length === 0 || chatMessages.length === 0}>➕ Create Node</button>
+                                            <button type="button" className="create-node-btn" title="Turn this conversation into a node on the graph" onClick={handleCreateNodeFromConversation} disabled={realProjects.length === 0 || chatMessages.length === 0}>
+                                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                    <path d="M8 3.4v9.2M3.4 8h9.2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                                </svg>
+                                                Create Node
+                                            </button>
                                         </div>
                                     </div>
                                     <div className="chat-body" style={{ padding: "16px", overflowY: "auto", overflowX: "hidden", flex: 1, minHeight: 0 }}>
                                         {chatMessages.length === 0 ? (
-                                            <div className="chat-empty-state"><p>💬 Start chatting with PAMI AI</p></div>
+                                            <div className="chat-empty-state">
+                                                <p>Ask PAMI about this project</p>
+                                                <span>
+                                                    It can pull in what you discussed in your other
+                                                    conversations, and will tell you which ones it used.
+                                                </span>
+                                            </div>
                                         ) : (
                                             chatMessages.map((msg, idx) => {
                                                 const isUser = (msg.role === "user");
@@ -1574,16 +1607,31 @@ const HomePage = () => {
                                         )}
                                         {isChatLoading && (
                                             <div className="chat-message assistant">
-                                                <div className="message-avatar">🤖</div>
+                                                <div className="message-avatar assistant" style={{ backgroundImage: `url(${assistantAvatarUrl || "/pami_ai_avatar.png"})` }} />
                                                 <div className="message-content">
                                                     <div className="typing-indicator"><span></span><span></span><span></span></div>
                                                 </div>
                                             </div>
                                         )}
                                     </div>
-                                    <div className="chat-input" style={{ padding: "12px", borderTop: "1px solid #eee", display: "flex", gap: "8px" }}>
-                                        <input type="text" placeholder="Ask PAMI anything..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyPress={(e) => e.key === "Enter" && handleSendMessage()} disabled={isChatLoading} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
-                                        <button onClick={handleSendMessage} disabled={isChatLoading || !chatInput.trim()} style={{ padding: "10px 14px", borderRadius: "8px", background: "#2f6fed", color: "white", border: "none" }}>Send</button>
+                                    <div className="chat-input chat-input-row">
+                                        <input
+                                            type="text"
+                                            className="chat-text-input"
+                                            placeholder="Ask PAMI anything..."
+                                            value={chatInput}
+                                            onChange={(e) => setChatInput(e.target.value)}
+                                            onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                                            disabled={isChatLoading}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="chat-send-btn"
+                                            onClick={handleSendMessage}
+                                            disabled={isChatLoading || !chatInput.trim()}
+                                        >
+                                            {isChatLoading ? "Sending" : "Send"}
+                                        </button>
                                     </div>
                                 </div>
                             )}
