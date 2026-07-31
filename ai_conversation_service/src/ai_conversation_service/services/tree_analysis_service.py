@@ -169,10 +169,22 @@ class TreeAnalysisService:
             if node_id in known_node_ids
         }
 
-        scores = top_k_scores(candidates, state.embedding_model, settings.sibling_top_k)
+        scores = top_k_scores(
+            candidates,
+            state.embedding_model,
+            settings.sibling_top_k,
+            settings.sibling_min_links,
+        )
+        # The candidate count and the best similarity are the two numbers that explain an
+        # unlinked node, and neither was logged: only peers with an indexed node id and a
+        # matching vector width are candidates, so "3 scored of 16 nodes" hid both how many
+        # were actually comparable and how close the closest one was.
+        best = max(candidates.values(), default=0.0)
         self._logger.info(
-            f"Scored {len(scores)} of {len(known_node_ids)} peers for node "
-            f"{request.node_id} by cosine"
+            f"Scored {len(scores)} peers for node {request.node_id}: "
+            f"{len(candidates)} candidates of {len(known_node_ids)} nodes, "
+            f"best cosine {best:.3f}, linked "
+            f"{sum(1 for value in scores.values() if value > 0)}"
         )
         return [
             SiblingScoreSuggestion(sibling_id=node_id, correlation_score=score)

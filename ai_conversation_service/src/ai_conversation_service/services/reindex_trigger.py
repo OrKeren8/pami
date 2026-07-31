@@ -102,7 +102,9 @@ class ReindexTrigger:
 
         state = await self._chunk_index_service.state_for(conversation_id)
         model_id = state.embedding_model if state else ""
-        scores = top_k_scores(similarities, model_id, settings.sibling_top_k)
+        scores = top_k_scores(
+            similarities, model_id, settings.sibling_top_k, settings.sibling_min_links
+        )
 
         # A peer that already has a link and has now drifted below the floor must be
         # named explicitly, because absence means "retain" on the projects side and the
