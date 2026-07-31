@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, Iterable, List, Optional
 from datetime import datetime
 from loguru import logger
@@ -32,6 +33,7 @@ class ContextTreeService:
     def __init__(self, context_tree_repository: ContextTreeRepository):
         self._logger = logger.bind(service="ContextTreeService")
         self._context_tree_repository = context_tree_repository
+        self._background_tasks: set[asyncio.Task] = set()
 
     @staticmethod
     def _ai_base_url() -> str:
@@ -86,6 +88,33 @@ class ContextTreeService:
                 SiblingLink(sibling_id=sibling_id, correlation_score=score)
             )
         return serialized
+
+    def _spawn_ai_organize(self, node, project_id: str, conversation_id) -> None:
+        """Run the AI organizer detached, holding a reference until it finishes.
+
+        The event loop only holds a weak reference to a task, so a bare create_task can be
+        garbage-collected while suspended on an await - which is how a node occasionally ended
+        up with no AI title, summary or sibling links and nothing in the log. The done callback
+        also surfaces failures that would otherwise only appear as an unretrieved exception
+        warning at interpreter shutdown.
+        """
+
+        def _finished(task: asyncio.Task) -> None:
+            self._background_tasks.discard(task)
+            if task.cancelled():
+                return
+            error = task.exception()
+            if error:
+                self._logger.error(
+                    f"AI organization failed for node {self._node_id(node)}: "
+                    f"{type(error).__name__}: {error}"
+                )
+
+        task = asyncio.create_task(
+            self._ai_organize_node(node, project_id, conversation_id)
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(_finished)
 
     async def _persist_node_fields(self, node: ContextTreeNode, fields: dict) -> None:
         """Write only the named fields.
@@ -236,16 +265,7 @@ class ContextTreeService:
                     f"Could not persist provided conversation_id for node {created_node_id}: {e}"
                 )
 
-            try:
-                import asyncio
-
-                asyncio.create_task(
-                    self._ai_organize_node(created_node, project_id, req_conv)
-                )
-            except Exception:
-                await self._ai_organize_node(
-                    created_node, project_id, req_conv, raise_on_no_response=True
-                )
+            self._spawn_ai_organize(created_node, project_id, req_conv)
         else:
             conversation_id = await self._create_ai_conversation(
                 created_node_id, project_id
@@ -287,21 +307,7 @@ class ContextTreeService:
                         f"Failed to seed AI conversation for node {created_node_id}: {e}"
                     )
 
-                try:
-                    import asyncio
-
-                    asyncio.create_task(
-                        self._ai_organize_node(
-                            created_node, project_id, conversation_id
-                        )
-                    )
-                except Exception:
-                    await self._ai_organize_node(
-                        created_node,
-                        project_id,
-                        conversation_id,
-                        raise_on_no_response=True,
-                    )
+                self._spawn_ai_organize(created_node, project_id, conversation_id)
 
         refreshed = await self._context_tree_repository.get_by_id(created_node_id)
         return self._to_response(refreshed or created_node)
