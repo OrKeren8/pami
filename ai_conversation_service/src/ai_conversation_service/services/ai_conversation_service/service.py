@@ -644,93 +644,132 @@ class AIConversationService:
             )
             return None
 
+    async def _load_all_conversations(self) -> List[Dict[str, Any]]:
+        """Every stored transcript, as dicts.
+
+        Objects are stored flat as conversations/<conversation_id>.json, so there is no
+        prefix to filter a subset by - callers filter on the transcript's own fields.
+        """
+        if not self.s3_client:
+            self._logger.error("S3 client not available")
+            return []
+
+        # Prefer calling list_objects_v2 directly (tests often stub this),
+        # otherwise fall back to paginator behavior.
+        contents = []
+        try:
+            if hasattr(self.s3_client, "list_objects_v2"):
+                resp = self.s3_client.list_objects_v2(
+                    Bucket=self.bucket_name, Prefix="conversations/"
+                )
+                if isinstance(resp, dict) and "Contents" in resp:
+                    contents = resp.get("Contents", [])
+            if not contents and hasattr(self.s3_client, "get_paginator"):
+                page_iterator = self.s3_client.get_paginator(
+                    "list_objects_v2"
+                ).paginate(Bucket=self.bucket_name, Prefix="conversations/")
+                for page in page_iterator:
+                    contents.extend(page.get("Contents", []))
+        except Exception:
+            try:
+                resp = self.s3_client.list_objects_v2(
+                    Bucket=self.bucket_name, Prefix="conversations/"
+                )
+                contents = resp.get("Contents", []) if isinstance(resp, dict) else []
+            except Exception:
+                contents = []
+
+        conversations: List[Dict[str, Any]] = []
+        for obj in contents:
+            try:
+                response = self.s3_client.get_object(
+                    Bucket=self.bucket_name, Key=obj["Key"]
+                )
+                raw = response["Body"].read().decode("utf-8")
+                try:
+                    conversation_data = json.loads(raw)
+                except Exception:
+                    import ast
+
+                    conversation_data = ast.literal_eval(raw)
+
+                # dicts, not Conversation objects: routes do Response(**conv), and ** on a
+                # model instance raises TypeError.
+                conversations.append(
+                    Conversation.from_dict(conversation_data).to_dict()
+                )
+            except Exception as e:
+                self._logger.warning(
+                    f"Error processing conversation {obj.get('Key')}: {e}"
+                )
+                continue
+
+        return conversations
+
+    @staticmethod
+    def _preview_of(conversation: Dict[str, Any]) -> Optional[str]:
+        """The first thing the user asked, for a list where every title is generated."""
+        for message in conversation.get("messages") or []:
+            role = message.get("role") if isinstance(message, dict) else None
+            content = message.get("content") if isinstance(message, dict) else None
+            if role == "user" and str(content or "").strip():
+                text = " ".join(str(content).split())
+                return text[:160]
+        return None
+
+    @staticmethod
+    def _newest_first(conversations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Keyed on the dict and defaulted to "", because getattr on a dict returns None for
+        every entry and sorting None against None raises."""
+        return sorted(
+            conversations,
+            key=lambda conversation: conversation.get("updated_at") or "",
+            reverse=True,
+        )
+
     async def list_conversations_for_node(
         self, context_node_id: str
     ) -> List[Dict[str, Any]]:
         """List all conversations for a context node from S3."""
         try:
-            if not self.s3_client:
-                self._logger.error("S3 client not available")
-                return []
-
-            conversations = []
-
-            # Prefer calling list_objects_v2 directly (tests often stub this),
-            # otherwise fall back to paginator behavior.
-            contents = []
-            try:
-                if hasattr(self.s3_client, "list_objects_v2"):
-                    resp = self.s3_client.list_objects_v2(
-                        Bucket=self.bucket_name, Prefix="conversations/"
-                    )
-                    if isinstance(resp, dict) and "Contents" in resp:
-                        contents = resp.get("Contents", [])
-                # If contents is empty, try paginator
-                if not contents and hasattr(self.s3_client, "get_paginator"):
-                    page_iterator = self.s3_client.get_paginator(
-                        "list_objects_v2"
-                    ).paginate(Bucket=self.bucket_name, Prefix="conversations/")
-                    for page in page_iterator:
-                        contents.extend(page.get("Contents", []))
-            except Exception:
-                # If anything goes wrong, try a single list_objects_v2 call as a last resort
-                try:
-                    resp = self.s3_client.list_objects_v2(
-                        Bucket=self.bucket_name, Prefix="conversations/"
-                    )
-                    contents = (
-                        resp.get("Contents", []) if isinstance(resp, dict) else []
-                    )
-                except Exception:
-                    contents = []
-
-            for obj in contents:
-                # Filtering on the key was checking for a nested layout - conversations/<node>/
-                # - that nothing ever writes: objects are stored flat as
-                # conversations/<conversation_id>.json. Every object was therefore skipped and
-                # this endpoint always returned an empty list. The node is matched on the
-                # object's own context_node_id below, which is the authoritative field.
-                try:
-                    response = self.s3_client.get_object(
-                        Bucket=self.bucket_name, Key=obj["Key"]
-                    )
-                    raw = response["Body"].read().decode("utf-8")
-                    try:
-                        conversation_data = json.loads(raw)
-                    except Exception:
-                        import ast
-
-                        conversation_data = ast.literal_eval(raw)
-
-                    # Filter by context_node_id and append Conversation objects
-                    if conversation_data.get("context_node_id") == context_node_id:
-                        # dicts, not Conversation objects: the route does
-                        # ConversationResponse(**conv), and ** on a model instance raises
-                        # TypeError - which the blanket handler turned into a 500.
-                        conversations.append(
-                            Conversation.from_dict(conversation_data).to_dict()
-                        )
-                except Exception as e:
-                    self._logger.warning(
-                        f"Error processing conversation {obj.get('Key')}: {e}"
-                    )
-                    continue
-
-            # Newest first. Keyed on the dict and defaulted to "", because getattr on a dict
-            # returned None for every entry and sorting None against None raises.
-            conversations.sort(
-                key=lambda conversation: conversation.get("updated_at") or "",
-                reverse=True,
-            )
-
+            conversations = [
+                conversation
+                for conversation in await self._load_all_conversations()
+                if conversation.get("context_node_id") == context_node_id
+            ]
             self._logger.info(
                 f"Found {len(conversations)} conversations for node {context_node_id}"
             )
-            return conversations
-
+            return self._newest_first(conversations)
         except Exception as e:
             self._logger.error(
                 f"Error listing conversations for node {context_node_id}: {e}"
+            )
+            return []
+
+    async def list_conversations_for_project(
+        self, project_id: str
+    ) -> List[Dict[str, Any]]:
+        """Every conversation in a project, most recently updated first.
+
+        Read from the transcripts rather than from the index state collection: a
+        conversation only gets an index-state record once it has been embedded, so a chat
+        started a minute ago would be missing from the list that is meant to be how you
+        find your way back to it.
+        """
+        try:
+            conversations = [
+                conversation | {"preview": self._preview_of(conversation)}
+                for conversation in await self._load_all_conversations()
+                if conversation.get("project_id") == project_id
+            ]
+            self._logger.info(
+                f"Found {len(conversations)} conversations in project {project_id}"
+            )
+            return self._newest_first(conversations)
+        except Exception as e:
+            self._logger.error(
+                f"Error listing conversations for project {project_id}: {e}"
             )
             return []
 

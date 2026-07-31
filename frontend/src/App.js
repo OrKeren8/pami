@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import SlackConsolePage from './pages/SlackConsolePage';
+import ChatViewPage from './pages/ChatViewPage';
 import ToastProvider from './components/feedback/ToastProvider';
 
 function App() {
@@ -19,6 +20,8 @@ function App() {
                 <Route path="/dashboard" element={<HomePage />} />
 
                 <Route path="/slack" element={<SlackConsolePage />} />
+
+                <Route path="/chats" element={<ChatViewPage />} />
             </Routes>
         </BrowserRouter>
         </ToastProvider>

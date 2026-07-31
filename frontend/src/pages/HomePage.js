@@ -724,21 +724,17 @@ const HomePage = () => {
         setTokenInput("");
     };
 
-    const goToNodeConversation = async (node) => {
-        if (!node) return;
+    const openConversationById = async (convId) => {
+        if (!convId) return false;
         flushConversationIndex(conversationId);
-        const convId = node.conversation_id || node.conversationId || node.conversation || null;
-        if (!convId) {
-            toast.notify('This node has no associated conversation.');
-            return;
-        }
+        stopReveal();
 
         try {
             // Fetch conversation history from AI service
             const resp = await aiApi.get(`/ai-conversations/${convId}`);
             if (resp && resp.data && resp.data.messages) {
                 // Map messages into chat format
-                const msgs = resp.data.messages.map((m) => ({ role: m.role || m.role, content: m.content || m.content }));
+                const msgs = resp.data.messages.map((m) => ({ role: m.role, content: m.content }));
                 setChatMessages(msgs);
             }
             setConversationId(convId);
@@ -749,11 +745,34 @@ const HomePage = () => {
                 const input = document.querySelector('textarea, input[type=text]');
                 if (input) input.focus();
             }, 150);
+            return true;
         } catch (err) {
             console.error('Failed to load conversation:', err);
             toast.error('Could not load the conversation. Please try again.');
+            return false;
         }
     };
+
+    const goToNodeConversation = async (node) => {
+        if (!node) return;
+        const convId = node.conversation_id || node.conversationId || node.conversation || null;
+        if (!convId) {
+            toast.notify('This node has no associated conversation.');
+            return;
+        }
+        await openConversationById(convId);
+    };
+
+    // Chat View lists conversations on its own route and links back here, because the chat
+    // pane and everything it needs - the project, the graph, the node modal - live on this
+    // page. The parameter is cleared so a later reload does not reopen it.
+    useEffect(() => {
+        const requested = searchParams.get("conversation");
+        if (!requested) return;
+        setSearchParams({}, { replace: true });
+        openConversationById(requested);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams]);
 
     const modalRef = useRef(null);
 

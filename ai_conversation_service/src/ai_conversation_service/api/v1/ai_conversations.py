@@ -116,6 +116,24 @@ async def list_conversations_for_node(
         raise HTTPException(status_code=500, detail="Failed to list conversations")
 
 
+@router.get("/project/{project_id}", response_model=list[ConversationResponse])
+async def list_conversations_for_project(
+    project_id: str,
+    ai_conversation_service: AIConversationServiceDep,
+):
+    """Every conversation in a project, most recently updated first."""
+    try:
+        conversations = await ai_conversation_service.list_conversations_for_project(
+            project_id
+        )
+        return [ConversationResponse(**conv) for conv in conversations]
+    except Exception as error:
+        logger.opt(exception=True).error(
+            f"list_conversations_for_project failed: {error}"
+        )
+        raise HTTPException(status_code=500, detail="Failed to list conversations")
+
+
 @router.post("/context-retrieval/search", response_model=list[ContextHit])
 async def search_context(
     request: SearchContextRequest,

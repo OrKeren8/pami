@@ -31,6 +31,9 @@ class ConversationResponse(BaseModel):
     updated_at: str
     status: str
     message_count: int
+    # First thing the user asked. Titles are generated as "AI Discussion - <node id>", which
+    # tells a reader looking for a past conversation nothing at all.
+    preview: Optional[str] = None
 
 
 class ConversationHistoryResponse(BaseModel):
