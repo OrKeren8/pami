@@ -2,6 +2,7 @@ from beanie import Document, PydanticObjectId
 from typing import List, Optional, Union
 from datetime import datetime
 from pydantic import BaseModel, Field
+from pymongo import ASCENDING, IndexModel
 
 
 class SiblingLink(BaseModel):
@@ -28,3 +29,10 @@ class ContextTreeNode(Document):
 
     class Settings:
         name = "context_tree"
+        # Listing a project's nodes was a full collection scan, and it runs on every node
+        # fetch, create, update, score push and delete - several of those twice per request.
+        # Cost grew with the total node count across all projects, not with the project's own.
+        indexes = [
+            IndexModel([("project_id", ASCENDING)], name="project"),
+            IndexModel([("conversation_id", ASCENDING)], name="conversation"),
+        ]

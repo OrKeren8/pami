@@ -2,6 +2,7 @@ from beanie import Document
 from typing import List, Optional
 from datetime import datetime
 from pydantic import Field
+from pymongo import ASCENDING, IndexModel
 
 
 class Task(Document):
@@ -17,3 +18,6 @@ class Task(Document):
 
     class Settings:
         name = "tasks"
+        # Tasks are always fetched per project; without this the lookup scans every task in
+        # the database.
+        indexes = [IndexModel([("project_id", ASCENDING)], name="project")]
