@@ -3,7 +3,7 @@ from typing import Annotated, Protocol
 
 from loguru import logger
 from pydantic import Field
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.usage import UsageLimits
@@ -44,6 +44,22 @@ class AgentDeps:
     tool_calls: int = 0
 
 
+BUDGET_SPENT_NOTE = (
+    "Retrieval budget spent. Answer the user now from what you already have, and say "
+    "what you could not check."
+)
+
+
+def _budget_exhausted(deps: AgentDeps) -> bool:
+    """Whether the run has used its allowance of retrieval calls.
+
+    Enforced in the tools rather than only through UsageLimits: a request limit kills the
+    whole run once exceeded, which loses the answer the model was about to write. Refusing
+    the extra call instead degrades to a shorter answer.
+    """
+    return deps.tool_calls >= settings.retrieval_max_tool_calls
+
+
 async def search_context(
     ctx: RunContext[AgentDeps],
     query: str,
@@ -52,6 +68,13 @@ async def search_context(
     """Search the user's OTHER conversations in this project for information that is
     not in the current conversation. Use it whenever the user refers to something you
     have no record of, before saying you do not know."""
+    if _budget_exhausted(ctx.deps):
+        _logger.info(
+            f"search_context refused: {ctx.deps.tool_calls} calls already used "
+            f"(limit {settings.retrieval_max_tool_calls})"
+        )
+        raise ModelRetry(BUDGET_SPENT_NOTE)
+
     ctx.deps.tool_calls += 1
     hits = await ctx.deps.retrieval.search(
         project_id=ctx.deps.project_id,
@@ -80,6 +103,13 @@ async def read_conversation(
     """Read a wider window from a conversation that search_context surfaced. Pass the
     conversation_id from a search result and, optionally, the message index to centre
     on."""
+    if _budget_exhausted(ctx.deps):
+        _logger.info(
+            f"read_conversation refused: {ctx.deps.tool_calls} calls already used "
+            f"(limit {settings.retrieval_max_tool_calls})"
+        )
+        raise ModelRetry(BUDGET_SPENT_NOTE)
+
     ctx.deps.tool_calls += 1
     if not ctx.deps.chunk_index or not ctx.deps.transcripts:
         return []
@@ -119,5 +149,10 @@ def build_conversation_agent() -> Agent:
 
 
 def build_usage_limits() -> UsageLimits:
-    """Cap tool round-trips so a traversal cannot spiral."""
-    return UsageLimits(request_limit=settings.retrieval_max_tool_calls + 1)
+    """Backstop only — the tools enforce the real cap.
+
+    `request_limit` counts model requests, not tool calls: N tool calls need N + 1 requests
+    because the answer costs one. The old `max_tool_calls + 1` therefore left no room for the
+    answer at all, and a run that used the full allowance died with the reply half-written.
+    """
+    return UsageLimits(request_limit=settings.retrieval_max_tool_calls + 3)

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from loguru import logger
 
 from ai_conversation_service.schemas.ai_conversation_schemas import (
     CreateConversationRequest,
@@ -57,6 +58,12 @@ async def send_message(
     except ConversationNotFoundError:
         raise HTTPException(status_code=404, detail="Conversation not found")
     except Exception as e:
+        # Logged with the traceback: converting straight to a 500 left the service log
+        # showing a bare status code with no reason, so a real failure could only be
+        # diagnosed by reproducing it.
+        logger.opt(exception=True).error(
+            f"send_message failed for conversation {conversation_id}: {e}"
+        )
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
 
 
