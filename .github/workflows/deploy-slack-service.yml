@@ -3,7 +3,11 @@ name: Deploy Slack Service
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    # The feature branch is deployable on demand so the auth work can be exercised against
+    # real Cognito before it is merged. There is only one environment, so a push here
+    # replaces what main deployed - see AUTH_REQUIRED, which is off by default precisely so
+    # that swap cannot lock anyone out.
+    branches: [main, feat/user-accounts-and-admin]
     paths:
       - 'slack_service/**'
       - '.github/workflows/deploy-slack-service.yml'
@@ -57,7 +61,11 @@ jobs:
 
       - name: Register Task Definition
         run: |
-          cat > task-def.json << 'EOF'
+          # Unquoted delimiter so ${ACCOUNT_ID} expands. Quoted, the task definition reached
+          # AWS with the literal string "${ACCOUNT_ID}" in the image URI and both role ARNs.
+          # No other $ appears in the body, and the ${{ }} forms are substituted by Actions
+          # before the shell ever sees them.
+          cat > task-def.json << EOF
           {
             "family": "pami-slack-service",
             "networkMode": "awsvpc",

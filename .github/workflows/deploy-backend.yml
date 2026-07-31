@@ -6,7 +6,11 @@ on:
   # replaces whatever is currently deployed until main is deployed again.
   workflow_dispatch:
   push:
-    branches: [main]
+    # The feature branch is deployable on demand so the auth work can be exercised against
+    # real Cognito before it is merged. There is only one environment, so a push here
+    # replaces what main deployed - see AUTH_REQUIRED, which is off by default precisely so
+    # that swap cannot lock anyone out.
+    branches: [main, feat/user-accounts-and-admin]
 
 concurrency:
   # One cluster, one ALB, one Amplify branch: overlapping runs both push images and both
