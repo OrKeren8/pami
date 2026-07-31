@@ -120,20 +120,33 @@
     align-items: center;
     gap: 14px;
     width: 100%;
-    padding: 14px 16px;
-    border: 1px solid #f3e3ee;
-    border-radius: 14px;
-    background: #ffffff;
-    box-shadow: 0 1px 2px rgba(190, 24, 93, 0.04);
+    padding: 16px 18px;
+    /* Raised off the page rather than outlined: a pink-tinted panel over a soft pink
+       shadow, so the list reads as a stack of cards at a glance. */
+    border: 1px solid #f7d6e7;
+    border-radius: 16px;
+    background: linear-gradient(150deg, #ffffff 0%, #fff6fb 58%, #ffeef7 100%);
+    box-shadow:
+        0 1px 2px rgba(190, 24, 93, 0.06),
+        0 10px 22px -12px rgba(190, 24, 93, 0.28);
     font-family: inherit;
     text-align: left;
     cursor: pointer;
-    transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+    transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease,
+        background 140ms ease;
 }
 
-.chat-view-card:hover {
-    border-color: #f7c6dc;
-    box-shadow: 0 6px 18px rgba(190, 24, 93, 0.1);
+.chat-view-card:hover,
+.chat-view-card-previewing {
+    border-color: #f4a9cb;
+    background: linear-gradient(150deg, #ffffff 0%, #fff1f8 55%, #ffe3f1 100%);
+    box-shadow:
+        0 2px 4px rgba(190, 24, 93, 0.08),
+        0 22px 40px -16px rgba(190, 24, 93, 0.42);
+    transform: translateY(-3px);
+}
+
+.chat-view-card:active {
     transform: translateY(-1px);
 }
 
@@ -152,12 +165,13 @@
 
 .chat-view-card-title {
     overflow: hidden;
-    color: #27272a;
-    font-size: 0.92rem;
-    font-weight: 600;
+    color: #1f1a1d;
+    font-size: 0.95rem;
+    font-weight: 700;
     line-height: 1.35;
-    /* Two lines of the opening question, then clipped: enough to recognise it without
-       letting one long message set the height of every row. */
+    /* Two lines then clipped: node headers are a few words, but a conversation with no node
+       falls back to its opening question, and one long question must not set the row height
+       for the whole list. */
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -233,5 +247,131 @@
 
     .chat-view-card:hover {
         transform: none;
+    }
+}
+
+/* The summary sits in the meta row beside the time and the message count, so a card is one
+   glance: what it was called, when, how long, what it was about. */
+.chat-view-card-summary {
+    flex: 1 1 260px;
+    min-width: 0;
+    overflow: hidden;
+    color: #9b6e86;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---------- Hover preview ---------- */
+
+.chat-preview {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: min(620px, calc(100vw - 80px));
+    max-height: min(62vh, 560px);
+    padding: 20px 22px;
+    border: 1px solid rgba(240, 98, 146, 0.4);
+    border-radius: 20px;
+    /* Deliberately see-through: the preview is a peek at the conversation, not a dialog, so
+       the list stays visible behind it. */
+    background: rgba(255, 245, 250, 0.74);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 30px 70px -20px rgba(190, 24, 93, 0.45);
+    cursor: pointer;
+    animation: chat-preview-in 130ms ease-out;
+}
+
+.chat-preview-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(240, 98, 146, 0.22);
+}
+
+.chat-preview-title {
+    color: #18181b;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.chat-preview-count {
+    flex-shrink: 0;
+    color: #b06489;
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.chat-preview-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chat-preview-line {
+    margin: 0;
+    color: #3f3f46;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    /* Four lines per message: enough to recognise the exchange without one long answer
+       filling the whole preview. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    overflow: hidden;
+}
+
+.chat-preview-role {
+    display: inline-block;
+    margin-right: 7px;
+    color: #be185d;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.chat-preview-user .chat-preview-role {
+    color: #7c3aed;
+}
+
+.chat-preview-note {
+    margin: 0;
+    color: #71717a;
+    font-size: 0.84rem;
+}
+
+.chat-preview-hint {
+    color: #b06489;
+    font-size: 0.74rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+@keyframes chat-preview-in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -48%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chat-preview {
+        animation: none;
     }
 }
