@@ -25,7 +25,10 @@ from typing import Dict, Optional, List
 
 # Configuration
 REGION = "us-east-1"
-ACCOUNT_ID = "909189231170"
+# Resolved from the caller's credentials in init_aws_clients. The lab account is
+# rebuilt periodically, so a literal here goes stale and prints registry URIs that
+# belong to an account nobody can push to any more.
+ACCOUNT_ID = None
 CLUSTER_NAME = "pami-cluster"
 
 SERVICES = [
@@ -74,7 +77,7 @@ def load_env_file(env_path: str = None):
 
 def init_aws_clients(region: str = None):
     """Initialize global boto3 clients using environment variables if present."""
-    global ecs, ec2, ecr, elbv2, logs, s3, amplify, apigateway
+    global ecs, ec2, ecr, elbv2, logs, s3, amplify, apigateway, ACCOUNT_ID
     # Prefer explicit parameter, then common env vars, then module default
     region = (
         region
@@ -125,6 +128,13 @@ def init_aws_clients(region: str = None):
         s3 = boto3.client("s3", region_name=region)
         amplify = boto3.client("amplify", region_name=region)
         apigateway = boto3.client("apigatewayv2", region_name=region)
+
+    try:
+        ACCOUNT_ID = boto3.client(
+            "sts", region_name=region
+        ).get_caller_identity()["Account"]
+    except Exception as error:
+        print_error(f"Could not resolve the AWS account id: {error}")
 
 
 def print_header(text: str):
@@ -1276,7 +1286,7 @@ def main():
 
     print_header("PAMI AWS Infrastructure Setup")
     print(f"Region: {resolved_region}")
-    print(f"Account: {ACCOUNT_ID}")
+    print(f"Account: {ACCOUNT_ID or 'could not be resolved'}")
     print()
 
     try:

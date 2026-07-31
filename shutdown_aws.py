@@ -16,11 +16,14 @@ import sys
 import os
 import time
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 # Configuration
 REGION = "us-east-1"
-ACCOUNT_ID = "909189231170"
+# Resolved from the caller's credentials, not hardcoded: the lab account is rebuilt
+# periodically, and this value was a whole generation out of date while being printed
+# as confirmation of what was about to be torn down.
+ACCOUNT_ID = None
 CLUSTER_NAME = "pami-cluster"
 
 SERVICES = [
@@ -69,6 +72,15 @@ def load_env_file(env_path: str = None):
     except Exception:
         # Silently ignore parse errors (we'll rely on boto3 defaults/error messages)
         pass
+
+
+def _resolve_account_id(region: str) -> Optional[str]:
+    """The account these credentials actually belong to."""
+    try:
+        return boto3.client("sts", region_name=region).get_caller_identity()["Account"]
+    except Exception as error:
+        print_error(f"Could not resolve the AWS account id: {error}")
+        return None
 
 
 def print_header(text: str):
@@ -231,6 +243,7 @@ def print_summary():
 
 
 def main():
+    global ACCOUNT_ID
     """Main shutdown flow."""
     try:
         # Load environment (.env) so the script can run without manual setup
@@ -263,10 +276,12 @@ def main():
             ecs = boto3.client("ecs", region_name=region)
             elbv2 = boto3.client("elbv2", region_name=region)
 
+        ACCOUNT_ID = _resolve_account_id(region)
+
         print_header("PAMI AWS Infrastructure Shutdown")
         print()
         print(f"Region: {region}")
-        print(f"Account: {ACCOUNT_ID}")
+        print(f"Account: {ACCOUNT_ID or 'could not be resolved'}")
         print()
 
         # Confirm shutdown
