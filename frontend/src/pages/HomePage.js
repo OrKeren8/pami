@@ -6,6 +6,8 @@ import AppSidebar from "../components/layout/AppSidebar";
 import GraphCanvas from "../components/graph/GraphCanvas";
 import { deriveGraph } from "../lib/graph/deriveGraph";
 import { useToast } from "../components/feedback/ToastProvider";
+import useChatScroll from "../hooks/useChatScroll";
+import useRevealedText from "../hooks/useRevealedText";
 
 const MODAL_LABELS = {
     createProject: "Create project",
@@ -358,7 +360,15 @@ const HomePage = () => {
     }, []);
 
     const [isChatLoading, setIsChatLoading] = useState(false);
+    // The service answers in one shot, so the reply is typed out here instead: a wall of
+    // text appearing at once gives no sense of progress and leaves the reader hunting for
+    // where it started.
+    const { revealedChars, reveal: revealReply, stop: stopReveal } = useRevealedText();
     const [assistantAvatarUrl, setAssistantAvatarUrl] = useState(null);
+    const {
+        containerRef: chatBodyRef,
+        scrollToBottom: scrollChatToBottom
+    } = useChatScroll([chatMessages, revealedChars, isChatLoading]);
 
     const fileInputRef = useRef(null);
 
@@ -635,6 +645,8 @@ const HomePage = () => {
         const userMessage = chatInput.trim();
         setChatInput("");
         setChatMessages((p) => [...p, { role: "user", content: userMessage }]);
+        // Sending is an explicit action, so follow it down even if the user had scrolled up.
+        scrollChatToBottom();
         setIsChatLoading(true);
         try {
             let convId = conversationId;
@@ -659,6 +671,7 @@ const HomePage = () => {
                     consulted: (resp.data && resp.data.consulted) || []
                 }
             ]);
+            revealReply((aiText || "(no response)").length);
         } catch (err) {
             console.error("Failed to send message to AI:", err);
             setChatMessages((p) => [...p, { role: "assistant", content: "I'm having trouble connecting right now. Please try again." }]);
@@ -1012,6 +1025,7 @@ const HomePage = () => {
                     // stray click. Past conversations are reopened from their graph node.
                     if (activePane === "chat") return;
                     flushConversationIndex(conversationId);
+                    stopReveal();
                     setConversationId(null);
                     setChatMessages([]);
                     setActivePane("chat");
@@ -1170,7 +1184,7 @@ const HomePage = () => {
                                             </button>
                                         </div>
                                     </div>
-                                    <div className="chat-body" style={{ padding: "16px", overflowY: "auto", overflowX: "hidden", flex: 1, minHeight: 0 }}>
+                                    <div ref={chatBodyRef} className="chat-body" style={{ padding: "16px", overflowY: "auto", overflowX: "hidden", flex: 1, minHeight: 0 }}>
                                         {chatMessages.length === 0 ? (
                                             <div className="chat-empty-state">
                                                 <p>Ask PAMI about this project</p>
@@ -1183,6 +1197,12 @@ const HomePage = () => {
                                             chatMessages.map((msg, idx) => {
                                                 const isUser = (msg.role === "user");
                                                 const roleClass = isUser ? "user" : "assistant";
+                                                const isRevealing = !isUser
+                                                    && revealedChars !== null
+                                                    && idx === chatMessages.length - 1;
+                                                const shownText = isRevealing
+                                                    ? msg.content.slice(0, revealedChars)
+                                                    : msg.content;
                                                 return (
                                                     <div key={idx} className={`chat-message ${roleClass}`}>
                                                         {isUser ? (
@@ -1191,8 +1211,13 @@ const HomePage = () => {
                                                             <div className="message-avatar assistant" style={{ backgroundImage: `url(${assistantAvatarUrl || "/pami_ai_avatar.png"})` }} />
                                                         )}
                                                         <div className="message-content">
-                                                            <p>{msg.content}</p>
-                                                            {!isUser && (msg.consulted || []).length > 0 && (
+                                                            <p>
+                                                                {shownText}
+                                                                {isRevealing && <span className="reveal-caret" aria-hidden="true" />}
+                                                            </p>
+                                                            {/* Held back until the text is fully out: chips appearing beside half a
+                                                                sentence read as part of the answer. */}
+                                                            {!isUser && !isRevealing && (msg.consulted || []).length > 0 && (
                                                                 <div className="message-sources">
                                                                     <span className="message-sources-label">
                                                                         Answered using

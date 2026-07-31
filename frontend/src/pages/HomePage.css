@@ -6877,3 +6877,26 @@ button[aria-label*="Slack"] {
   outline: 2px solid var(--pami-purple);
   outline-offset: 2px;
 }
+
+/* Blinks at the end of the text still being revealed. */
+.pami-chat-pane .reveal-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--primary-purple, #684ea0);
+  animation: reveal-caret-blink 900ms steps(2, start) infinite;
+}
+
+@keyframes reveal-caret-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pami-chat-pane .reveal-caret {
+    animation: none;
+  }
+}
