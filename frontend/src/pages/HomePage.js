@@ -352,7 +352,6 @@ const HomePage = () => {
         setIsLoading(true);
         try {
             const response = await projectsApi.get("/projects/");
-            console.log("Projects fetched:", response.data);
             const projects = response.data || [];
             setRealProjects(projects);
 
@@ -382,7 +381,6 @@ const HomePage = () => {
         try {
             const resp = await projectsApi.get(`/context-tree/projects/${projectId}/nodes`);
             if (resp && resp.data) {
-                console.log('Fetched context nodes for', projectId, resp.data);
                 setContextNodesMap((m) => {
                     const next = { ...m, [projectId]: resp.data };
 
@@ -444,7 +442,6 @@ const HomePage = () => {
                 goal: tokenInput || "No goal defined",
                 status: "active",
             });
-            console.log("Project created successfully:", response.data);
             const newProjectId = resolveProjectId(response.data);
             alert(`Project "${emailInput}" created.`);
             await fetchProjects();
@@ -748,7 +745,6 @@ const HomePage = () => {
                 ? (node.project_id || node.projectId || node.project || node.id)
                 : node.id;
 
-            console.log(`Fetching live connected data for project: ${targetProjectId}`);
             const [tasksRes, nodesRes] = await Promise.all([
                 projectsApi.get(`/tasks/projects/${targetProjectId}/tasks`).catch(() => ({ data: [] })),
                 projectsApi.get(`/context-tree/projects/${targetProjectId}/nodes`).catch(() => ({ data: [] }))
@@ -812,7 +808,6 @@ const HomePage = () => {
     };
 
     const handleCreateNodeFromConversation = async () => {
-        console.log('Create node from conversation triggered');
         try {
             if (realProjects.length === 0) {
                 alert('No project available to attach node to.');
@@ -820,7 +815,6 @@ const HomePage = () => {
             }
             const projectRaw = realProjects.find((proj) => String(resolveProjectId(proj)) === String(selectedProjectId)) || realProjects[0];
             const projectId = resolveProjectId(projectRaw);
-            console.log('Using project id:', projectId, projectRaw);
             if (!projectId) {
                 alert('Could not determine project id for node creation.');
                 return;
