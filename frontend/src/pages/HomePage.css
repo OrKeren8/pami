@@ -6361,3 +6361,146 @@ button[aria-label*="Slack"] {
   margin-top: 0 !important;
   padding-top: 6px !important;
 }
+
+/* Wider sidebar. Every dependent rule reads the variable, including the main content's
+   margin and the floating-panel offset, so this is the only place it needs changing. */
+:root {
+  --sidebar-width: 256px;
+}
+
+/* The sidebar must fit the viewport with no scrollbar of its own. Nav rows and the logo
+   give back ~100px, and the assistant panel then takes exactly the space that is left, so
+   this holds at any window height rather than only at the one it was tuned on. */
+.sidebar {
+  overflow: hidden !important;
+}
+
+.sidebar-logo {
+  padding: 10px 0 14px !important;
+}
+
+.sidebar-nav {
+  flex: 0 0 auto !important;
+}
+
+.sidebar-nav li {
+  padding: 9px 15px !important;
+  margin-bottom: 4px !important;
+}
+
+.sidebar-nav li.logout-item {
+  padding: 10px 15px 9px !important;
+}
+
+/* The wider sidebar leaves the stats row 21px short of its content, which clipped the last
+   label. Tighter gaps and letter-spacing buy back more than that without shrinking the
+   numbers, which are the part worth reading. */
+.main-content .top-header .header-stats-wrapper,
+.main-content.sidebar-open .top-header .header-stats-wrapper,
+.main-content.sidebar-closed .top-header .header-stats-wrapper {
+  gap: 6px !important;
+  margin: 0 6px !important;
+}
+
+.main-content .top-header .header-stat-item {
+  gap: 5px !important;
+  padding: 0 !important;
+}
+
+.main-content .top-header .header-stat-label {
+  letter-spacing: 0.01em !important;
+}
+
+/* PAMI Assistant panel: every text block in it was clamped by a max-height smaller than
+   its content, so the recommendation was cut mid-sentence, the title rendered as "Re…",
+   and the avatar was cropped by a wrapper 30px shorter than the image. */
+.pami-sidebar-assistant-panel {
+  width: auto !important;
+  align-self: stretch !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  overflow: visible !important;
+}
+
+.pami-assistant-bubble {
+  max-height: none !important;
+}
+
+/* It is a grid, not a flex row: two auto columns squeezed the title into 28px. One column
+   per row gives the title the full width and drops the pager underneath it. */
+.pami-assistant-bubble-top {
+  grid-template-columns: 1fr !important;
+  row-gap: 6px !important;
+}
+
+.pami-assistant-recommendation-title {
+  min-width: 0 !important;
+  overflow: visible !important;
+  font-size: 10.5px !important;
+  white-space: normal !important;
+}
+
+.pami-assistant-pager {
+  justify-self: end !important;
+}
+
+/* The recommendation is longer than any sidebar-friendly height, so it takes whatever room
+   the panel has left and scrolls inside its own box, instead of being silently truncated at
+   a hard 40px. */
+.pami-assistant-bubble {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+.pami-assistant-message {
+  flex: 1 1 auto !important;
+  min-height: 48px !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  padding-right: 4px !important;
+}
+
+.pami-assistant-message p {
+  font-size: 11px !important;
+  line-height: 1.5 !important;
+}
+
+.pami-assistant-message ul {
+  font-size: 10.5px !important;
+  line-height: 1.45 !important;
+}
+
+.pami-assistant-robot-wrap {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.pami-assistant-avatar-image {
+  width: 56px !important;
+  height: 56px !important;
+}
+
+/* Side by side rather than stacked: two full-width buttons cost 63px of a sidebar that is
+   already scrolling. */
+.pami-assistant-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 6px !important;
+}
+
+.pami-assistant-check-btn,
+.pami-assistant-history-btn {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: 30px !important;
+  height: 30px !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  font-size: 10.5px !important;
+}

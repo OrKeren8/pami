@@ -235,6 +235,20 @@ const HomePage = () => {
     };
 
     const [treeHeight, setTreeHeight] = useState(() => getTreePanelSizes().collapsedHeight);
+    const isPanelExpandedRef = useRef(false);
+
+    // The panel is bottom-anchored, so its height decides where its top edge lands. Sized
+    // only at mount, it kept a height from the old viewport after any window resize and its
+    // top edge crept up underneath the header.
+    useEffect(() => {
+        const resize = () => {
+            const { collapsedHeight, expandedHeight } = getTreePanelSizes();
+            setTreeHeight(isPanelExpandedRef.current ? expandedHeight : collapsedHeight);
+        };
+
+        window.addEventListener("resize", resize);
+        return () => window.removeEventListener("resize", resize);
+    }, []);
     const [isLoading, setIsLoading] = useState(true);
     const [activeModal, setActiveModal] = useState(null);
     const [realProjects, setRealProjects] = useState([]);
@@ -929,6 +943,7 @@ const HomePage = () => {
 
         setTreeHeight((previousHeight) => {
             const isExpanded = previousHeight >= expandedHeight - 5;
+            isPanelExpandedRef.current = !isExpanded;
             return isExpanded ? collapsedHeight : expandedHeight;
         });
     };
