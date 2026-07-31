@@ -47,7 +47,9 @@ class Settings(BaseSettings):
     enable_retrieval_debug_api: bool = False
 
     # Retrieval budget
-    retrieval_max_tool_calls: int = 3
+    # One search plus four reads. Enforced in the agent's tools, which refuse further calls
+    # and let the model answer, rather than by a request limit that aborts the whole run.
+    retrieval_max_tool_calls: int = 5
     retrieval_max_conversations: int = 5
     retrieval_max_injected_tokens: int = 4000
 
