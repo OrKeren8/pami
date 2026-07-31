@@ -169,7 +169,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
 
                         <div className="node-details-metric">
                             <strong>{nodeTasks.length}</strong>
-                            <span>Tasks</span>
+                            <span>Project tasks</span>
                         </div>
 
                         <div className="node-details-metric">
@@ -214,7 +214,11 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                             <div className="node-details-section-header">
                                 <div>
                                     <span className="node-details-section-kicker">Execution</span>
-                                    <h3>Attached tasks</h3>
+                                    {/* Tasks carry a project_id and nothing else, so these are
+                                        the project's tasks, identical for every node in it.
+                                        Labelling them "attached" implied a per-node link that
+                                        does not exist in the data. */}
+                                    <h3>Tasks in this project</h3>
                                 </div>
                                 <span className="node-details-count">{nodeTasks.length}</span>
                             </div>
@@ -231,7 +235,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                                     ))}
                                 </div>
                             ) : (
-                                <p className="node-details-empty">No direct active operational tasks are configured for this node.</p>
+                                <p className="node-details-empty">This project has no tasks yet.</p>
                             )}
                         </section>
                     </>
