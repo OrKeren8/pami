@@ -178,3 +178,102 @@
     color: #333;
     width: 200px;
 }
+
+/* The card was a hard 950x600 with no media queries, inside a container the global
+   `html, body, #root { overflow: hidden }` prevents from scrolling - so below about 990px
+   wide or 640px tall the Sign In button was cut off and unreachable. */
+.login-master-container {
+  overflow-y: auto;
+}
+
+.login-card {
+  width: min(950px, 100%);
+  height: auto;
+  min-height: 520px;
+}
+
+.login-password-row,
+.password-wrapper {
+  position: relative;
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--pami-muted, #8c8195);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.password-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.password-toggle:hover {
+  color: var(--primary-purple);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--primary-purple);
+  outline-offset: 2px;
+}
+
+.login-error {
+  margin: 0;
+  color: #c2185b;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.login-footer-note {
+  color: #8c8195;
+  font-size: 12px;
+}
+
+.tip-avatar img {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+}
+
+@media (max-height: 700px) {
+  .login-card {
+    min-height: 0;
+  }
+}
+
+/* The tip is absolutely positioned at the card's bottom-left; with the card now sizing to
+   its content it landed on top of the footer text. Reserve room for it. */
+.login-footer {
+  padding-bottom: 56px;
+}
+
+.login-footer-note {
+  margin: 0;
+  text-align: center;
+}
+
+/* Sits in the flow under the form instead of floating over it: absolute positioning at the
+   card's bottom-left only worked while the card had a fixed 600px height. */
+.little-bot-tip {
+  position: static;
+  bottom: auto;
+  left: auto;
+  justify-content: center;
+  padding: 0 28px 24px;
+}
+
+.login-footer {
+  padding-bottom: 8px;
+}
