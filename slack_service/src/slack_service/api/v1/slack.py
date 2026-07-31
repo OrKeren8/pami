@@ -4,7 +4,6 @@ from slack_service.schemas.slack_schemas import CreateChannelRequest, SendMessag
 from slack_service.services.slack_api_service import slack_api_service
 from slack_service.services.slack_signature_service import slack_signature_service
 
-
 router = APIRouter(prefix="/slack", tags=["slack"])
 
 

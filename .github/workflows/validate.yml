@@ -42,14 +42,17 @@ jobs:
         working-directory: ${{ matrix.service }}
         run: uv sync --all-extras
 
+      # --with ruff rather than a bare `uv run ruff`: slack_service does not declare ruff
+      # as a dependency, so the bare form failed with "Failed to spawn: ruff" and took the
+      # whole gate down with it.
       - name: Lint
         working-directory: ${{ matrix.service }}
-        run: uv run ruff check src
+        run: uv run --with ruff ruff check src
 
       - name: Format check
         if: matrix.check_format
         working-directory: ${{ matrix.service }}
-        run: uv run ruff format --check src
+        run: uv run --with ruff ruff format --check src
 
   projects-tests:
     runs-on: ubuntu-latest
