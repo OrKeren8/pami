@@ -25,6 +25,10 @@ class UnknownSiblingError(Exception):
     """Raised when a sibling score references a node outside the project."""
 
 
+class ConversationPurgeError(Exception):
+    """Raised when a node's conversation could not be removed, so the node was kept."""
+
+
 class ContextTreeService:
     """Service for sibling-link graph business logic driven by AI scores."""
 
@@ -580,12 +584,22 @@ class ContextTreeService:
                 },
             )
 
+        # The node is the only handle on its conversation, so deleting it while the AI service
+        # still holds the transcript and its search chunks strands content the user believes is
+        # gone - and because retrieval filters only by project_id, the assistant keeps quoting
+        # it. Refuse rather than orphan it; the caller can retry.
         conv_id = getattr(node, "conversation_id", None)
         if conv_id:
+            purged = False
             try:
-                await self._delete_ai_conversation(conv_id)
+                purged = await self._delete_ai_conversation(conv_id)
             except Exception as e:
                 self._logger.error(f"Failed to delete AI conversation {conv_id}: {e}")
+            if not purged:
+                raise ConversationPurgeError(
+                    f"Conversation {conv_id} could not be removed, so node {node_id} "
+                    "was left in place"
+                )
 
         deleted = await self._context_tree_repository.delete(node_id)
         if deleted:
