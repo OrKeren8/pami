@@ -56,6 +56,7 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
         unpin,
         resetLayout
     } = useForceGraph({
+        measureHostRef: viewportRef,
         nodes: sourceNodes,
         links: sourceLinks,
         projectId,
