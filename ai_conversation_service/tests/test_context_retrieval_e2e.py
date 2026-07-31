@@ -324,3 +324,40 @@ async def test_scores_only_compare_matching_embedding_models(
 
     assert "node-billing" not in similarities
     assert top_k_scores(similarities, "deterministic-test@384", 8) == {}
+
+
+async def test_mismatched_vector_widths_do_not_break_search(
+    chunk_index_service, retrieval_service, family_messages
+):
+    """A half-migrated index must degrade, not raise.
+
+    Changing the embedding model changes the vector width, so during a re-index the
+    collection holds both widths. Comparing them used to raise inside numpy and would take
+    down every search that touched a stale chunk.
+    """
+    from ai_conversation_service.data.vector_index import CHUNK_COLLECTION
+    from ai_conversation_service.services.similarity import cosine
+
+    assert cosine([1.0, 0.0], [1.0, 0.0, 0.0]) == 0.0
+    assert cosine([], [1.0]) == 0.0
+
+    await chunk_index_service.reindex_conversation(
+        "conv-current-model", "proj-mixed", "node-a", family_messages, "Current"
+    )
+    await chunk_index_service._database[CHUNK_COLLECTION].insert_one(
+        {
+            "conversation_id": "conv-stale-model",
+            "project_id": "proj-mixed",
+            "node_id": "node-b",
+            "text": "a chunk left behind by the previous embedding model",
+            "message_start": 0,
+            "message_end": 1,
+            "embedding": [0.1] * 8,
+            "embedding_model": "previous-model@8",
+        }
+    )
+
+    hits = await retrieval_service.search(project_id="proj-mixed", query="nurse Dana")
+
+    assert any(hit.conversation_id == "conv-current-model" for hit in hits)
+    assert all(hit.conversation_id != "conv-stale-model" for hit in hits)
