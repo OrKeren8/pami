@@ -181,6 +181,14 @@ def get_vpc_subnets(vpc_id: str) -> List[str]:
         return []
 
 
+# Only the load balancer listeners face the internet. The container ports behind it are
+# reachable from inside this security group, which both the ALB and the tasks are members
+# of, so ALB -> task traffic and health checks still work. Opening 8000-8002 to 0.0.0.0/0
+# published every service directly on its task's public IP, bypassing the load balancer.
+PUBLIC_PORTS = [80, 443]
+SERVICE_PORTS = [8000, 8001, 8002]
+
+
 def create_or_get_security_group(vpc_id: str) -> Optional[str]:
     """Create or get the security group for ECS services."""
     sg_name = "pami-ecs-services-sg"
@@ -195,8 +203,11 @@ def create_or_get_security_group(vpc_id: str) -> Optional[str]:
         )
 
         if response["SecurityGroups"]:
-            sg_id = response["SecurityGroups"][0]["GroupId"]
+            group = response["SecurityGroups"][0]
+            sg_id = group["GroupId"]
             print_success(f"Security group already exists: {sg_id}")
+            _close_public_service_ports(group)
+            _allow_service_ports_from_self(sg_id)
             return sg_id
 
         # Create security group
@@ -207,9 +218,7 @@ def create_or_get_security_group(vpc_id: str) -> Optional[str]:
         )
         sg_id = response["GroupId"]
 
-        # Add ingress rules for all service ports
-        ports = [8000, 8001, 8002, 80, 443]
-        for port in ports:
+        for port in PUBLIC_PORTS:
             ec2.authorize_security_group_ingress(
                 GroupId=sg_id,
                 IpPermissions=[
@@ -224,12 +233,73 @@ def create_or_get_security_group(vpc_id: str) -> Optional[str]:
                 ],
             )
 
+        _allow_service_ports_from_self(sg_id)
+
         print_success(f"Created security group: {sg_id}")
         return sg_id
 
     except Exception as e:
         print_error(f"Failed to create/get security group: {e}")
         return None
+
+
+def _allow_service_ports_from_self(sg_id: str) -> None:
+    """Allow the container ports from members of this same group, and only those."""
+    for port in SERVICE_PORTS:
+        try:
+            ec2.authorize_security_group_ingress(
+                GroupId=sg_id,
+                IpPermissions=[
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": port,
+                        "ToPort": port,
+                        "UserIdGroupPairs": [
+                            {
+                                "GroupId": sg_id,
+                                "Description": f"Load balancer to task port {port}",
+                            }
+                        ],
+                    }
+                ],
+            )
+        except Exception as error:
+            # Re-running the setup is normal, and the rule is already what we want.
+            if "InvalidPermission.Duplicate" in str(error):
+                continue
+            print_error(f"Could not allow port {port} from the service group: {error}")
+
+
+def _close_public_service_ports(group: dict) -> None:
+    """Revoke any world-open rule on a container port left by an earlier setup run."""
+    for permission in group.get("IpPermissions", []):
+        port = permission.get("FromPort")
+        if port not in SERVICE_PORTS or permission.get("IpProtocol") != "tcp":
+            continue
+
+        open_ranges = [
+            ip_range
+            for ip_range in permission.get("IpRanges", [])
+            if ip_range.get("CidrIp") == "0.0.0.0/0"
+        ]
+        if not open_ranges:
+            continue
+
+        try:
+            ec2.revoke_security_group_ingress(
+                GroupId=group["GroupId"],
+                IpPermissions=[
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": port,
+                        "ToPort": permission.get("ToPort", port),
+                        "IpRanges": open_ranges,
+                    }
+                ],
+            )
+            print_success(f"Closed public access to container port {port}")
+        except Exception as error:
+            print_error(f"Could not close public access to port {port}: {error}")
 
 
 def create_ecs_cluster():
