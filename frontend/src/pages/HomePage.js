@@ -226,6 +226,30 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
 // the nav shows the intended shape without four items that silently do nothing.
 const UNBUILT_NAV_ITEMS = ["Context Brain", "Health Monitor", "Workers", "Settings"];
 
+// Each header stat gets an icon that depicts what it counts, replacing decorative CSS shapes
+// that carried no meaning.
+const STAT_ICONS = {
+    conversations: "M2.5 4.2A1.7 1.7 0 0 1 4.2 2.5h9.6a1.7 1.7 0 0 1 1.7 1.7v6a1.7 1.7 0 0 1-1.7 1.7H7l-3.2 2.6a.5.5 0 0 1-.8-.4v-2.2a1.7 1.7 0 0 1-.5-1.2Z",
+    connections: "M5.6 10.4 10.4 5.6M4 12.5a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4ZM12 7.9a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z",
+    connected: "M8 1.8a6.2 6.2 0 1 1 0 12.4A6.2 6.2 0 0 1 8 1.8Zm-2.6 6.4 1.9 1.9 3.4-3.6",
+    projects: "M2 4.4A1.4 1.4 0 0 1 3.4 3h2.7l1.4 1.7h5.1A1.4 1.4 0 0 1 14 6.1v5.5a1.4 1.4 0 0 1-1.4 1.4H3.4A1.4 1.4 0 0 1 2 11.6Z"
+};
+
+const StatIcon = ({ name, className }) => (
+    <span className={className} aria-hidden="true">
+        <svg viewBox="0 0 16 16" focusable="false">
+            <path
+                d={STAT_ICONS[name]}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    </span>
+);
+
 const HomePage = () => {
     const navigate = useNavigate();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -1420,24 +1444,23 @@ const HomePage = () => {
                         overflowX: "visible"
                     }}>
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-nodes" aria-hidden="true"></span><strong className="header-stat-value">{selectedProjectNodeCount}</strong><span className="header-stat-label">CONVERSATIONS</span>
+                            <StatIcon name="conversations" className="header-stat-icon header-stat-icon-nodes" /><strong className="header-stat-value">{selectedProjectNodeCount}</strong><span className="header-stat-label">CONVERSATIONS</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-workers" aria-hidden="true"></span><strong className="header-stat-value">{selectedProjectConnectionCount}</strong><span className="header-stat-label">CONNECTIONS</span>
+                            <StatIcon name="connections" className="header-stat-icon header-stat-icon-workers" /><strong className="header-stat-value">{selectedProjectConnectionCount}</strong><span className="header-stat-label">CONNECTIONS</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-velocity" aria-hidden="true"></span><strong className="header-stat-value">{selectedProjectLinkedShare}</strong><span className="header-stat-label">CONNECTED</span>
+                            <StatIcon name="connected" className="header-stat-icon header-stat-icon-velocity" /><strong className="header-stat-value">{selectedProjectLinkedShare}</strong><span className="header-stat-label">CONNECTED</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-uptime" aria-hidden="true"></span><strong className="header-stat-value">{realProjects.length}</strong><span className="header-stat-label">PROJECTS</span>
+                            <StatIcon name="projects" className="header-stat-icon header-stat-icon-uptime" /><strong className="header-stat-value">{realProjects.length}</strong><span className="header-stat-label">PROJECTS</span>
                         </div>
                     </div>
 
                     <div className="header-right" style={{ display: "flex", alignItems: "center", gap: "15px", flex: "0 0 auto" }}>
-                        <span className="notification">🔔</span>
                         <button className="new-node-btn" onClick={() => openModal("createProject")}>+ New Project</button>
                         <div className="project-switcher">
                             <button

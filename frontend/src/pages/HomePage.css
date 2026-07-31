@@ -6558,3 +6558,24 @@ button[aria-label*="Slack"] {
   width: 15px;
   height: 15px;
 }
+
+/* Real SVG icons in the header stats. The old ones were drawn with ::before/::after shapes
+   that depicted nothing, so the pseudo-elements are cleared to stop them layering under the
+   new artwork. */
+.main-content .top-header .header-stat-icon::before,
+.main-content .top-header .header-stat-icon::after {
+  content: none !important;
+}
+
+.main-content .top-header .header-stat-icon {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  flex: 0 0 18px !important;
+}
+
+.main-content .top-header .header-stat-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
