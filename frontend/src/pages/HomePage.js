@@ -265,16 +265,12 @@ const HomePage = () => {
     };
 
     const [treeHeight, setTreeHeight] = useState(() => getTreePanelSizes().collapsedHeight);
-    const isPanelExpandedRef = useRef(false);
 
     // The panel is bottom-anchored, so its height decides where its top edge lands. Sized
     // only at mount, it kept a height from the old viewport after any window resize and its
     // top edge crept up underneath the header.
     useEffect(() => {
-        const resize = () => {
-            const { collapsedHeight, expandedHeight } = getTreePanelSizes();
-            setTreeHeight(isPanelExpandedRef.current ? expandedHeight : collapsedHeight);
-        };
+        const resize = () => setTreeHeight(getTreePanelSizes().collapsedHeight);
 
         window.addEventListener("resize", resize);
         return () => window.removeEventListener("resize", resize);
@@ -968,16 +964,6 @@ const HomePage = () => {
 
 
 
-    const toggleTreePanelHeight = () => {
-        const { collapsedHeight, expandedHeight } = getTreePanelSizes();
-
-        setTreeHeight((previousHeight) => {
-            const isExpanded = previousHeight >= expandedHeight - 5;
-            isPanelExpandedRef.current = !isExpanded;
-            return isExpanded ? collapsedHeight : expandedHeight;
-        });
-    };
-
 
     // הפונקציות המלאות והתקינות של סלאק שממוקמות בצורה נכונה
     const renderSlackActionsModal = () => {
@@ -1295,8 +1281,41 @@ const HomePage = () => {
           )}%`
         : "—";
 
-    const { expandedHeight: currentTreeExpandedHeight } = getTreePanelSizes();
-    const isTreePanelExpanded = treeHeight >= currentTreeExpandedHeight - 5;
+    // Lives in the graph's floating control bar in tree mode and in the chat header in chat
+    // mode, so the panel needs no header row of its own.
+    const paneToggle = (
+        <div className="pane-toggle" role="tablist" aria-label="Panel">
+            <button
+                type="button"
+                role="tab"
+                aria-selected={activePane === "tree"}
+                className={`pane-toggle-btn ${activePane === "tree" ? "active" : ""}`}
+                onClick={async () => {
+                    setActivePane("tree");
+                    try {
+                        await fetchProjects();
+                    } catch (e) {
+                        console.error("Failed to refresh projects on tab switch", e);
+                    }
+                }}
+            >
+                Graph
+            </button>
+            <button
+                type="button"
+                role="tab"
+                aria-selected={activePane === "chat"}
+                className={`pane-toggle-btn ${activePane === "chat" ? "active" : ""}`}
+                onClick={() => {
+                    setActivePane("chat");
+                    setConversationId(null);
+                    setChatMessages([]);
+                }}
+            >
+                Chat
+            </button>
+        </div>
+    );
 
     return (
         <div className={`dashboard-container ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
@@ -1496,29 +1515,11 @@ const HomePage = () => {
                     </div>
                 </header>
 
-                <div className={`dashboard-grid dashboard-grid-anchored ${isTreePanelExpanded ? "tree-panel-expanded" : ""}`} style={{
+                <div className="dashboard-grid dashboard-grid-anchored" style={{
                     height: `${treeHeight}px`,
                     "--tree-panel-height": `${treeHeight}px`
                 }}>
                     <div className="project-tree-container">
-                        <div className="project-tree-header">
-                            <div className="tree-title-group tabs">
-                                <button className={`tab-btn ${activePane === "tree" ? "active" : ""}`} onClick={async () => { setActivePane("tree"); try { await fetchProjects(); } catch (e) { console.error('Failed to refresh projects on tab switch', e); } }}>Project Tree</button>
-                                <button className={`tab-btn ${activePane === "chat" ? "active" : ""}`} onClick={() => { setActivePane("chat"); setConversationId(null); setChatMessages([]); }}>AI Chat</button>
-                            </div>
-
-                            <button
-                                type="button"
-                                className="tree-resize-handle"
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    toggleTreePanelHeight();
-                                }}
-                                title="Resize tree / chat area"
-                            />
-                        </div>
-
                         <div
                             className="project-tree-canvas tree-resizable-canvas"
                             style={{ flex: 1, minHeight: 0 }}
@@ -1532,6 +1533,7 @@ const HomePage = () => {
                                         error={null}
                                         onRetry={fetchProjects}
                                         onOpenNode={openNodeDetails}
+                                        toggle={paneToggle}
                                     />
                                 ) : (
                                     <div className="empty-tree-state">
@@ -1543,7 +1545,7 @@ const HomePage = () => {
                                 <div className="pami-chat-pane" style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }}>
                                     <div className="chat-header chat-header-row">
                                         <div className="chat-header-title">
-                                            <strong>AI Chat</strong>
+                                            {paneToggle}
                                             <span>{selectedProjectName}</span>
                                         </div>
                                         <div className="chat-header-actions">

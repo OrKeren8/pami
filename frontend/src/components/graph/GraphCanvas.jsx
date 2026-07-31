@@ -27,7 +27,7 @@ const readSettings = () => {
     }
 };
 
-function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpenNode }) {
+function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpenNode, toggle }) {
     const viewportRef = useRef(null);
     const zoomBehaviourRef = useRef(null);
     const userAdjustedRef = useRef(false);
@@ -222,8 +222,10 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
         // Centring vertically silently discards the headroom whenever width is the binding
         // constraint, which is how a node ends up hidden under the bar. Clamp the top node
         // to sit below it.
+        // `top` is the topmost node's centre, so half a pill still sits above it.
+        const halfPill = Math.max(...nodes.map((node) => node.h)) / 2;
         const centredY = size.height / 2 - ((minY + maxY) / 2) * scale;
-        const topAnchoredY = barHeight - top * scale;
+        const topAnchoredY = barHeight + halfPill * scale - top * scale;
         const fitsVertically = (maxY - minY) * scale <= size.height;
         const next = zoomIdentity
             .translate(
@@ -287,6 +289,7 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
         <div className="graph-root">
             <GraphControls
                 containerRef={controlsRef}
+                toggle={toggle}
                 connectionForce={settings.connectionForce}
                 repulsionForce={settings.repulsionForce}
                 onConnectionForce={(value) =>

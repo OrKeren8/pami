@@ -6752,3 +6752,53 @@ button[aria-label*="Slack"] {
   transform: none !important;
   z-index: 800 !important;
 }
+
+/* The panel header row is gone: the Graph/Chat toggle now sits in the graph's floating
+   control bar and in the chat header, and the Resize button - which never said what it
+   resized - is removed along with it. */
+.pane-toggle {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--pami-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.pane-toggle-btn {
+  margin: 0 !important;
+  padding: 5px 14px !important;
+  border: none !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--pami-muted) !important;
+  font-family: inherit;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.pane-toggle-btn.active {
+  background: linear-gradient(135deg, #d65f9f 0%, #8f6df2 100%) !important;
+  color: #fff !important;
+}
+
+.pane-toggle-btn:not(.active):hover {
+  color: var(--primary-purple) !important;
+}
+
+.pane-toggle-btn:focus-visible {
+  outline: 2px solid var(--pami-purple);
+  outline-offset: 2px;
+}
+
+.graph-root .graph-controls-right {
+  margin-left: auto;
+}
+
+.graph-root .graph-controls-actions {
+  margin-left: 0;
+}
