@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, Iterable, List, Optional
 from datetime import datetime
 from loguru import logger
@@ -24,6 +25,10 @@ class UnknownSiblingError(Exception):
     """Raised when a sibling score references a node outside the project."""
 
 
+class ConversationPurgeError(Exception):
+    """Raised when a node's conversation could not be removed, so the node was kept."""
+
+
 class ContextTreeService:
     """Service for sibling-link graph business logic driven by AI scores."""
 
@@ -32,6 +37,7 @@ class ContextTreeService:
     def __init__(self, context_tree_repository: ContextTreeRepository):
         self._logger = logger.bind(service="ContextTreeService")
         self._context_tree_repository = context_tree_repository
+        self._background_tasks: set[asyncio.Task] = set()
 
     @staticmethod
     def _ai_base_url() -> str:
@@ -87,13 +93,45 @@ class ContextTreeService:
             )
         return serialized
 
+    def _spawn_ai_organize(self, node, project_id: str, conversation_id) -> None:
+        """Run the AI organizer detached, holding a reference until it finishes.
+
+        The event loop only holds a weak reference to a task, so a bare create_task can be
+        garbage-collected while suspended on an await - which is how a node occasionally ended
+        up with no AI title, summary or sibling links and nothing in the log. The done callback
+        also surfaces failures that would otherwise only appear as an unretrieved exception
+        warning at interpreter shutdown.
+        """
+
+        def _finished(task: asyncio.Task) -> None:
+            self._background_tasks.discard(task)
+            if task.cancelled():
+                return
+            error = task.exception()
+            if error:
+                self._logger.error(
+                    f"AI organization failed for node {self._node_id(node)}: "
+                    f"{type(error).__name__}: {error}"
+                )
+
+        task = asyncio.create_task(
+            self._ai_organize_node(node, project_id, conversation_id)
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(_finished)
+
     async def _persist_node_fields(self, node: ContextTreeNode, fields: dict) -> None:
-        try:
-            for key, val in fields.items():
-                setattr(node, key, val)
-            await node.save()
-        except TypeError:
-            await self._context_tree_repository.update(self._node_id(node), fields)
+        """Write only the named fields.
+
+        This used to mutate the in-memory node and call save(), which replaces the whole
+        document. The AI organizer loads a node, spends seconds in an LLM call, then persists
+        header/summary/topics - and the save silently reverted any sibling_links written by
+        the embedding scorer during that window. That is why links appeared and then
+        disappeared. A field-scoped update cannot clobber a concurrent writer's other fields.
+        """
+        for key, value in fields.items():
+            setattr(node, key, value)
+        await self._context_tree_repository.update(self._node_id(node), fields)
 
     def _merge_scores(
         self, existing: Dict[str, int], fresh: Dict[str, int]
@@ -231,16 +269,7 @@ class ContextTreeService:
                     f"Could not persist provided conversation_id for node {created_node_id}: {e}"
                 )
 
-            try:
-                import asyncio
-
-                asyncio.create_task(
-                    self._ai_organize_node(created_node, project_id, req_conv)
-                )
-            except Exception:
-                await self._ai_organize_node(
-                    created_node, project_id, req_conv, raise_on_no_response=True
-                )
+            self._spawn_ai_organize(created_node, project_id, req_conv)
         else:
             conversation_id = await self._create_ai_conversation(
                 created_node_id, project_id
@@ -282,21 +311,7 @@ class ContextTreeService:
                         f"Failed to seed AI conversation for node {created_node_id}: {e}"
                     )
 
-                try:
-                    import asyncio
-
-                    asyncio.create_task(
-                        self._ai_organize_node(
-                            created_node, project_id, conversation_id
-                        )
-                    )
-                except Exception:
-                    await self._ai_organize_node(
-                        created_node,
-                        project_id,
-                        conversation_id,
-                        raise_on_no_response=True,
-                    )
+                self._spawn_ai_organize(created_node, project_id, conversation_id)
 
         refreshed = await self._context_tree_repository.get_by_id(created_node_id)
         return self._to_response(refreshed or created_node)
@@ -569,12 +584,22 @@ class ContextTreeService:
                 },
             )
 
+        # The node is the only handle on its conversation, so deleting it while the AI service
+        # still holds the transcript and its search chunks strands content the user believes is
+        # gone - and because retrieval filters only by project_id, the assistant keeps quoting
+        # it. Refuse rather than orphan it; the caller can retry.
         conv_id = getattr(node, "conversation_id", None)
         if conv_id:
+            purged = False
             try:
-                await self._delete_ai_conversation(conv_id)
+                purged = await self._delete_ai_conversation(conv_id)
             except Exception as e:
                 self._logger.error(f"Failed to delete AI conversation {conv_id}: {e}")
+            if not purged:
+                raise ConversationPurgeError(
+                    f"Conversation {conv_id} could not be removed, so node {node_id} "
+                    "was left in place"
+                )
 
         deleted = await self._context_tree_repository.delete(node_id)
         if deleted:

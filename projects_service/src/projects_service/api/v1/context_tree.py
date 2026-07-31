@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from loguru import logger
 from typing import List
 from projects_service.schemas.context_tree_schemas import (
     CreateContextTreeNodeRequest,
@@ -8,6 +9,7 @@ from projects_service.schemas.context_tree_schemas import (
 )
 from projects_service.services.context_tree_service import (
     ContextTreeService,
+    ConversationPurgeError,
     UnknownSiblingError,
 )
 from projects_service.dependencies import (
@@ -83,7 +85,16 @@ async def delete_node(
     node_id: str,
     service: ContextTreeService = Depends(get_context_tree_service),
 ):
-    deleted = await service.delete_node(node_id)
+    try:
+        deleted = await service.delete_node(node_id)
+    except ConversationPurgeError as error:
+        # Reported rather than swallowed: the node still exists, so the client can retry
+        # instead of believing the content is gone while it stays searchable.
+        logger.error(f"Node {node_id} kept because its conversation survived: {error}")
+        raise HTTPException(
+            status_code=503,
+            detail="The node's conversation could not be removed. Nothing was deleted; please try again.",
+        )
     if not deleted:
         raise HTTPException(status_code=404, detail="Node not found")
     return {"message": "Node deleted"}

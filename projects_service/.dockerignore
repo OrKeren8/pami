@@ -1,0 +1,15 @@
+# Keep local secrets and junk out of the image. Both Python Dockerfiles COPY the whole
+# directory, so without this a build from a developer's machine bakes the real .env - the
+# OpenAI key and the Mongo connection string - into a layer that is then pushed to ECR.
+.env
+.env.*
+.git
+.gitignore
+.venv
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+tests/
+.model_cache/

@@ -5,10 +5,22 @@ import api, { projectsApi, aiApi } from "../api/axios";
 import AppSidebar from "../components/layout/AppSidebar";
 import GraphCanvas from "../components/graph/GraphCanvas";
 import { deriveGraph } from "../lib/graph/deriveGraph";
+import { useToast } from "../components/feedback/ToastProvider";
+
+const MODAL_LABELS = {
+    createProject: "Create project",
+    viewNodeDetails: "Node details",
+    slack: "Connect Slack",
+    slackActions: "Slack actions",
+    slackCreateChannel: "Create Slack channel",
+    slackSendMessage: "Send Slack message",
+    jira: "Connect Jira",
+};
 
 const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoading, closeModal, fetchProjects, onNodeColorChange, onOpenConversation }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSavingColor, setIsSavingColor] = useState(false);
+    const toast = useToast();
     if (!selectedNode) return null;
 
     const nodeColor = selectedNode.color || "#2196f3";
@@ -34,7 +46,16 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
     };
 
     const handleDelete = async () => {
-        const ok = window.confirm(`Delete node "${selectedNode.name}"? This will reparent its children.`);
+        // The old text promised to "reparent its children". The context tree is a sibling
+        // graph with no parents or children: deleting a node removes its conversation and
+        // strips the reciprocal links from its peers. Nothing is reparented, and the links
+        // are destroyed rather than preserved.
+        const linkCount = (selectedNode.sibling_links || []).length;
+        const ok = window.confirm(
+            `Delete "${selectedNode.name}"?\n\n` +
+            `Its conversation and ${linkCount} connection${linkCount === 1 ? "" : "s"} to other ` +
+            `nodes will be removed. This cannot be undone.`
+        );
         if (!ok) return;
         setIsDeleting(true);
         try {
@@ -49,17 +70,19 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
             }
 
             await projectsApi.delete(deletePath);
-            alert(`${selectedNode.name} deleted.`);
+            toast.success(`${selectedNode.name} deleted.`);
             closeModal();
             await fetchProjects();
         } catch (err) {
-            if (err && err.response) {
-                console.error('Delete failed, status=', err.response.status, err.response.data);
-                alert(`Delete failed: ${err.response.status} ${JSON.stringify(err.response.data)}`);
-            } else {
-                console.error('Failed to delete node:', err);
-                alert(`Failed to delete node: ${err && err.message ? err.message : err}`);
-            }
+            // The raw payload used to go straight into the alert: users got a dialog full of
+            // FastAPI validation JSON, which also leaks server internals.
+            console.error('Failed to delete node:', err);
+            const status = err && err.response ? err.response.status : null;
+            toast.error(
+                status === 503
+                    ? "The node's conversation could not be removed, so nothing was deleted. Please try again."
+                    : "Could not delete this node. Please try again."
+            );
         } finally {
             setIsDeleting(false);
         }
@@ -146,7 +169,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
 
                         <div className="node-details-metric">
                             <strong>{nodeTasks.length}</strong>
-                            <span>Tasks</span>
+                            <span>Project tasks</span>
                         </div>
 
                         <div className="node-details-metric">
@@ -191,7 +214,11 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                             <div className="node-details-section-header">
                                 <div>
                                     <span className="node-details-section-kicker">Execution</span>
-                                    <h3>Attached tasks</h3>
+                                    {/* Tasks carry a project_id and nothing else, so these are
+                                        the project's tasks, identical for every node in it.
+                                        Labelling them "attached" implied a per-node link that
+                                        does not exist in the data. */}
+                                    <h3>Tasks in this project</h3>
                                 </div>
                                 <span className="node-details-count">{nodeTasks.length}</span>
                             </div>
@@ -208,7 +235,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                                     ))}
                                 </div>
                             ) : (
-                                <p className="node-details-empty">No direct active operational tasks are configured for this node.</p>
+                                <p className="node-details-empty">This project has no tasks yet.</p>
                             )}
                         </section>
                     </>
@@ -248,6 +275,7 @@ const StatIcon = ({ name, className }) => (
 
 const HomePage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const toast = useToast();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [activePane, setActivePane] = useState("tree");
 
@@ -352,7 +380,6 @@ const HomePage = () => {
         setIsLoading(true);
         try {
             const response = await projectsApi.get("/projects/");
-            console.log("Projects fetched:", response.data);
             const projects = response.data || [];
             setRealProjects(projects);
 
@@ -382,7 +409,6 @@ const HomePage = () => {
         try {
             const resp = await projectsApi.get(`/context-tree/projects/${projectId}/nodes`);
             if (resp && resp.data) {
-                console.log('Fetched context nodes for', projectId, resp.data);
                 setContextNodesMap((m) => {
                     const next = { ...m, [projectId]: resp.data };
 
@@ -434,7 +460,7 @@ const HomePage = () => {
     const handleCreateProject = async (e) => {
         e.preventDefault();
         if (!emailInput) {
-            alert("Please enter a project name");
+            toast.error("Please enter a project name.");
             return;
         }
         setIsLoading(true);
@@ -444,9 +470,8 @@ const HomePage = () => {
                 goal: tokenInput || "No goal defined",
                 status: "active",
             });
-            console.log("Project created successfully:", response.data);
             const newProjectId = resolveProjectId(response.data);
-            alert(`Project "${emailInput}" created.`);
+            toast.success(`Project "${emailInput}" created.`);
             await fetchProjects();
             if (newProjectId) {
                 await handleProjectSelect(newProjectId);
@@ -455,10 +480,10 @@ const HomePage = () => {
         } catch (error) {
             if (error.response) {
                 console.error("Server Error Data:", error.response.data);
-                alert("Server says: " + JSON.stringify(error.response.data));
+                toast.error("The server rejected the request. See the console for details.");
             } else {
                 console.error("Connection Error:", error.message);
-                alert("Check your frontend .env and backend server.");
+                toast.error("Could not reach the server. Check that the backend is running.");
             }
         } finally {
             setIsLoading(false);
@@ -470,7 +495,7 @@ const HomePage = () => {
 
         const nodeId = node.id || node._id || (node._id && node._id.$oid) || null;
         if (!nodeId) {
-            alert("Could not update color: selected node has no id.");
+            toast.error("Could not update the colour: this node has no id.");
             return;
         }
 
@@ -533,7 +558,7 @@ const HomePage = () => {
         }
 
         console.error("Failed to persist node color. Tried paths:", errors);
-        alert("Color changed visually, but failed to save to backend. Open the console to see the tried paths.");
+        toast.error("Colour changed on screen but could not be saved. It will reset on reload.");
     };
 
     useEffect(() => {
@@ -691,7 +716,7 @@ const HomePage = () => {
         flushConversationIndex(conversationId);
         const convId = node.conversation_id || node.conversationId || node.conversation || null;
         if (!convId) {
-            alert('This node has no associated conversation.');
+            toast.notify('This node has no associated conversation.');
             return;
         }
 
@@ -713,9 +738,25 @@ const HomePage = () => {
             }, 150);
         } catch (err) {
             console.error('Failed to load conversation:', err);
-            alert('Failed to load conversation. Check console for details.');
+            toast.error('Could not load the conversation. Please try again.');
         }
     };
+
+    const modalRef = useRef(null);
+
+    // Without these the dialog was unreachable and inescapable by keyboard: no role, no
+    // Escape handler, and focus stayed behind it on the page.
+    useEffect(() => {
+        if (!activeModal) return undefined;
+
+        const onKeyDown = (event) => {
+            if (event.key === "Escape") closeModal();
+        };
+
+        window.addEventListener("keydown", onKeyDown);
+        modalRef.current?.focus();
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [activeModal]);
 
     const openModal = (type) => {
         setActiveModal(type);
@@ -748,7 +789,6 @@ const HomePage = () => {
                 ? (node.project_id || node.projectId || node.project || node.id)
                 : node.id;
 
-            console.log(`Fetching live connected data for project: ${targetProjectId}`);
             const [tasksRes, nodesRes] = await Promise.all([
                 projectsApi.get(`/tasks/projects/${targetProjectId}/tasks`).catch(() => ({ data: [] })),
                 projectsApi.get(`/context-tree/projects/${targetProjectId}/nodes`).catch(() => ({ data: [] }))
@@ -788,11 +828,11 @@ const HomePage = () => {
                 email: emailInput,
                 token: tokenInput,
             });
-            alert(`Connected successfully to ${activeModal}!`);
+            toast.success(`Connected successfully to ${activeModal}.`);
             closeModal();
         } catch (error) {
             console.error("Connection failed:", error);
-            alert("Connection failed.");
+            toast.error("Connection failed.");
         } finally {
             setIsLoading(false);
         }
@@ -812,17 +852,15 @@ const HomePage = () => {
     };
 
     const handleCreateNodeFromConversation = async () => {
-        console.log('Create node from conversation triggered');
         try {
             if (realProjects.length === 0) {
-                alert('No project available to attach node to.');
+                toast.error('No project is available to attach this node to.');
                 return;
             }
             const projectRaw = realProjects.find((proj) => String(resolveProjectId(proj)) === String(selectedProjectId)) || realProjects[0];
             const projectId = resolveProjectId(projectRaw);
-            console.log('Using project id:', projectId, projectRaw);
             if (!projectId) {
-                alert('Could not determine project id for node creation.');
+                toast.error('Could not determine which project this node belongs to.');
                 return;
             }
 
@@ -850,12 +888,12 @@ const HomePage = () => {
             } else if (resp && resp.status && resp.status >= 200 && resp.status < 300) {
                 await fetchProjects();
             } else {
-                alert('The server did not confirm the new node. Please try again.');
+                toast.error('The server did not confirm the new node. Please try again.');
             }
         } catch (err) {
             console.error('Failed to create node from conversation', err);
             if (err && err.response) console.error('Response data:', err.response.data);
-            alert('Failed to create node from conversation. Check console/network for details.');
+            toast.error('Could not create a node from this conversation. Please try again.');
         }
     };
 
@@ -1163,8 +1201,12 @@ const HomePage = () => {
                                                                         <button
                                                                             key={source.conversation_id}
                                                                             type="button"
-                                                                            className="message-source"
-                                                                            title={`Open "${source.header || "this conversation"}"`}
+                                                                            className={`message-source${source.read ? " message-source-read" : ""}`}
+                                                                            title={
+                                                                                source.read
+                                                                                    ? `Read in full: "${source.header || "this conversation"}"`
+                                                                                    : `Matched a passage in "${source.header || "this conversation"}"`
+                                                                            }
                                                                             onClick={() =>
                                                                                 goToNodeConversation({
                                                                                     conversation_id: source.conversation_id
@@ -1219,8 +1261,24 @@ const HomePage = () => {
 
             {activeModal && (
                 <div className="modal-overlay" onClick={closeModal} style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 10000 }}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ background: "white", padding: "40px", borderRadius: "30px", width: "450px", position: "relative" }}>
-                        <button className="close-modal-btn" onClick={closeModal} style={{ position: "absolute", top: "20px", right: "20px", border: "none", background: "none", fontSize: "24px", cursor: "pointer" }}>&times;</button>
+                    <div
+                        className="modal-content"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={MODAL_LABELS[activeModal] || "Dialog"}
+                        ref={modalRef}
+                        tabIndex={-1}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ background: "white", padding: "40px", borderRadius: "30px", width: "min(450px, calc(100vw - 32px))", maxHeight: "calc(100vh - 32px)", overflowY: "auto", boxSizing: "border-box", position: "relative" }}
+                    >
+                        <button
+                            className="close-modal-btn"
+                            onClick={closeModal}
+                            aria-label="Close dialog"
+                            style={{ position: "absolute", top: "20px", right: "20px", border: "none", background: "none", fontSize: "24px", cursor: "pointer" }}
+                        >
+                            &times;
+                        </button>
                         {renderModalContent()}
                     </div>
                 </div>

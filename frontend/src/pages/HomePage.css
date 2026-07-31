@@ -6861,6 +6861,13 @@ button[aria-label*="Slack"] {
   cursor: pointer;
 }
 
+/* Filled rather than outlined: this conversation was read in full, not just matched on
+   one passage, so it carries more of the answer. */
+.pami-chat-pane .message-source-read {
+  border-color: rgba(104, 78, 160, 0.45) !important;
+  background: rgba(143, 109, 242, 0.14) !important;
+}
+
 .pami-chat-pane .message-source:hover {
   border-color: rgba(143, 109, 242, 0.5) !important;
   background: #fff !important;

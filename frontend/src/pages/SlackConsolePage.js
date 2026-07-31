@@ -3,6 +3,7 @@ import { slackApi } from "../api/axios";
 import AppSidebar from "../components/layout/AppSidebar";
 import "./HomePage.css";
 import "./SlackConsolePage.css";
+import { useToast } from "../components/feedback/ToastProvider";
 
 const AVATAR_COLORS = ["#4a154b", "#1264a3", "#0f9d58", "#e01e5a", "#ecb22e", "#36c5f0", "#8b3f8f"];
 
@@ -38,6 +39,7 @@ const formatMessageDay = (ts) => {
 const POLL_INTERVAL_MS = 4000;
 
 function SlackConsolePage() {
+    const toast = useToast();
     const [connection, setConnection] = useState({ status: "checking", team: null, error: null });
     const [channels, setChannels] = useState([]);
     const [channelsLoading, setChannelsLoading] = useState(true);
@@ -179,7 +181,7 @@ function SlackConsolePage() {
             loadMessages(selectedChannelId, { silent: true });
         } catch (error) {
             setMessages((current) => current.filter((m) => m.id !== optimisticMessage.id));
-            alert("Failed to send message to Slack.");
+            toast.error("Failed to send the message to Slack.");
         } finally {
             setIsSending(false);
         }
@@ -201,7 +203,7 @@ function SlackConsolePage() {
             await loadChannels({ silent: true });
             setSelectedChannelId(response.data.channel_id);
         } catch (error) {
-            alert("Failed to create the channel in Slack.");
+            toast.error("Failed to create the channel in Slack.");
         } finally {
             setIsSubmittingChannel(false);
         }

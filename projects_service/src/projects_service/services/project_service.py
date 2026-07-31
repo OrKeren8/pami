@@ -8,7 +8,6 @@ from projects_service.schemas.project_schemas import (
     CreateProjectRequest,
     UpdateProjectRequest,
     ProjectResponse,
-    ProjectStatus,
 )
 
 

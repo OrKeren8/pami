@@ -336,12 +336,26 @@ class ChunkIndexService:
     def _rank_by_cosine(
         self, query_vector: list[float], chunks: list[ConversationChunk]
     ) -> list[tuple[float, ConversationChunk]]:
+        """Rank comparable chunks only.
+
+        A chunk embedded by a different model has a different vector width, so it is not
+        comparable at all. Scoring it 0.0 would still let it occupy a slot in the results;
+        dropping it means a half-migrated index returns fewer hits rather than wrong ones.
+        """
+        comparable = [
+            chunk
+            for chunk in chunks
+            if chunk.embedding and len(chunk.embedding) == len(query_vector)
+        ]
+        skipped = len(chunks) - len(comparable)
+        if skipped:
+            self._logger.info(
+                f"Skipped {skipped} chunks embedded with a different model; re-index them "
+                f"to make them searchable again"
+            )
+
         return sorted(
-            (
-                (cosine(query_vector, chunk.embedding), chunk)
-                for chunk in chunks
-                if chunk.embedding
-            ),
+            ((cosine(query_vector, chunk.embedding), chunk) for chunk in comparable),
             key=lambda pair: pair[0],
             reverse=True,
         )

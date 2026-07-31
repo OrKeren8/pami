@@ -32,7 +32,13 @@ class Settings(BaseSettings):
     mongodb_url: str = "mongodb://localhost:27017"
     database_name: str = "pami"
 
-    # Embeddings - runs in-process; the OpenAI key has no embedding access
+    # Embeddings. "openai" is far better at separating conversations inside one project:
+    # measured on this project's data, asking about a fact stated in another conversation
+    # ranked the answer 4th of 41 with the local 384-dimension model - below unrelated
+    # chunks - and 1st of 106 with text-embedding-3-small. "local" keeps everything
+    # in-process and free, and is the automatic fallback when the API is unavailable.
+    embedding_provider: str = "openai"
+    openai_embedding_model: str = "text-embedding-3-small"
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     embedding_cache_dir: str = ""
 
@@ -58,9 +64,31 @@ class Settings(BaseSettings):
     # Per-hit ceiling so one long window cannot consume the whole token budget. Generous on
     # purpose: the budget above is what actually limits the total.
     retrieval_snippet_chars: int = 1200
+    # Floor a search hit must clear before the UI claims the conversation was consulted.
+    # 0.0 drops only genuine noise (stale vector widths score exactly 0.0, and graph
+    # expansion can weight a hit below that). A real relevance cut-off is model-specific,
+    # so raise this from measured data rather than by guessing.
+    retrieval_consulted_min_score: float = 0.0
 
     # API root path (useful for tests and deployments). Leave empty string for no prefix.
     api_root: str = ""
+
+    # Comma-separated browser origins allowed to call this service. An explicit list is
+    # required rather than "*": with allow_credentials the wildcard is rejected by the
+    # browser, so cookie/authorization requests would fail once auth exists.
+    cors_allowed_origins: str = (
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000,"
+        "https://main.d3f2b6kjsfplgr.amplifyapp.com"
+    )
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
 
     @field_validator("debug", mode="before")
     @classmethod

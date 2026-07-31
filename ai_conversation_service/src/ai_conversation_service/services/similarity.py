@@ -31,7 +31,16 @@ DEFAULT_CALIBRATION = (0.46, 0.85)
 
 
 def cosine(left: list[float], right: list[float]) -> float:
-    """Cosine similarity between two dense vectors."""
+    """Cosine similarity between two dense vectors, or 0.0 if they are not comparable.
+
+    Changing the embedding model changes the vector width, so during a re-index the
+    collection holds both. Multiplying a 384-dimension vector by a 1536-dimension one raises,
+    which would take down every search that touched a stale chunk; treating it as unrelated
+    lets retrieval degrade to whatever is already migrated.
+    """
+    if not left or not right or len(left) != len(right):
+        return 0.0
+
     a = np.asarray(left, dtype=np.float32)
     b = np.asarray(right, dtype=np.float32)
     denominator = float(np.linalg.norm(a) * np.linalg.norm(b))

@@ -396,10 +396,23 @@ class AIConversationService:
 
         self._schedule_reindex(conversation)
 
-        consulted = list(deps.consulted.values())
+        # A hit at or below the floor was returned only because the search had slots left to
+        # fill, and listing it told the user PAMI had consulted a conversation it drew
+        # nothing from. Anything the model actually read is kept regardless of score.
+        consulted = sorted(
+            (
+                entry
+                for entry in deps.consulted.values()
+                if entry.read
+                or entry.best_score > settings.retrieval_consulted_min_score
+            ),
+            key=lambda entry: (entry.read, entry.best_score),
+            reverse=True,
+        )
         self._logger.info(
             f"Answered in conversation {conversation_id}; tool_calls={deps.tool_calls}; "
-            f"consulted {[c.conversation_id for c in consulted]}"
+            f"consulted {[c.conversation_id for c in consulted]} "
+            f"of {len(deps.consulted)} surfaced"
         )
         return SendMessageResult(
             response=answer, consulted=consulted, tool_calls_used=deps.tool_calls
@@ -672,10 +685,11 @@ class AIConversationService:
                     contents = []
 
             for obj in contents:
-                # Skip objects whose key path does not include the context node id
-                key = obj.get("Key", "")
-                if f"conversations/{context_node_id}/" not in key:
-                    continue
+                # Filtering on the key was checking for a nested layout - conversations/<node>/
+                # - that nothing ever writes: objects are stored flat as
+                # conversations/<conversation_id>.json. Every object was therefore skipped and
+                # this endpoint always returned an empty list. The node is matched on the
+                # object's own context_node_id below, which is the authoritative field.
                 try:
                     response = self.s3_client.get_object(
                         Bucket=self.bucket_name, Key=obj["Key"]
@@ -690,17 +704,23 @@ class AIConversationService:
 
                     # Filter by context_node_id and append Conversation objects
                     if conversation_data.get("context_node_id") == context_node_id:
-                        conv = Conversation.from_dict(conversation_data)
-                        conversations.append(conv)
+                        # dicts, not Conversation objects: the route does
+                        # ConversationResponse(**conv), and ** on a model instance raises
+                        # TypeError - which the blanket handler turned into a 500.
+                        conversations.append(
+                            Conversation.from_dict(conversation_data).to_dict()
+                        )
                 except Exception as e:
                     self._logger.warning(
                         f"Error processing conversation {obj.get('Key')}: {e}"
                     )
                     continue
 
-            # Sort by updated_at descending
+            # Newest first. Keyed on the dict and defaulted to "", because getattr on a dict
+            # returned None for every entry and sorting None against None raises.
             conversations.sort(
-                key=lambda x: getattr(x, "updated_at", None), reverse=True
+                key=lambda conversation: conversation.get("updated_at") or "",
+                reverse=True,
             )
 
             self._logger.info(

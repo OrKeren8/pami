@@ -16,7 +16,7 @@ from ai_conversation_service.services.chunk_index_service import ChunkIndexServi
 from ai_conversation_service.services.context_retrieval_service import (
     ContextRetrievalService,
 )
-from ai_conversation_service.services.embedder import LocalOnnxEmbedder
+from ai_conversation_service.services.embedder_factory import build_embedder
 from ai_conversation_service.services.projects_service_client import (
     ProjectsServiceClient,
 )
@@ -40,16 +40,7 @@ async def lifespan(app: FastAPI):
 
     projects_service_client = ProjectsServiceClient(settings.projects_api_url)
 
-    try:
-        embedder = LocalOnnxEmbedder(
-            settings.embedding_model, settings.embedding_cache_dir
-        )
-    except Exception as error:
-        embedder = None
-        logger.error(
-            f"Embedder unavailable ({type(error).__name__}); "
-            f"cross-conversation retrieval is disabled"
-        )
+    embedder = await build_embedder()
 
     mongo_client = AsyncMongoClient(settings.mongodb_url)
     database = mongo_client[settings.database_name]
@@ -119,7 +110,7 @@ if settings.api_root:
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -133,6 +124,10 @@ app.include_router(ai_conversations_router, prefix="/ai")
 app.include_router(tree_analysis_router, prefix="/ai")
 
 
+# Both paths: the ALB forwards /ai/* here without stripping the prefix, so a bare /health is
+# only reachable from inside the VPC (which is how the target-group check sees it) while
+# anything outside — a deploy smoke check, a monitor — can only reach /ai/health.
+@app.get("/ai/health")
 @app.get("/health")
 async def health_check():
     embedder = getattr(app.state, "embedder", None)

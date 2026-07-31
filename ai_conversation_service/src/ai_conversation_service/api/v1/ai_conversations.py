@@ -38,10 +38,13 @@ async def create_conversation(
             request.context_node_id, request.project_id, request.title
         )
         return ConversationResponse(**conversation.to_dict())
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to create conversation: {str(e)}"
-        )
+    except Exception as error:
+        # str(error) here is a botocore, OpenAI or pymongo message: it leaks the S3
+        # bucket and key layout, the model and org ids, or the replica-set hostnames
+        # from the connection string - to an unauthenticated caller. Logged in full,
+        # reported as a fixed string.
+        logger.opt(exception=True).error(f"create_conversation failed: {error}")
+        raise HTTPException(status_code=500, detail="Failed to create conversation")
 
 
 @router.post("/{conversation_id}/messages", response_model=SendMessageResult)
@@ -84,10 +87,13 @@ async def get_conversation(
         return ConversationHistoryResponse(**conversation)
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to get conversation: {str(e)}"
-        )
+    except Exception as error:
+        # str(error) here is a botocore, OpenAI or pymongo message: it leaks the S3
+        # bucket and key layout, the model and org ids, or the replica-set hostnames
+        # from the connection string - to an unauthenticated caller. Logged in full,
+        # reported as a fixed string.
+        logger.opt(exception=True).error(f"get_conversation failed: {error}")
+        raise HTTPException(status_code=500, detail="Failed to get conversation")
 
 
 @router.get("/node/{context_node_id}", response_model=list[ConversationResponse])
@@ -101,10 +107,13 @@ async def list_conversations_for_node(
             context_node_id
         )
         return [ConversationResponse(**conv) for conv in conversations]
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to list conversations: {str(e)}"
-        )
+    except Exception as error:
+        # str(error) here is a botocore, OpenAI or pymongo message: it leaks the S3
+        # bucket and key layout, the model and org ids, or the replica-set hostnames
+        # from the connection string - to an unauthenticated caller. Logged in full,
+        # reported as a fixed string.
+        logger.opt(exception=True).error(f"list_conversations_for_node failed: {error}")
+        raise HTTPException(status_code=500, detail="Failed to list conversations")
 
 
 @router.post("/context-retrieval/search", response_model=list[ContextHit])
@@ -156,7 +165,10 @@ async def delete_conversation(
         return {"message": "Conversation deleted successfully"}
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Failed to delete conversation: {str(e)}"
-        )
+    except Exception as error:
+        # str(error) here is a botocore, OpenAI or pymongo message: it leaks the S3
+        # bucket and key layout, the model and org ids, or the replica-set hostnames
+        # from the connection string - to an unauthenticated caller. Logged in full,
+        # reported as a fixed string.
+        logger.opt(exception=True).error(f"delete_conversation failed: {error}")
+        raise HTTPException(status_code=500, detail="Failed to delete conversation")

@@ -14,18 +14,29 @@ Usage:
 import boto3
 import sys
 import os
+import time
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 # Configuration
 REGION = "us-east-1"
-ACCOUNT_ID = "909189231170"
+# Resolved from the caller's credentials, not hardcoded: the lab account is rebuilt
+# periodically, and this value was a whole generation out of date while being printed
+# as confirmation of what was about to be torn down.
+ACCOUNT_ID = None
 CLUSTER_NAME = "pami-cluster"
 
 SERVICES = [
     "pami-projects-service",
     "pami-slack-service",
     "pami-ai-conversation-service",
+]
+
+# Named without the pami- prefix, matching setup_aws_infrastructure.py.
+TARGET_GROUPS = [
+    "projects-service-tg",
+    "slack-service-tg",
+    "ai-conversation-service-tg",
 ]
 
 # AWS Clients (will be initialized at runtime after loading credentials)
@@ -61,6 +72,15 @@ def load_env_file(env_path: str = None):
     except Exception:
         # Silently ignore parse errors (we'll rely on boto3 defaults/error messages)
         pass
+
+
+def _resolve_account_id(region: str) -> Optional[str]:
+    """The account these credentials actually belong to."""
+    try:
+        return boto3.client("sts", region_name=region).get_caller_identity()["Account"]
+    except Exception as error:
+        print_error(f"Could not resolve the AWS account id: {error}")
+        return None
 
 
 def print_header(text: str):
@@ -134,10 +154,58 @@ def delete_load_balancer():
         # Delete the load balancer
         elbv2.delete_load_balancer(LoadBalancerArn=lb_arn)
         print_success("Deleted Application Load Balancer")
-        print_info("Target groups will be auto-deleted after a short delay")
+
+        delete_target_groups()
 
     except Exception as e:
         print_error(f"Failed to delete load balancer: {e}")
+
+
+def delete_target_groups():
+    """Delete this project's target groups once the load balancer is gone.
+
+    AWS does not remove target groups when their load balancer is deleted - the old
+    message promising that was simply wrong. Left behind, they are recreated on the next
+    setup run under a new random ARN suffix, which is what silently broke a deploy that
+    had a target-group ARN written into it.
+    """
+    print_header("Deleting Target Groups")
+
+    # Deleting a target group requires its listener rules to be gone first, and the
+    # listeners go with the load balancer. It is not instant.
+    for attempt in range(6):
+        remaining = []
+
+        for tg_name in TARGET_GROUPS:
+            try:
+                response = elbv2.describe_target_groups(Names=[tg_name])
+            except elbv2.exceptions.TargetGroupNotFoundException:
+                continue
+            except Exception as error:
+                print_error(f"Could not look up target group {tg_name}: {error}")
+                continue
+
+            for target_group in response["TargetGroups"]:
+                try:
+                    elbv2.delete_target_group(
+                        TargetGroupArn=target_group["TargetGroupArn"]
+                    )
+                    print_success(f"Deleted target group {tg_name}")
+                except Exception as error:
+                    remaining.append(tg_name)
+                    if attempt == 5:
+                        print_error(
+                            f"Target group {tg_name} could not be deleted: {error}"
+                        )
+
+        if not remaining:
+            return
+
+        if attempt < 5:
+            print_info(
+                f"{len(remaining)} target group(s) still in use; retrying in 10s"
+            )
+            time.sleep(10)
 
 
 def print_summary():
@@ -175,6 +243,7 @@ def print_summary():
 
 
 def main():
+    global ACCOUNT_ID
     """Main shutdown flow."""
     try:
         # Load environment (.env) so the script can run without manual setup
@@ -207,10 +276,12 @@ def main():
             ecs = boto3.client("ecs", region_name=region)
             elbv2 = boto3.client("elbv2", region_name=region)
 
+        ACCOUNT_ID = _resolve_account_id(region)
+
         print_header("PAMI AWS Infrastructure Shutdown")
         print()
         print(f"Region: {region}")
-        print(f"Account: {ACCOUNT_ID}")
+        print(f"Account: {ACCOUNT_ID or 'could not be resolved'}")
         print()
 
         # Confirm shutdown
