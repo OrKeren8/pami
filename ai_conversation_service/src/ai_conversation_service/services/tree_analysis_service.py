@@ -149,9 +149,13 @@ class TreeAnalysisService:
             )
             return []
 
-        state = await self._chunk_index_service.state_for(request.conversation_id)
-        if not state:
-            state = await self._index_now(request)
+        # Always re-index, not only when no state exists: promoting a conversation to a node
+        # is the strongest signal that its content matters, and its tail is usually below the
+        # debounce threshold — so the very messages that motivated the node would otherwise
+        # be missing from both the scoring and later retrieval.
+        state = await self._index_now(request) or await self._chunk_index_service.state_for(
+            request.conversation_id
+        )
         if not state:
             return []
 
@@ -176,12 +180,14 @@ class TreeAnalysisService:
         ]
 
     async def _index_now(self, request: AnalyzeTreeRequest):
-        """Index a conversation immediately so a new node can be linked on creation.
+        """Index a conversation's full transcript at node creation.
 
-        A freshly created node has only its seed exchange, which sits below the reindex
-        threshold, so no index state exists yet and there would be nothing to score
-        against. `request.node_id` is authoritative here — it comes from the node being
-        created — so this also seeds the correct owning node id.
+        Two reasons this runs unconditionally. A brand new node holds only its seed exchange,
+        which sits below the reindex threshold, so without this there is no vector to score
+        against. And a node promoted from an existing chat usually has an unindexed tail for
+        the same reason — the messages that prompted the user to keep it. `request.node_id` is
+        authoritative here, coming from the node being created, so this also seeds the correct
+        owning node id.
         """
         conversation = await self._ai_conversation_service.get_conversation(
             request.conversation_id

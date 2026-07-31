@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import "./HomePage.css";
-import pamiLogo from "../assets/pami-logo.png";
 import api, { projectsApi, aiApi } from "../api/axios";
 import AppSidebar from "../components/layout/AppSidebar";
 import GraphCanvas from "../components/graph/GraphCanvas";
@@ -298,6 +297,38 @@ const HomePage = () => {
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState("");
     const [conversationId, setConversationId] = useState(null);
+
+    // Indexing is debounced server-side, so the last message or two of a conversation stay
+    // unsearchable until the conversation is flushed. Flush whenever the user walks away from
+    // it, which is exactly when they are about to ask about it from somewhere else. The
+    // server also flushes on idle; this makes it immediate.
+    const flushConversationIndex = (id, { onUnload = false } = {}) => {
+        if (!id) return;
+        const url = `${aiApi.defaults.baseURL}/ai-conversations/context-retrieval/reindex/${id}`;
+        if (onUnload) {
+            // keepalive survives the page going away; a normal request would be cancelled.
+            window.fetch(url, { method: "POST", keepalive: true }).catch(() => {});
+            return;
+        }
+        aiApi.post(`/ai-conversations/context-retrieval/reindex/${id}`).catch(() => {});
+    };
+
+    const conversationIdRef = useRef(null);
+    useEffect(() => {
+        conversationIdRef.current = conversationId;
+    }, [conversationId]);
+
+    useEffect(() => {
+        const onHidden = () => {
+            if (document.visibilityState === "hidden") {
+                flushConversationIndex(conversationIdRef.current, { onUnload: true });
+            }
+        };
+
+        document.addEventListener("visibilitychange", onHidden);
+        return () => document.removeEventListener("visibilitychange", onHidden);
+    }, []);
+
     const [isChatLoading, setIsChatLoading] = useState(false);
     const [assistantAvatarUrl, setAssistantAvatarUrl] = useState(null);
 
@@ -392,10 +423,12 @@ const HomePage = () => {
 
                     return next;
                 });
+                return resp.data;
             }
         } catch (err) {
             console.error('Failed to fetch context nodes for', projectId, err);
         }
+        return null;
     };
 
     const handleCreateProject = async (e) => {
@@ -645,6 +678,7 @@ const HomePage = () => {
 
     const goToNodeConversation = async (node) => {
         if (!node) return;
+        flushConversationIndex(conversationId);
         const convId = node.conversation_id || node.conversationId || node.conversation || null;
         if (!convId) {
             alert('This node has no associated conversation.');
@@ -754,6 +788,19 @@ const HomePage = () => {
         }
     };
 
+    // Polls briefly for the node the AI organizer is still filling in. Bounded, and stops as
+    // soon as the node has either links or a generated title.
+    const refetchNodesUntilLinked = async (projectId, nodeId) => {
+        for (const delay of [1200, 1800, 2500]) {
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            const nodes = await fetchContextNodes(projectId);
+            const node = (nodes || []).find(
+                (candidate) => String(candidate.id || candidate._id) === String(nodeId)
+            );
+            if (node && (node.sibling_links || []).length > 0) return;
+        }
+    };
+
     const handleCreateNodeFromConversation = async () => {
         console.log('Create node from conversation triggered');
         try {
@@ -783,17 +830,17 @@ const HomePage = () => {
                 node_type: 'conversation',
             };
 
-            console.log('POST body for create-node:', body);
             const resp = await projectsApi.post(`/context-tree/projects/${projectId}/nodes`, body);
-            console.log('Create node response:', resp && resp.data ? resp.data : resp);
             if (resp && resp.data && resp.data.id) {
-                alert('Node created from conversation: ' + (resp.data.name || resp.data.id));
                 await fetchProjects();
+                // The title and the sibling links are produced by a background task that
+                // finishes a second or two after this responds, so a single refetch here
+                // stores a stub with no links - which is also what pushes it off-screen.
+                await refetchNodesUntilLinked(projectId, resp.data.id);
             } else if (resp && resp.status && resp.status >= 200 && resp.status < 300) {
-                alert('Node created (no id returned).');
                 await fetchProjects();
             } else {
-                alert('Unexpected response from server. See console.');
+                alert('The server did not confirm the new node. Please try again.');
             }
         } catch (err) {
             console.error('Failed to create node from conversation', err);
@@ -894,6 +941,8 @@ const HomePage = () => {
                 aria-selected={activePane === "tree"}
                 className={`pane-toggle-btn ${activePane === "tree" ? "active" : ""}`}
                 onClick={async () => {
+                    if (activePane === "tree") return;
+                    flushConversationIndex(conversationId);
                     setActivePane("tree");
                     try {
                         await fetchProjects();
@@ -910,9 +959,8 @@ const HomePage = () => {
                 aria-selected={activePane === "chat"}
                 className={`pane-toggle-btn ${activePane === "chat" ? "active" : ""}`}
                 onClick={() => {
+                    if (activePane === "chat") return;
                     setActivePane("chat");
-                    setConversationId(null);
-                    setChatMessages([]);
                 }}
             >
                 Chat

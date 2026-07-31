@@ -117,6 +117,8 @@ class AIConversationService:
         self.reindex_trigger = reindex_trigger
         self.conversation_agent = conversation_agent
         self._background_tasks: set[asyncio.Task] = set()
+        # One pending tail-flush per conversation; a new message replaces it.
+        self._idle_flush_tasks: dict[str, asyncio.Task] = {}
 
     def _ensure_bucket_exists(self):
         """Ensure the S3 bucket exists, create it if it doesn't."""
@@ -817,18 +819,63 @@ class AIConversationService:
             state = await self.chunk_index_service.state_for(
                 conversation.conversation_id
             )
-            await self.reindex_trigger.maybe_reindex(
+            indexed = await self.reindex_trigger.maybe_reindex(
                 conversation_id=conversation.conversation_id,
                 project_id=conversation.project_id,
                 node_id=await self._resolve_node_id(conversation, state),
                 messages=conversation.messages,
                 header=(state.header if state else None) or conversation.title,
             )
+            if indexed:
+                self._cancel_idle_flush(conversation.conversation_id)
+            else:
+                self._schedule_idle_flush(conversation)
         except Exception as error:
             self._logger.error(
                 f"Reindex failed for {conversation.conversation_id}: "
                 f"{type(error).__name__}"
             )
+
+    def _schedule_idle_flush(self, conversation) -> None:
+        """Index the tail of a conversation once it goes quiet.
+
+        Without this, messages below the debounce threshold stay unsearchable for as long as
+        the conversation is idle — so the thing the user said most recently, which is exactly
+        what they then ask about from another conversation, is the one thing retrieval cannot
+        see. Relying on the browser to flush on exit is not enough: it may never fire.
+        """
+        conversation_id = conversation.conversation_id
+        self._cancel_idle_flush(conversation_id)
+
+        async def flush() -> None:
+            try:
+                await asyncio.sleep(settings.reindex_idle_flush_seconds)
+                state = await self.chunk_index_service.state_for(conversation_id)
+                await self.reindex_trigger.maybe_reindex(
+                    conversation_id=conversation_id,
+                    project_id=conversation.project_id,
+                    node_id=await self._resolve_node_id(conversation, state),
+                    messages=conversation.messages,
+                    header=(state.header if state else None) or conversation.title,
+                    force=True,
+                )
+                self._logger.info(f"Idle flush indexed {conversation_id}")
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                self._logger.error(
+                    f"Idle flush failed for {conversation_id}: {type(error).__name__}"
+                )
+            finally:
+                self._idle_flush_tasks.pop(conversation_id, None)
+
+        task = asyncio.create_task(flush())
+        self._idle_flush_tasks[conversation_id] = task
+
+    def _cancel_idle_flush(self, conversation_id: str) -> None:
+        task = self._idle_flush_tasks.pop(conversation_id, None)
+        if task and not task.done():
+            task.cancel()
 
     def _estimate_tokens(self, text: str) -> int:
         """Rough token estimation (1 token ≈ 4 characters for English)."""

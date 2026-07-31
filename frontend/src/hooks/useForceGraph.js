@@ -20,6 +20,10 @@ const LINK_STRENGTH = 0.7;
 // Weak on purpose: anything stronger compresses the whole graph into one ball and erases
 // the distance difference between connected and unconnected conversations.
 const CENTER_STRENGTH = 0.012;
+const ISOLATED_CENTER_STRENGTH = 0.09;
+
+const centeringFor = (node) =>
+    node.degree > 0 ? CENTER_STRENGTH : ISOLATED_CENTER_STRENGTH;
 const DRAG_ALPHA_TARGET = 0.3;
 const RESCORE_ALPHA_TARGET = 0.1;
 const WARMUP_TICKS = 320;
@@ -193,8 +197,11 @@ export function useForceGraph({
                     .strength(Math.min(1, LINK_STRENGTH * linkStrengthScale))
             )
             .force('collide', rectCollide(COLLIDE_PADDING, 1, 3))
-            .force('x', forceX(centerX).strength(CENTER_STRENGTH))
-            .force('y', forceY(centerY).strength(CENTER_STRENGTH))
+            // A node with no links feels repulsion from every other node and no counter-pull
+            // from a link, so weak centering lets it drift right out of the viewport. Holding
+            // isolated nodes near the middle keeps a freshly created node findable.
+            .force('x', forceX(centerX).strength(centeringFor))
+            .force('y', forceY(centerY).strength(centeringFor))
             .velocityDecay(0.4);
 
         datumRef.current = { nodes: simulationNodes, links: simulationLinks };

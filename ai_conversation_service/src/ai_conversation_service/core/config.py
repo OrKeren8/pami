@@ -38,6 +38,9 @@ class Settings(BaseSettings):
 
     # Graph refresh
     reindex_message_threshold: int = 3
+    # A conversation whose tail is below the threshold is flushed once it goes quiet, so the
+    # last thing said is searchable without embedding on every single message.
+    reindex_idle_flush_seconds: int = 25
     # Each conversation proposes only its closest few peers. Links mirror onto the peer
     # as well, so real node degree lands a little above this.
     sibling_top_k: int = 3

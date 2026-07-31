@@ -4,7 +4,7 @@ import numpy as np
 from loguru import logger
 from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
-from pymongo.errors import OperationFailure
+from pymongo.errors import BulkWriteError, OperationFailure
 
 from ai_conversation_service.data.vector_index import (
     CHUNK_COLLECTION,
@@ -20,6 +20,7 @@ from ai_conversation_service.services.similarity import cosine
 
 SCAN_LIMIT = 5000
 STATE_COLLECTION = "conversation_index_state"
+DUPLICATE_KEY = 11000
 
 
 class ChunkIndexService:
@@ -424,8 +425,26 @@ class ChunkIndexService:
             )
             for (start, end, text), vector in zip(windows, vectors)
         ]
-        if operations:
+        if not operations:
+            return
+
+        try:
             await self._database[CHUNK_COLLECTION].bulk_write(operations, ordered=False)
+        except BulkWriteError as error:
+            # Two flushes of the same conversation can both miss the upsert and both try to
+            # insert; the unique window index rejects the loser with E11000. The winner wrote
+            # identical content, so that is success, not failure. Anything else is not.
+            other = [
+                write_error
+                for write_error in error.details.get("writeErrors", [])
+                if write_error.get("code") != DUPLICATE_KEY
+            ]
+            if other:
+                raise
+            self._logger.debug(
+                f"Concurrent reindex of {conversation_id}: "
+                f"{len(error.details.get('writeErrors', []))} windows already written"
+            )
 
     async def _advance_index_state(
         self,

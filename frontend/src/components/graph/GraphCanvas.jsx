@@ -32,6 +32,7 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
     const zoomBehaviourRef = useRef(null);
     const userAdjustedRef = useRef(false);
     const lastFitRef = useRef(0);
+    const lastCountRef = useRef(0);
     const controlsRef = useRef(null);
     const [size, setSize] = useState({ width: 0, height: 0 });
     const [transform, setTransform] = useState(zoomIdentity);
@@ -236,6 +237,16 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
 
         select(viewportRef.current).call(behaviour.transform, next);
     }, [nodes, size.height, size.width]);
+
+    // A node arriving or leaving re-enables framing even after the user has panned: a node
+    // created from a conversation starts with no links, which puts it at the edge of the
+    // layout, and without this it can appear entirely outside the viewport.
+    useEffect(() => {
+        if (nodes.length && nodes.length !== lastCountRef.current) {
+            lastCountRef.current = nodes.length;
+            userAdjustedRef.current = false;
+        }
+    }, [nodes.length]);
 
     // Keep the graph framed while it settles, and hand control over for good the moment
     // the user zooms or pans themselves.
