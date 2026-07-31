@@ -34,7 +34,16 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
     };
 
     const handleDelete = async () => {
-        const ok = window.confirm(`Delete node "${selectedNode.name}"? This will reparent its children.`);
+        // The old text promised to "reparent its children". The context tree is a sibling
+        // graph with no parents or children: deleting a node removes its conversation and
+        // strips the reciprocal links from its peers. Nothing is reparented, and the links
+        // are destroyed rather than preserved.
+        const linkCount = (selectedNode.sibling_links || []).length;
+        const ok = window.confirm(
+            `Delete "${selectedNode.name}"?\n\n` +
+            `Its conversation and ${linkCount} connection${linkCount === 1 ? "" : "s"} to other ` +
+            `nodes will be removed. This cannot be undone.`
+        );
         if (!ok) return;
         setIsDeleting(true);
         try {
@@ -53,13 +62,15 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
             closeModal();
             await fetchProjects();
         } catch (err) {
-            if (err && err.response) {
-                console.error('Delete failed, status=', err.response.status, err.response.data);
-                alert(`Delete failed: ${err.response.status} ${JSON.stringify(err.response.data)}`);
-            } else {
-                console.error('Failed to delete node:', err);
-                alert(`Failed to delete node: ${err && err.message ? err.message : err}`);
-            }
+            // The raw payload used to go straight into the alert: users got a dialog full of
+            // FastAPI validation JSON, which also leaks server internals.
+            console.error('Failed to delete node:', err);
+            const status = err && err.response ? err.response.status : null;
+            alert(
+                status === 503
+                    ? "The node's conversation could not be removed, so nothing was deleted. Please try again."
+                    : "Could not delete this node. Please try again."
+            );
         } finally {
             setIsDeleting(false);
         }
