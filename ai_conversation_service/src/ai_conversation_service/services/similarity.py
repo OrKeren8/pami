@@ -7,12 +7,6 @@ MIN_CORRELATION_SCORE = 30
 # similarity, which saturates within a single project.
 RANK_SCORES = (95, 80, 65, 50, 42, 38, 34, 31)
 
-# How far below the calibration floor still counts as "the floor splitting hairs" when
-# keeping a node's closest peer. Sized from the case that motivated it: a generic
-# conversation whose best peer measured 0.394 against a 0.40 floor. Genuinely unrelated
-# pairs sit far further down, so they stay pruned.
-NEAR_MISS_MARGIN = 0.06
-
 # Per-model cosine calibration: (floor, ceiling). Cosine is not uniformly
 # distributed over 0..1 and the distribution is model-specific, so these are
 # measured by scripts/measure_calibration.py rather than guessed.
@@ -91,7 +85,7 @@ def prune_score_if_unrelated(similarity: float, model_id: str) -> int | None:
 
 
 def top_k_scores(
-    similarities: dict[str, float], model_id: str, top_k: int, min_links: int = 0
+    similarities: dict[str, float], model_id: str, top_k: int
 ) -> dict[str, int]:
     """Score a conversation's closest peers by rank, not by absolute cosine.
 
@@ -105,26 +99,13 @@ def top_k_scores(
     unrelated is not linked merely for being the closest of very few. Peers below the
     floor are returned with score 0, which acts as an explicit prune instruction rather
     than silence.
-
-    `min_links` exempts that many of the closest peers from the floor, but only when they
-    are a near miss - within NEAR_MISS_MARGIN of it. A conversation whose text is a generic
-    instruction - "tell me everything I should add to the system" - has no topical content
-    to match on, so its best peer measured 0.394 against a 0.40 floor and the node was born
-    with no edges at all: invisible in a graph whose whole purpose is showing what relates
-    to what. Something that close is the floor splitting hairs, and the peer keeps its rank
-    score.
-
-    The margin is what keeps this from linking anything at all: a peer that is genuinely
-    unrelated sits far below the floor, not 0.006 under it, and is still pruned even when it
-    is the only candidate there is.
     """
     floor, _ = CALIBRATION.get(model_id, DEFAULT_CALIBRATION)
     ranked = sorted(similarities.items(), key=lambda item: item[1], reverse=True)
 
     scores: dict[str, int] = {}
     for rank, (peer_id, similarity) in enumerate(ranked[:top_k]):
-        near_miss = similarity >= floor - NEAR_MISS_MARGIN
-        if similarity < floor and not (rank < min_links and near_miss):
+        if similarity < floor:
             scores[peer_id] = 0
             continue
         scores[peer_id] = (

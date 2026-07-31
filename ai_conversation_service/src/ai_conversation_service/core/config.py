@@ -50,9 +50,6 @@ class Settings(BaseSettings):
     # Each conversation proposes only its closest few peers. Links mirror onto the peer
     # as well, so real node degree lands a little above this.
     sibling_top_k: int = 3
-    # Closest peers exempt from the similarity floor, so a node is never created with no
-    # edges at all. 0 restores strict floor behaviour.
-    sibling_min_links: int = 1
 
     # Debug search endpoint: returns snippets across a whole project from a
     # client-supplied project_id, so it stays off unless explicitly enabled.

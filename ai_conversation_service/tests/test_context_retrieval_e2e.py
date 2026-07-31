@@ -14,7 +14,6 @@ from ai_conversation_service.services.context_retrieval_service import (
 )
 from ai_conversation_service.services.similarity import (
     MIN_CORRELATION_SCORE,
-    RANK_SCORES,
     top_k_scores,
 )
 
@@ -325,50 +324,6 @@ async def test_scores_only_compare_matching_embedding_models(
 
     assert "node-billing" not in similarities
     assert top_k_scores(similarities, "deterministic-test@384", 8) == {}
-
-
-def test_closest_peer_survives_the_floor_so_a_node_is_never_isolated():
-    """A generic conversation still gets one link.
-
-    "tell me everything I should add to the system" has no topical content, so every peer
-    sits below the floor and the node was created with no edges at all - measured on the
-    live project, best peer 0.394 against a 0.40 floor. Its closest peer keeps its rank
-    score; the rest are still pruned.
-    """
-    similarities = {"node-a": 0.394, "node-b": 0.345, "node-c": 0.328}
-
-    strict = top_k_scores(similarities, "text-embedding-3-small@1536", 3)
-    assert set(strict.values()) == {0}
-
-    relaxed = top_k_scores(similarities, "text-embedding-3-small@1536", 3, min_links=1)
-    assert relaxed["node-a"] == RANK_SCORES[0]
-    assert relaxed["node-b"] == 0
-    assert relaxed["node-c"] == 0
-
-
-def test_a_genuinely_unrelated_peer_is_pruned_even_as_the_only_candidate():
-    """The exemption must not become "always link something".
-
-    This is the case the floor exists for: one candidate, nowhere near related. Exempting
-    the closest peer unconditionally linked it, which is how an unrelated conversation would
-    end up drawn as this node's strongest relationship.
-    """
-    scores = top_k_scores(
-        {"node-unrelated": 0.11}, "text-embedding-3-small@1536", 3, min_links=1
-    )
-
-    assert scores == {"node-unrelated": 0}
-
-
-def test_min_links_does_not_downgrade_peers_that_clear_the_floor():
-    """The exemption must not change scoring when the similarities are healthy."""
-    similarities = {"node-a": 0.72, "node-b": 0.61, "node-c": 0.20}
-
-    scores = top_k_scores(similarities, "text-embedding-3-small@1536", 3, min_links=1)
-
-    assert scores["node-a"] == RANK_SCORES[0]
-    assert scores["node-b"] == RANK_SCORES[1]
-    assert scores["node-c"] == 0
 
 
 async def test_mismatched_vector_widths_do_not_break_search(
