@@ -959,7 +959,13 @@ const HomePage = () => {
                 aria-selected={activePane === "chat"}
                 className={`pane-toggle-btn ${activePane === "chat" ? "active" : ""}`}
                 onClick={() => {
+                    // Switching to Chat starts a fresh conversation; clicking it while
+                    // already there does nothing, so a live chat is never wiped by a
+                    // stray click. Past conversations are reopened from their graph node.
                     if (activePane === "chat") return;
+                    flushConversationIndex(conversationId);
+                    setConversationId(null);
+                    setChatMessages([]);
                     setActivePane("chat");
                 }}
             >

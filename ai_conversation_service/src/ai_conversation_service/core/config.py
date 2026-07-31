@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     retrieval_max_tool_calls: int = 5
     retrieval_max_conversations: int = 5
     retrieval_max_injected_tokens: int = 4000
+    # Per-hit ceiling so one long window cannot consume the whole token budget. Generous on
+    # purpose: the budget above is what actually limits the total.
+    retrieval_snippet_chars: int = 1200
 
     # API root path (useful for tests and deployments). Leave empty string for no prefix.
     api_root: str = ""

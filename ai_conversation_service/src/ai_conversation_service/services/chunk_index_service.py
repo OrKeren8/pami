@@ -6,6 +6,7 @@ from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import BulkWriteError, OperationFailure
 
+from ai_conversation_service.core.config import settings
 from ai_conversation_service.data.vector_index import (
     CHUNK_COLLECTION,
     VECTOR_INDEX_NAME,
@@ -30,7 +31,10 @@ class ChunkIndexService:
         self,
         embedder: Embedder,
         database: AsyncDatabase,
-        window_size: int = 4,
+        # One exchange per window, overlapping by one message. Four-message windows buried a
+        # single fact under several hundred characters of unrelated answer, which both diluted
+        # the embedding and pushed the fact past any per-hit limit.
+        window_size: int = 2,
         window_overlap: int = 1,
     ):
         self._logger = logger.bind(service="ChunkIndexService")
@@ -496,9 +500,16 @@ class ChunkIndexService:
         return (mean / norm).tolist()
 
     @staticmethod
-    def _snippet(text: str, limit: int = 400) -> str:
+    def _snippet(text: str, limit: int | None = None) -> str:
+        """The chunk text the agent reads. Only cut to stop one window eating the budget.
+
+        This was a hard 400 characters, which silently discarded the tail of every window —
+        a fact stated at character 691 of a 900-character window was retrieved correctly and
+        then cut out before the model ever saw it. The real limit belongs to
+        `retrieval_max_injected_tokens`, applied across all hits together.
+        """
         collapsed = " ".join(text.split())
-        return collapsed[:limit]
+        return collapsed[: limit or settings.retrieval_snippet_chars]
 
     @staticmethod
     def _role_of(message) -> str:
