@@ -68,6 +68,23 @@ class Settings(BaseSettings):
     # API root path (useful for tests and deployments). Leave empty string for no prefix.
     api_root: str = ""
 
+    # Comma-separated browser origins allowed to call this service. An explicit list is
+    # required rather than "*": with allow_credentials the wildcard is rejected by the
+    # browser, so cookie/authorization requests would fail once auth exists.
+    cors_allowed_origins: str = (
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000,"
+        "https://main.d3f2b6kjsfplgr.amplifyapp.com"
+    )
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
+
     @field_validator("debug", mode="before")
     @classmethod
     def normalize_debug(cls, value: Any) -> bool:
