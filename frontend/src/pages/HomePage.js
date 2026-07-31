@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
 import api, { projectsApi, slackApi, aiApi } from "../api/axios";
@@ -221,7 +222,12 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
     );
 };
 
+// Present in the design but not built. Rendered disabled and tagged rather than removed, so
+// the nav shows the intended shape without four items that silently do nothing.
+const UNBUILT_NAV_ITEMS = ["Context Brain", "Health Monitor", "Workers", "Settings"];
+
 const HomePage = () => {
+    const navigate = useNavigate();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [activePane, setActivePane] = useState("tree");
 
@@ -1274,15 +1280,51 @@ const HomePage = () => {
                 <div className="sidebar-logo">
                     <img src={pamiLogo} alt="Pami Logo" className="logo-img" />
                 </div>
-                <nav className="sidebar-nav">
+                <nav className="sidebar-nav" aria-label="Main">
                     <ul>
-                        <li className="active">Neural Dashboard</li>
-                        <li>Context Brain</li>
-                        <li>Health Monitor</li>
-                        <li>Workers</li>
-                        <li>Settings</li>
-                        <li className="logout-item" onClick={() => alert("Logging out...")}>
-                            <span>🚪 Log Out</span>
+                        <li className="active">
+                            <button type="button" className="sidebar-nav-btn" aria-current="page">
+                                Neural Dashboard
+                            </button>
+                        </li>
+
+                        {UNBUILT_NAV_ITEMS.map((label) => (
+                            <li key={label} className="nav-item-unbuilt">
+                                <button
+                                    type="button"
+                                    className="sidebar-nav-btn"
+                                    disabled
+                                    title={`${label} is not built yet`}
+                                >
+                                    {label}
+                                    <span className="nav-soon-tag">Soon</span>
+                                </button>
+                            </li>
+                        ))}
+
+                        <li className="logout-item">
+                            <button
+                                type="button"
+                                className="sidebar-nav-btn sidebar-logout-btn"
+                                onClick={() => navigate("/login")}
+                            >
+                                <svg
+                                    className="sidebar-nav-icon"
+                                    viewBox="0 0 16 16"
+                                    aria-hidden="true"
+                                    focusable="false"
+                                >
+                                    <path
+                                        d="M6.5 2.5h-3a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h3M10 5l3 3-3 3M13 8H6"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.4"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
+                                </svg>
+                                Log Out
+                            </button>
                         </li>
                     </ul>
                 </nav>

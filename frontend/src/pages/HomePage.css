@@ -6504,3 +6504,57 @@ button[aria-label*="Slack"] {
   padding-right: 6px !important;
   font-size: 10.5px !important;
 }
+
+/* The nav rows keep their existing look, which lives on the <li>. The button inside is the
+   accessible control - keyboard focus, Enter and Space - so it is transparent and simply
+   fills its row. Items that are not built yet are disabled and tagged rather than silently
+   doing nothing when clicked. */
+.sidebar-nav .sidebar-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar-nav .sidebar-nav-btn:focus-visible {
+  outline: 2px solid var(--pami-purple);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+.sidebar-nav .sidebar-nav-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.sidebar-nav li.nav-item-unbuilt:hover {
+  background: none;
+  border-color: transparent;
+  transform: none;
+}
+
+.sidebar-nav .nav-soon-tag {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(104, 78, 160, 0.09);
+  color: var(--pami-muted);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sidebar-nav .sidebar-nav-icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
