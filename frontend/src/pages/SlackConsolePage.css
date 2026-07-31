@@ -1,0 +1,754 @@
+.slack-console {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #ffffff;
+}
+
+/* ---------- Connect gate ---------- */
+
+.slack-console-gate {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at 20% 20%, #5a1c5c 0%, #3a0e3c 45%, #240823 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.slack-console-gate-spinner {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.2);
+    border-top-color: #f06292;
+    animation: slack-console-spin 0.8s linear infinite;
+}
+
+@keyframes slack-console-spin {
+    to { transform: rotate(360deg); }
+}
+
+.slack-console-login-card {
+    width: 100%;
+    max-width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 40px 36px;
+    background: rgba(255, 255, 255, 0.98);
+    border-radius: 24px;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+
+.slack-console-login-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 4px auto;
+    background: linear-gradient(135deg, #f06292, #8b3f8f);
+    color: white;
+    font-weight: 800;
+    font-size: 24px;
+    box-shadow: 0 10px 24px rgba(240, 98, 146, 0.35);
+}
+
+.slack-console-login-card h1 {
+    margin: 0;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 800;
+    color: #2d2438;
+}
+
+.slack-console-login-card p {
+    margin: 0 0 6px 0;
+    text-align: center;
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #7b7286;
+}
+
+.slack-console-gate-features {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 4px 0 6px 0;
+}
+
+.slack-console-gate-feature {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: #faf7ff;
+    border: 1px solid rgba(139, 92, 246, 0.12);
+}
+
+.slack-console-gate-feature:nth-child(2) {
+    background: #fff7fb;
+    border-color: rgba(240, 98, 146, 0.14);
+}
+
+.slack-console-gate-feature > span:first-child {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.slack-console-gate-feature strong {
+    display: block;
+    font-size: 13px;
+    color: #2d2438;
+}
+
+.slack-console-gate-feature-desc {
+    display: block;
+    font-size: 12px;
+    color: #7b7286;
+    margin-top: 2px;
+}
+
+.slack-console-login-error {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(224, 30, 90, 0.08);
+    border: 1px solid rgba(224, 30, 90, 0.18);
+    color: #c21858;
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.slack-console-login-card button {
+    margin-top: 6px;
+    padding: 13px;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #4a154b 0%, #8b3f8f 45%, #f06292 100%);
+    color: white;
+    font-weight: 800;
+    font-size: 14.5px;
+    cursor: pointer;
+    box-shadow: 0 14px 30px rgba(240, 98, 146, 0.28);
+    transition: transform 120ms ease, opacity 120ms ease;
+}
+
+.slack-console-login-card button:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.slack-console-login-card button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.slack-console-login-hint {
+    text-align: center;
+    font-size: 11.5px;
+    color: #9ca3af;
+    line-height: 1.5;
+}
+
+/* ---------- Sidebar ---------- */
+
+.slack-console-sidebar {
+    width: 280px;
+    min-width: 280px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(180deg, #4a154b 0%, #3a0e3c 55%, #2e0a30 100%);
+    color: rgba(255, 255, 255, 0.92);
+    box-sizing: border-box;
+}
+
+.slack-console-workspace {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 18px 16px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.slack-console-workspace-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #f06292, #8b3f8f);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 18px;
+    color: white;
+    flex-shrink: 0;
+    box-shadow: 0 6px 16px rgba(240, 98, 146, 0.35);
+}
+
+.slack-console-workspace-info {
+    min-width: 0;
+}
+
+.slack-console-workspace-name {
+    font-weight: 700;
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.slack-console-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 2px;
+}
+
+.slack-console-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #9aa0a6;
+}
+
+.slack-console-status-connected .slack-console-status-dot {
+    background: #2ecc71;
+    box-shadow: 0 0 6px rgba(46, 204, 113, 0.8);
+}
+
+.slack-console-status-connecting .slack-console-status-dot {
+    background: #ecb22e;
+    animation: slack-console-pulse 1.2s ease-in-out infinite;
+}
+
+.slack-console-status-error .slack-console-status-dot {
+    background: #e01e5a;
+}
+
+@keyframes slack-console-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+}
+
+.slack-console-search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 14px 16px;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    transition: background 150ms ease;
+}
+
+.slack-console-search:focus-within {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.slack-console-search-icon {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 14px;
+}
+
+.slack-console-search input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: white;
+    font-size: 13px;
+}
+
+.slack-console-search input::placeholder {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.slack-console-channels-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 18px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.slack-console-add-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 150ms ease, transform 150ms ease;
+}
+
+.slack-console-add-btn:hover {
+    background: rgba(255, 255, 255, 0.22);
+    transform: scale(1.06);
+}
+
+.slack-console-create-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin: 6px 16px 10px 16px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+}
+
+.slack-console-create-form input {
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(0, 0, 0, 0.15);
+    color: white;
+    font-size: 13px;
+    outline: none;
+}
+
+.slack-console-create-form input:focus {
+    border-color: rgba(240, 98, 146, 0.6);
+}
+
+.slack-console-create-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.slack-console-create-actions button {
+    flex: 1;
+    padding: 6px 0;
+    border: none;
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    background: linear-gradient(135deg, #f06292, #8b3f8f);
+    color: white;
+    transition: opacity 150ms ease;
+}
+
+.slack-console-create-actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.slack-console-create-actions button.ghost {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.slack-console-channel-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 10px 16px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.slack-console-channel-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.slack-console-channel-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+
+.slack-console-channel-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.78);
+    border-radius: 8px;
+    font-size: 14px;
+    text-align: left;
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease;
+}
+
+.slack-console-channel-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+}
+
+.slack-console-channel-item.active {
+    background: linear-gradient(90deg, rgba(240, 98, 146, 0.28), rgba(240, 98, 146, 0.08));
+    color: white;
+    font-weight: 700;
+    box-shadow: inset 3px 0 0 #f06292;
+}
+
+.slack-console-channel-hash {
+    opacity: 0.6;
+    font-weight: 600;
+}
+
+.slack-console-channel-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.slack-console-channel-skeleton {
+    height: 32px;
+    margin: 3px 0;
+    border-radius: 8px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.05), rgba(255,255,255,0.12), rgba(255,255,255,0.05));
+    background-size: 200% 100%;
+    animation: slack-console-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes slack-console-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.slack-console-sidebar-error,
+.slack-console-sidebar-empty {
+    padding: 12px 10px;
+    font-size: 12.5px;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.5;
+}
+
+/* ---------- Main panel ---------- */
+
+.slack-console-main {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+    min-width: 0;
+}
+
+.slack-console-channel-header {
+    display: flex;
+    align-items: center;
+    padding: 16px 24px;
+    border-bottom: 1px solid #eceef1;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+    flex-shrink: 0;
+}
+
+.slack-console-channel-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 17px;
+    font-weight: 800;
+    color: #2d2438;
+}
+
+.slack-console-channel-title .slack-console-channel-hash {
+    color: #9a8fa8;
+}
+
+.slack-console-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.slack-console-day-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 18px 0 14px 0;
+    color: #9a8fa8;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.slack-console-day-divider::before,
+.slack-console-day-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: #eceef1;
+}
+
+.slack-console-day-divider span {
+    padding: 0 12px;
+}
+
+.slack-console-message {
+    display: flex;
+    gap: 12px;
+    padding: 6px 8px;
+    border-radius: 10px;
+    transition: background 120ms ease;
+}
+
+.slack-console-message:hover {
+    background: #faf7fb;
+}
+
+.slack-console-message.pending {
+    opacity: 0.55;
+}
+
+.slack-console-avatar {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: 700;
+    font-size: 13px;
+    margin-top: 2px;
+}
+
+.slack-console-message-body {
+    min-width: 0;
+}
+
+.slack-console-message-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+}
+
+.slack-console-message-author {
+    font-weight: 800;
+    font-size: 14px;
+    color: #2d2438;
+}
+
+.slack-console-message-time {
+    font-size: 11.5px;
+    color: #9a8fa8;
+}
+
+.slack-console-message-text {
+    font-size: 14.5px;
+    color: #3c3348;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.slack-console-messages-loading {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.slack-console-message-skeleton {
+    height: 44px;
+    border-radius: 10px;
+    background: linear-gradient(90deg, #f4f2f6, #ece7ef, #f4f2f6);
+    background-size: 200% 100%;
+    animation: slack-console-shimmer 1.4s ease-in-out infinite;
+}
+
+.slack-console-messages-empty,
+.slack-console-no-channel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #9a8fa8;
+    gap: 4px;
+}
+
+.slack-console-messages-empty p,
+.slack-console-no-channel {
+    font-size: 15px;
+    font-weight: 600;
+    color: #6b6178;
+}
+
+.slack-console-messages-empty span {
+    font-size: 13px;
+}
+
+.slack-console-messages-error {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 10px;
+    color: #9a8fa8;
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+.slack-console-messages-error-icon {
+    font-size: 26px;
+    color: #ecb22e;
+}
+
+.slack-console-composer {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 16px 24px 22px 24px;
+    flex-shrink: 0;
+}
+
+.slack-console-composer input {
+    flex: 1;
+    padding: 13px 16px;
+    border-radius: 14px;
+    border: 1.5px solid #eceef1;
+    outline: none;
+    font-size: 14.5px;
+    background: #faf9fb;
+    transition: border-color 150ms ease, background 150ms ease;
+}
+
+.slack-console-composer input:focus {
+    border-color: rgba(240, 98, 146, 0.5);
+    background: white;
+}
+
+.slack-console-composer input:disabled {
+    opacity: 0.6;
+}
+
+.slack-console-composer button {
+    padding: 13px 22px;
+    border-radius: 14px;
+    border: none;
+    background: linear-gradient(135deg, #4a154b 0%, #8b3f8f 45%, #f06292 100%);
+    color: white;
+    font-weight: 800;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 10px 22px rgba(240, 98, 146, 0.28);
+    transition: transform 120ms ease, opacity 120ms ease;
+    white-space: nowrap;
+}
+
+.slack-console-composer button:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.slack-console-composer button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+@media (max-width: 720px) {
+    .slack-console-sidebar {
+        width: 220px;
+        min-width: 220px;
+    }
+
+    .slack-console-messages {
+        padding: 16px;
+    }
+
+    .slack-console-composer {
+        padding: 12px 16px 18px 16px;
+    }
+}
+
+/* The console is a route in the app rather than a popup window, so it needs its own way
+   back to the dashboard. */
+.slack-console-back {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 18px 12px 18px;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: none;
+    color: rgba(255, 255, 255, 0.62);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.slack-console-back svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+}
+
+.slack-console-back:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.slack-console-back:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.6);
+    outline-offset: -2px;
+}
+
+/* Both gate states need an exit too: as a route rather than a popup, a user who cannot
+   connect Slack would otherwise be stranded on this page. */
+.slack-console-gate-back {
+    margin-top: 18px;
+    padding: 9px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    border-radius: 999px;
+    background: transparent !important;
+    color: rgba(255, 255, 255, 0.78) !important;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.slack-console-gate-back:hover {
+    border-color: rgba(255, 255, 255, 0.45) !important;
+    color: #fff !important;
+}
+
+/* The console is a route inside the app, so it sits next to the shared sidebar rather than
+   filling a popup window. */
+.slack-console-shell {
+    display: flex;
+    min-height: 100vh;
+}
+
+.slack-console-shell .sidebar {
+    position: relative;
+    flex: 0 0 var(--sidebar-width, 256px);
+}
+
+/* Both of these are declared 100vw/100vh for the popup they used to live in; next to the
+   sidebar they have to take the remaining space instead. */
+.slack-console-shell .slack-console,
+.slack-console-shell .slack-console-gate {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+}

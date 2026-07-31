@@ -27,11 +27,12 @@ const readSettings = () => {
     }
 };
 
-function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpenNode }) {
+function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpenNode, toggle }) {
     const viewportRef = useRef(null);
     const zoomBehaviourRef = useRef(null);
     const userAdjustedRef = useRef(false);
     const lastFitRef = useRef(0);
+    const controlsRef = useRef(null);
     const [size, setSize] = useState({ width: 0, height: 0 });
     const [transform, setTransform] = useState(zoomIdentity);
     const [hoverId, setHoverId] = useState(null);
@@ -55,6 +56,7 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
         unpin,
         resetLayout
     } = useForceGraph({
+        measureHostRef: viewportRef,
         nodes: sourceNodes,
         links: sourceLinks,
         projectId,
@@ -198,17 +200,37 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
         const ys = nodes.map((node) => node.y);
         const minX = Math.min(...xs) - 120;
         const maxX = Math.max(...xs) + 120;
-        const minY = Math.min(...ys) - 60;
+        const top = Math.min(...ys);
         const maxY = Math.max(...ys) + 60;
 
-        const scale = Math.max(
-            SCALE_MIN,
-            Math.min(SCALE_MAX, Math.min(size.width / (maxX - minX), size.height / (maxY - minY)))
-        );
+        // The floating controls bar overlays the canvas, so the headroom it needs is measured
+        // in scene units — which depend on the scale we are solving for. Two passes: fit
+        // without the bar, then re-fit with the bar converted at that scale.
+        const fit = (minY) =>
+            Math.max(
+                SCALE_MIN,
+                Math.min(
+                    SCALE_MAX,
+                    Math.min(size.width / (maxX - minX), size.height / (maxY - minY))
+                )
+            );
+        const barHeight = (controlsRef.current?.offsetHeight || 40) + 20;
+        const firstPass = fit(top - 60);
+        const minY = top - Math.max(60, barHeight / firstPass);
+        const scale = fit(minY);
+
+        // Centring vertically silently discards the headroom whenever width is the binding
+        // constraint, which is how a node ends up hidden under the bar. Clamp the top node
+        // to sit below it.
+        // `top` is the topmost node's centre, so half a pill still sits above it.
+        const halfPill = Math.max(...nodes.map((node) => node.h)) / 2;
+        const centredY = size.height / 2 - ((minY + maxY) / 2) * scale;
+        const topAnchoredY = barHeight + halfPill * scale - top * scale;
+        const fitsVertically = (maxY - minY) * scale <= size.height;
         const next = zoomIdentity
             .translate(
                 size.width / 2 - ((minX + maxX) / 2) * scale,
-                size.height / 2 - ((minY + maxY) / 2) * scale
+                fitsVertically ? Math.max(centredY, topAnchoredY) : centredY
             )
             .scale(scale);
 
@@ -233,8 +255,12 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
         return node.id !== focusId && !neighbourIds.has(node.id);
     };
 
+    // States render as overlays INSIDE the viewport rather than replacing it. Returning a
+    // different tree here left `viewportRef` null on first mount, so the measure and zoom
+    // effects — which run once — silently bound to nothing and the canvas stayed blank.
+    let overlay = null;
     if (error) {
-        return (
+        overlay = (
             <div className="graph-state graph-state-error">
                 <p>The conversation graph could not be loaded.</p>
                 <button type="button" className="graph-action" onClick={onRetry}>
@@ -242,20 +268,16 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
                 </button>
             </div>
         );
-    }
-
-    if (isLoading) {
-        return (
+    } else if (isLoading) {
+        overlay = (
             <div className="graph-state graph-state-loading" aria-busy="true">
                 {[0, 1, 2, 3, 4, 5].map((index) => (
                     <span key={index} className="graph-skeleton-pill" />
                 ))}
             </div>
         );
-    }
-
-    if (!sourceNodes.length) {
-        return (
+    } else if (!sourceNodes.length) {
+        overlay = (
             <div className="graph-state graph-state-empty">
                 <p>No conversations in this project yet.</p>
                 <span>Start a chat and the graph will fill in as conversations connect.</span>
@@ -266,6 +288,8 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
     return (
         <div className="graph-root">
             <GraphControls
+                containerRef={controlsRef}
+                toggle={toggle}
                 connectionForce={settings.connectionForce}
                 repulsionForce={settings.repulsionForce}
                 onConnectionForce={(value) =>
@@ -312,6 +336,8 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
                         ))}
                     </div>
                 </div>
+
+                {overlay}
             </div>
         </div>
     );

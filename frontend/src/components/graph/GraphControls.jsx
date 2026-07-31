@@ -1,4 +1,6 @@
 function GraphControls({
+    containerRef,
+    toggle,
     connectionForce,
     repulsionForce,
     onConnectionForce,
@@ -11,7 +13,9 @@ function GraphControls({
     onReset
 }) {
     return (
-        <div className="graph-controls">
+        <div className="graph-controls" ref={containerRef}>
+            {toggle}
+
             <div className="graph-controls-search">
                 <input
                     id="graph-search"
@@ -26,7 +30,7 @@ function GraphControls({
                 ) : null}
             </div>
 
-            <div className="graph-controls-sliders">
+            <div className="graph-controls-sliders graph-controls-right">
                 <label className="graph-slider" htmlFor="graph-connection-force">
                     <span>Connection</span>
                     <input

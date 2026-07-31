@@ -1,23 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { forceLink, forceManyBody, forceSimulation, forceX, forceY } from 'd3-force';
+import { forceLink, forceSimulation, forceX, forceY } from 'd3-force';
 
 import { rectCollide } from '../lib/graph/rectCollide';
+import { unlinkedRepel } from '../lib/graph/unlinkedRepel';
 
-const PILL_WIDTH = 168;
+const PILL_MIN_WIDTH = 118;
+const PILL_MAX_WIDTH = 268;
+// The probe carries the pill's own padding and border, so this only covers the colour dot
+// and the gap after it.
+const PILL_TEXT_INSET = 20;
 const PILL_HEIGHT = 32;
 const COLLIDE_PADDING = 10;
+const LINK_GAP = 24;
 
-const CHARGE_BASE = -420;
-const LINK_STRENGTH_BASE = 0.15;
-const LINK_STRENGTH_RANGE = 0.55;
-// The shortest link must still clear the collide minimum (pill width + padding), or the
-// link force and the collide force fight forever and hub nodes sit on top of each other.
-const LINK_DISTANCE_MIN = PILL_WIDTH + COLLIDE_PADDING + 14;
-const LINK_DISTANCE_MAX = 430;
-const CENTER_STRENGTH = 0.04;
+// Every link pulls identically, the way Obsidian treats them: being connected is the fact
+// that matters, and correlation_score already speaks through line thickness. Score-scaled
+// physics also made hub nodes fight their own strongest links.
+const LINK_STRENGTH = 0.7;
+// Weak on purpose: anything stronger compresses the whole graph into one ball and erases
+// the distance difference between connected and unconnected conversations.
+const CENTER_STRENGTH = 0.012;
 const DRAG_ALPHA_TARGET = 0.3;
 const RESCORE_ALPHA_TARGET = 0.1;
-const WARMUP_TICKS = 200;
+const WARMUP_TICKS = 320;
 const SETTLE_TICKS = 320;
 
 const pinStorageKey = (projectId) => `pami.graph.pins.${projectId}`;
@@ -42,11 +47,49 @@ const writePins = (projectId, pins) => {
     }
 };
 
+// Pills are sized to their own title instead of a single fixed width, so a conversation
+// called "AWS deployment plan" is not truncated to fit the same box as "Jira integration".
+//
+// Measured with a hidden probe carrying the real pill classes rather than a canvas: the
+// pill's font is `600 12.5px/1 inherit`, so a hardcoded font string mismeasures by whatever
+// the inherited family differs — it was out by 24%, which is exactly the truncation this is
+// meant to remove.
+// The probe must live inside the graph, not on document.body: `inherit` would otherwise
+// resolve against the body's font family and mismeasure.
+const measureLabel = (host, text) => {
+    let probe = host.querySelector(':scope > .graph-pill-probe');
+    if (!probe) {
+        // A button, like a real pill: the panel's button rules in HomePage.css would not
+        // apply to a span, and the probe has to inherit exactly what the pills inherit.
+        probe = document.createElement('button');
+        probe.type = 'button';
+        probe.className = 'graph-pill graph-pill-probe';
+        probe.setAttribute('aria-hidden', 'true');
+        probe.style.cssText =
+            'position:absolute;left:-9999px;top:0;visibility:hidden;width:auto;' +
+            'white-space:nowrap;pointer-events:none;';
+        host.appendChild(probe);
+    }
+    probe.textContent = text || '';
+    return probe.offsetWidth;
+};
+
+const pillWidth = (host, title) => {
+    if (!host) return PILL_MAX_WIDTH;
+    return Math.round(
+        Math.min(
+            PILL_MAX_WIDTH,
+            Math.max(PILL_MIN_WIDTH, measureLabel(host, title) + PILL_TEXT_INSET)
+        )
+    );
+};
+
 const prefersReducedMotion = () =>
     typeof window.matchMedia === 'function' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 export function useForceGraph({
+    measureHostRef,
     nodes,
     links,
     projectId,
@@ -74,6 +117,13 @@ export function useForceGraph({
     const chargeScale = useMemo(
         () => Math.max(0.1, (Number(repulsionForce) || 0) / 34),
         [repulsionForce]
+    );
+    // Once link strength saturates at 1, the only way "pull them closer" stays meaningful is
+    // to shorten the target distance as well. Floored at 1 so the distance never drops below
+    // the collide minimum and starts a fight the layout cannot win.
+    const linkDistanceScale = useMemo(
+        () => Math.min(1.6, Math.max(1, Math.sqrt(58 / Math.max(10, Number(connectionForce) || 58)))),
+        [connectionForce]
     );
 
     const scheduleRender = useCallback(() => {
@@ -108,7 +158,7 @@ export function useForceGraph({
 
             return {
                 ...node,
-                w: PILL_WIDTH,
+                w: pillWidth(measureHostRef?.current, node.title),
                 h: PILL_HEIGHT,
                 x: carried?.x ?? pin?.x ?? centerX + Math.cos(seedAngle) * seedRadius,
                 y: carried?.y ?? pin?.y ?? centerY + Math.sin(seedAngle) * seedRadius,
@@ -125,30 +175,24 @@ export function useForceGraph({
             .map((link) => ({ ...link }));
 
         const simulation = forceSimulation(simulationNodes)
-            .force(
-                'charge',
-                forceManyBody()
-                    .strength(CHARGE_BASE * chargeScale)
-                    .theta(0.9)
-                    .distanceMax(1400)
-            )
+            .force('repel', unlinkedRepel(chargeScale).links(simulationLinks))
             .force(
                 'link',
                 forceLink(simulationLinks)
                     .id((node) => node.id)
+                    // Per link, because the two pills now have their own widths: a fixed
+                    // distance would be shorter than the collide minimum for a wide pair,
+                    // and the two forces would fight forever.
                     .distance(
                         (link) =>
-                            LINK_DISTANCE_MIN +
-                            (1 - Math.min(100, Math.max(0, link.score)) / 100) *
-                                (LINK_DISTANCE_MAX - LINK_DISTANCE_MIN)
+                            ((link.source.w + link.target.w) / 2 + COLLIDE_PADDING + LINK_GAP) *
+                            linkDistanceScale
                     )
-                    .strength(
-                        (link) =>
-                            (LINK_STRENGTH_BASE + (link.score / 100) * LINK_STRENGTH_RANGE) *
-                            linkStrengthScale
-                    )
+                    // Clamped to 1: d3 treats link strength as a fraction, and a slider at
+                    // maximum would otherwise overshoot and destabilise the layout.
+                    .strength(Math.min(1, LINK_STRENGTH * linkStrengthScale))
             )
-            .force('collide', rectCollide(COLLIDE_PADDING, 0.95))
+            .force('collide', rectCollide(COLLIDE_PADDING, 1, 3))
             .force('x', forceX(centerX).strength(CENTER_STRENGTH))
             .force('y', forceY(centerY).strength(CENTER_STRENGTH))
             .velocityDecay(0.4);
@@ -176,7 +220,19 @@ export function useForceGraph({
                 frameRef.current = null;
             }
         };
-    }, [nodes, links, width, height, centerX, centerY, chargeScale, linkStrengthScale, scheduleRender]);
+    }, [
+        measureHostRef,
+        nodes,
+        links,
+        width,
+        height,
+        centerX,
+        centerY,
+        chargeScale,
+        linkStrengthScale,
+        linkDistanceScale,
+        scheduleRender
+    ]);
 
     const reheat = useCallback((target = RESCORE_ALPHA_TARGET) => {
         const simulation = simulationRef.current;

@@ -1462,8 +1462,6 @@ html, body, #root {
 /* Keep floating integrations from being too dominant */
 .integrations-fixed-container {
   right: 28px;
-  top: 50%;
-  transform: translateY(-50%);
   z-index: 90;
 }
 
@@ -2958,7 +2956,6 @@ html, body, #root {
   z-index: 520 !important;
 }
 
-.integrations-fixed-container,
 .integration-icon-btn,
 .integration-card,
 .integration-item,
@@ -2977,6 +2974,10 @@ button[aria-label*="Jira"],
 button[aria-label*="Slack"] {
   position: relative !important;
   z-index: 800 !important;
+}
+
+.integrations-fixed-container {
+  z-index: 9999 !important;
 }
 
 .modal-overlay,
@@ -6328,3 +6329,496 @@ button[aria-label*="Slack"] {
   }
 }
 
+
+/* Tightens the band between the stats header and the graph itself. The graph used to
+   start 163px below the stats row: panel padding, the tabs row, a 30px reserve for the
+   floating resize pill, and the controls row all stacked up. The pill now lives in the
+   tabs row, so that reserve is gone. */
+.top-header {
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  margin-bottom: 10px !important;
+}
+
+.project-tree-container {
+  padding-top: 8px !important;
+}
+
+.project-tree-header {
+  position: relative;
+  margin-bottom: 2px !important;
+}
+
+.project-tree-header .tree-resize-handle {
+  position: absolute !important;
+  top: 50% !important;
+  right: 6px !important;
+  left: auto !important;
+  transform: translateY(-50%) !important;
+  margin: 0 !important;
+}
+
+.project-tree-canvas.tree-resizable-canvas {
+  margin-top: 0 !important;
+  padding-top: 6px !important;
+}
+
+/* Wider sidebar. Every dependent rule reads the variable, including the main content's
+   margin and the floating-panel offset, so this is the only place it needs changing. */
+:root {
+  --sidebar-width: 256px;
+}
+
+/* The sidebar must fit the viewport with no scrollbar of its own. Nav rows and the logo
+   give back ~100px, and the assistant panel then takes exactly the space that is left, so
+   this holds at any window height rather than only at the one it was tuned on. */
+.sidebar {
+  overflow: hidden !important;
+}
+
+.sidebar-logo {
+  padding: 10px 0 14px !important;
+}
+
+.sidebar-nav {
+  flex: 0 0 auto !important;
+}
+
+.sidebar-nav li {
+  padding: 9px 15px !important;
+  margin-bottom: 4px !important;
+}
+
+.sidebar-nav li.logout-item {
+  padding: 10px 15px 9px !important;
+}
+
+/* The wider sidebar leaves the stats row 21px short of its content, which clipped the last
+   label. Tighter gaps and letter-spacing buy back more than that without shrinking the
+   numbers, which are the part worth reading. */
+.main-content .top-header .header-stats-wrapper,
+.main-content.sidebar-open .top-header .header-stats-wrapper,
+.main-content.sidebar-closed .top-header .header-stats-wrapper {
+  gap: 6px !important;
+  margin: 0 6px !important;
+}
+
+.main-content .top-header .header-stat-item {
+  gap: 5px !important;
+  padding: 0 !important;
+}
+
+.main-content .top-header .header-stat-label {
+  letter-spacing: 0.01em !important;
+}
+
+/* PAMI Assistant panel: every text block in it was clamped by a max-height smaller than
+   its content, so the recommendation was cut mid-sentence, the title rendered as "Re…",
+   and the avatar was cropped by a wrapper 30px shorter than the image. */
+.pami-sidebar-assistant-panel {
+  width: auto !important;
+  align-self: stretch !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  overflow: visible !important;
+}
+
+.pami-assistant-bubble {
+  max-height: none !important;
+}
+
+/* It is a grid, not a flex row: two auto columns squeezed the title into 28px. One column
+   per row gives the title the full width and drops the pager underneath it. */
+.pami-assistant-bubble-top {
+  grid-template-columns: 1fr !important;
+  row-gap: 6px !important;
+}
+
+.pami-assistant-recommendation-title {
+  min-width: 0 !important;
+  overflow: visible !important;
+  font-size: 10.5px !important;
+  white-space: normal !important;
+}
+
+.pami-assistant-pager {
+  justify-self: end !important;
+}
+
+/* The recommendation is longer than any sidebar-friendly height, so it takes whatever room
+   the panel has left and scrolls inside its own box, instead of being silently truncated at
+   a hard 40px. */
+.pami-assistant-bubble {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+.pami-assistant-message {
+  flex: 1 1 auto !important;
+  min-height: 48px !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  padding-right: 4px !important;
+}
+
+.pami-assistant-message p {
+  font-size: 11px !important;
+  line-height: 1.5 !important;
+}
+
+.pami-assistant-message ul {
+  font-size: 10.5px !important;
+  line-height: 1.45 !important;
+}
+
+.pami-assistant-robot-wrap {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+.pami-assistant-avatar-image {
+  width: 56px !important;
+  height: 56px !important;
+}
+
+/* Side by side rather than stacked: two full-width buttons cost 63px of a sidebar that is
+   already scrolling. */
+.pami-assistant-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 6px !important;
+}
+
+.pami-assistant-check-btn,
+.pami-assistant-history-btn {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  min-height: 30px !important;
+  height: 30px !important;
+  padding-left: 6px !important;
+  padding-right: 6px !important;
+  font-size: 10.5px !important;
+}
+
+/* The nav rows keep their existing look, which lives on the <li>. The button inside is the
+   accessible control - keyboard focus, Enter and Space - so it is transparent and simply
+   fills its row. Items that are not built yet are disabled and tagged rather than silently
+   doing nothing when clicked. */
+.sidebar-nav .sidebar-nav-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sidebar-nav .sidebar-nav-btn:focus-visible {
+  outline: 2px solid var(--pami-purple);
+  outline-offset: 3px;
+  border-radius: 8px;
+}
+
+.sidebar-nav .sidebar-nav-btn:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.sidebar-nav li.nav-item-unbuilt:hover {
+  background: none;
+  border-color: transparent;
+  transform: none;
+}
+
+.sidebar-nav .nav-soon-tag {
+  margin-left: auto;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(104, 78, 160, 0.09);
+  color: var(--pami-muted);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sidebar-nav .sidebar-nav-icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+/* Real SVG icons in the header stats. The old ones were drawn with ::before/::after shapes
+   that depicted nothing, so the pseudo-elements are cleared to stop them layering under the
+   new artwork. */
+.main-content .top-header .header-stat-icon::before,
+.main-content .top-header .header-stat-icon::after {
+  content: none !important;
+}
+
+.main-content .top-header .header-stat-icon {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  flex: 0 0 18px !important;
+}
+
+.main-content .top-header .header-stat-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* AI Chat pane. The header carried a meaningless "AI channel" caption and three emoji
+   buttons; the empty state was one line pinned to the top-left of a 500px void; the Send
+   button was a hardcoded #2f6fed blue in a pink and purple app. */
+.pami-chat-pane .chat-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px !important;
+  border-bottom: 1px solid var(--pami-border) !important;
+}
+
+.pami-chat-pane .chat-header-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pami-chat-pane .chat-header-title strong {
+  color: var(--pami-text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.pami-chat-pane .chat-header-title span {
+  overflow: hidden;
+  color: var(--pami-muted);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pami-chat-pane .chat-header-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.pami-chat-pane .chat-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--pami-border) !important;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: var(--pami-muted) !important;
+  cursor: pointer;
+}
+
+.pami-chat-pane .chat-icon-btn svg,
+.pami-chat-pane .create-node-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.pami-chat-pane .chat-icon-btn:hover {
+  color: var(--primary-purple) !important;
+  border-color: rgba(214, 95, 159, 0.34) !important;
+}
+
+.pami-chat-pane .create-node-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 !important;
+}
+
+.pami-chat-pane .chat-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+}
+
+.pami-chat-pane .chat-empty-state p {
+  margin: 0;
+  color: var(--pami-text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.pami-chat-pane .chat-empty-state span {
+  max-width: 380px;
+  color: var(--pami-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.pami-chat-pane .chat-input-row {
+  display: flex;
+  gap: 10px;
+  padding: 12px 18px !important;
+  border-top: 1px solid var(--pami-border) !important;
+}
+
+.pami-chat-pane .chat-text-input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 16px;
+  border: 1px solid var(--pami-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--pami-text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.pami-chat-pane .chat-text-input:focus-visible {
+  outline: 2px solid var(--pami-purple);
+  outline-offset: 1px;
+}
+
+.pami-chat-pane .chat-send-btn {
+  flex: none;
+  margin: 0 !important;
+  padding: 11px 22px !important;
+  border: none !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, #d65f9f 0%, #8f6df2 100%) !important;
+  color: #fff !important;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pami-chat-pane .chat-send-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The header was laid out as a centred column with an "AI project assistant" caption pinned
+   underneath by a pseudo-element - three stacked centred rows where one row was needed. The
+   empty state was capped at a fit-content 70% width, so it could not centre in the pane. */
+.pami-chat-pane .chat-header.chat-header-row {
+  flex-direction: row !important;
+  align-items: center !important;
+  min-height: 0 !important;
+}
+
+.pami-chat-pane .chat-header.chat-header-row::after {
+  content: none !important;
+}
+
+.pami-chat-pane .chat-empty-state {
+  width: auto !important;
+  max-width: none !important;
+  align-self: stretch !important;
+}
+
+/* Slack / Jira launchers. This has to sit at the end of the file: a blanket
+   `position: relative !important` around line 2960 overrides the inline `position: fixed`,
+   which makes the container stretch to full height - so the translateY(-50%) that was meant
+   to centre it moved it 367px off the top of the screen and the buttons vanished. Anchored
+   bottom right instead, with no transform, clear of the canvas controls at the top. */
+/* Roy's change took the container out of the blanket `position: relative !important` list and
+   gave it z-index 9999, which fixes the disappearance at its source - so position and stacking
+   are left to that rule. This only keeps the launchers anchored bottom right, clear of the
+   canvas control bar at the top. */
+.integrations-fixed-container {
+  top: auto !important;
+  bottom: 26px !important;
+  right: 24px !important;
+  height: auto !important;
+  transform: none !important;
+}
+
+/* The panel header row is gone: the Graph/Chat toggle now sits in the graph's floating
+   control bar and in the chat header, and the Resize button - which never said what it
+   resized - is removed along with it. */
+.pane-toggle {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--pami-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.pane-toggle-btn {
+  margin: 0 !important;
+  padding: 5px 14px !important;
+  border: none !important;
+  border-radius: 999px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--pami-muted) !important;
+  font-family: inherit;
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+}
+
+.pane-toggle-btn.active {
+  background: linear-gradient(135deg, #d65f9f 0%, #8f6df2 100%) !important;
+  color: #fff !important;
+}
+
+.pane-toggle-btn:not(.active):hover {
+  color: var(--primary-purple) !important;
+}
+
+.pane-toggle-btn:focus-visible {
+  outline: 2px solid var(--pami-purple);
+  outline-offset: 2px;
+}
+
+.graph-root .graph-controls-right {
+  margin-left: auto;
+}
+
+.graph-root .graph-controls-actions {
+  margin-left: 0;
+}
+
+/* The sidebar is shared between the dashboard and the Slack console, but 'Inter' is declared
+   on .dashboard-container - a wrapper only the dashboard has - so on /slack the same markup
+   fell back to the browser default serif. Typography is declared on the sidebar itself so it
+   renders identically wherever it is mounted. */
+.sidebar {
+  font-family: 'Inter', sans-serif;
+}
+
+.sidebar-nav .sidebar-nav-logo {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+}

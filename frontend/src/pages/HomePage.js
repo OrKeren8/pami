@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import "./HomePage.css";
 import pamiLogo from "../assets/pami-logo.png";
-import api, { projectsApi, slackApi, aiApi } from "../api/axios";
+import api, { projectsApi, aiApi } from "../api/axios";
+import AppSidebar from "../components/layout/AppSidebar";
 import GraphCanvas from "../components/graph/GraphCanvas";
 import { deriveGraph } from "../lib/graph/deriveGraph";
 
@@ -221,7 +223,32 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
     );
 };
 
+// Each header stat gets an icon that depicts what it counts, replacing decorative CSS shapes
+// that carried no meaning.
+const STAT_ICONS = {
+    conversations: "M2.5 4.2A1.7 1.7 0 0 1 4.2 2.5h9.6a1.7 1.7 0 0 1 1.7 1.7v6a1.7 1.7 0 0 1-1.7 1.7H7l-3.2 2.6a.5.5 0 0 1-.8-.4v-2.2a1.7 1.7 0 0 1-.5-1.2Z",
+    connections: "M5.6 10.4 10.4 5.6M4 12.5a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4ZM12 7.9a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z",
+    connected: "M8 1.8a6.2 6.2 0 1 1 0 12.4A6.2 6.2 0 0 1 8 1.8Zm-2.6 6.4 1.9 1.9 3.4-3.6",
+    projects: "M2 4.4A1.4 1.4 0 0 1 3.4 3h2.7l1.4 1.7h5.1A1.4 1.4 0 0 1 14 6.1v5.5a1.4 1.4 0 0 1-1.4 1.4H3.4A1.4 1.4 0 0 1 2 11.6Z"
+};
+
+const StatIcon = ({ name, className }) => (
+    <span className={className} aria-hidden="true">
+        <svg viewBox="0 0 16 16" focusable="false">
+            <path
+                d={STAT_ICONS[name]}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    </span>
+);
+
 const HomePage = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [activePane, setActivePane] = useState("tree");
 
@@ -229,12 +256,30 @@ const HomePage = () => {
         const viewportHeight = typeof window === "undefined" ? 780 : window.innerHeight;
 
         return {
-            collapsedHeight: Math.max(520, viewportHeight - 172),
+            collapsedHeight: Math.max(520, viewportHeight - 126),
             expandedHeight: viewportHeight
         };
     };
 
     const [treeHeight, setTreeHeight] = useState(() => getTreePanelSizes().collapsedHeight);
+
+    // Jira lives in a modal owned by this page, so the sidebar links here with a query
+    // parameter when the user is on another route.
+    useEffect(() => {
+        if (searchParams.get("integration") !== "jira") return;
+        openModal("jira");
+        setSearchParams({}, { replace: true });
+    }, [searchParams, setSearchParams]);
+
+    // The panel is bottom-anchored, so its height decides where its top edge lands. Sized
+    // only at mount, it kept a height from the old viewport after any window resize and its
+    // top edge crept up underneath the header.
+    useEffect(() => {
+        const resize = () => setTreeHeight(getTreePanelSizes().collapsedHeight);
+
+        window.addEventListener("resize", resize);
+        return () => window.removeEventListener("resize", resize);
+    }, []);
     const [isLoading, setIsLoading] = useState(true);
     const [activeModal, setActiveModal] = useState(null);
     const [realProjects, setRealProjects] = useState([]);
@@ -250,65 +295,12 @@ const HomePage = () => {
     const [emailInput, setEmailInput] = useState("");
     const [tokenInput, setTokenInput] = useState("");
 
-    const [slackConnected, setSlackConnected] = useState(false);
-    const [slackChannels, setSlackChannels] = useState([]);
-    const [channelNameInput, setChannelNameInput] = useState("");
-    const [messageChannelInput, setMessageChannelInput] = useState("");
-    const [messageTextInput, setMessageTextInput] = useState("");
-
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState("");
     const [conversationId, setConversationId] = useState(null);
     const [isChatLoading, setIsChatLoading] = useState(false);
     const [assistantAvatarUrl, setAssistantAvatarUrl] = useState(null);
 
-    const pamiAssistantRecommendations = [
-        {
-            title: "Recommendation 1",
-            summary: "Several project tasks are moving slower than expected. Review blockers and ownership to keep the timeline stable.",
-            bullets: [
-                "12 tasks may miss due dates.",
-                "3 blockers need approval.",
-                "Reassign 2 developers."
-            ]
-        },
-        {
-            title: "Recommendation 2",
-            summary: "Jira sync looks healthy, but some tasks are missing ownership details.",
-            bullets: [
-                "5 tasks have no owner.",
-                "2 tasks miss priority.",
-                "1 task has no context node."
-            ]
-        },
-        {
-            title: "Recommendation 3",
-            summary: "Everything looks stable right now. No critical project changes are required.",
-            bullets: [
-                "No urgent risks detected.",
-                "Velocity looks consistent.",
-                "No action is required."
-            ]
-        }
-    ];
-
-    const [pamiAssistantIndex, setPamiAssistantIndex] = useState(0);
-    const currentPamiAssistantRecommendation = pamiAssistantRecommendations[pamiAssistantIndex] || pamiAssistantRecommendations[0];
-    const pamiSidebarAssistantImage = "/pami-assistant.png";
-
-    const goToPreviousPamiRecommendation = () => {
-        setPamiAssistantIndex((currentIndex) => {
-            if (currentIndex <= 0) return pamiAssistantRecommendations.length - 1;
-            return currentIndex - 1;
-        });
-    };
-
-    const goToNextPamiRecommendation = () => {
-        setPamiAssistantIndex((currentIndex) => {
-            if (currentIndex >= pamiAssistantRecommendations.length - 1) return 0;
-            return currentIndex + 1;
-        });
-    };
     const fileInputRef = useRef(null);
 
     const projectGraph = useMemo(
@@ -649,9 +641,6 @@ const HomePage = () => {
         setSubNodes([]);
         setEmailInput("");
         setTokenInput("");
-        setChannelNameInput("");
-        setMessageChannelInput("");
-        setMessageTextInput("");
     };
 
     const goToNodeConversation = async (node) => {
@@ -685,10 +674,6 @@ const HomePage = () => {
     };
 
     const openModal = (type) => {
-        if (type === "slack") {
-            setActiveModal(slackConnected ? "slackActions" : "slack");
-            return;
-        }
         setActiveModal(type);
     };
 
@@ -751,28 +736,10 @@ const HomePage = () => {
         }
     };
 
-    const fetchSlackChannels = async () => {
-        const response = await slackApi.get("/list-channels");
-        if (!response.data || response.data.ok !== true) {
-            throw new Error(
-                response.data && response.data.error ? response.data.error : "Failed to fetch Slack channels."
-            );
-        }
-        return response.data.channels || [];
-    };
-
     const handleConnect = async (e) => {
         e.preventDefault();
         setIsLoading(true);
         try {
-            if (activeModal === "slack") {
-                const channels = await fetchSlackChannels();
-                setSlackConnected(true);
-                setSlackChannels(channels);
-                alert("Connected successfully to Slack!");
-                setActiveModal("slackActions");
-                return;
-            }
             await api.post(`/integrate/${activeModal}`, {
                 email: emailInput,
                 token: tokenInput,
@@ -782,36 +749,6 @@ const HomePage = () => {
         } catch (error) {
             console.error("Connection failed:", error);
             alert("Connection failed.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleSlackTestConnection = async () => {
-        setIsLoading(true);
-        try {
-            const response = await slackApi.post("/connection-check");
-            if (!response.data || response.data.ok !== true) {
-                throw new Error(response.data && response.data.error ? response.data.error : "Slack connection check failed.");
-            }
-            alert("Slack connection is healthy.");
-        } catch (error) {
-            console.error("Slack test connection failed:", error);
-            alert("Slack test connection failed.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleListChannels = async () => {
-        setIsLoading(true);
-        try {
-            const channels = await fetchSlackChannels();
-            setSlackChannels(channels);
-            if (channels.length === 0) alert("No channels found.");
-        } catch (error) {
-            console.error("Failed to fetch channels:", error);
-            alert("Failed to fetch Slack channels.");
         } finally {
             setIsLoading(false);
         }
@@ -865,171 +802,13 @@ const HomePage = () => {
         }
     };
 
-    const handleCreateSlackChannel = async (e) => {
-        e.preventDefault();
-        if (!channelNameInput) {
-            alert("Please enter a channel name.");
-            return;
-        }
-        setIsLoading(true);
-        try {
-            const response = await slackApi.post("/channels", { name: channelNameInput });
-            if (!response.data || response.data.ok !== true) {
-                throw new Error(response.data && response.data.error ? response.data.error : "Failed to create Slack channel.");
-            }
-            const channelName = response.data.channel_name ? response.data.channel_name : channelNameInput;
-            if (response.data.already_exists === true) {
-                alert(`Channel already exists: #${channelName}`);
-            } else {
-                alert(`Channel created successfully: #${channelName}`);
-            }
-            setChannelNameInput("");
-            setActiveModal("slackActions");
-            const channels = await fetchSlackChannels();
-            setSlackChannels(channels);
-        } catch (error) {
-            console.error("Failed to create channel:", error);
-            alert("Failed to create Slack channel.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleSendSlackMessage = async (e) => {
-        e.preventDefault();
-        if (!messageChannelInput || !messageTextInput) {
-            alert("Please enter both channel and message.");
-            return;
-        }
-        setIsLoading(true);
-        try {
-            const response = await slackApi.post("/messages", {
-                channel: messageChannelInput,
-                text: messageTextInput,
-            });
-            if (!response.data || response.data.ok !== true) {
-                throw new Error(response.data && response.data.error ? response.data.error : "Failed to send Slack message.");
-            }
-            alert(`Message sent successfully to ${messageChannelInput}`);
-            setMessageChannelInput("");
-            setMessageTextInput("");
-            setActiveModal("slackActions");
-        } catch (error) {
-            console.error("Failed to send message:", error);
-            alert("Failed to send Slack message.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-
-
-    const toggleTreePanelHeight = () => {
-        const { collapsedHeight, expandedHeight } = getTreePanelSizes();
-
-        setTreeHeight((previousHeight) => {
-            const isExpanded = previousHeight >= expandedHeight - 5;
-            return isExpanded ? collapsedHeight : expandedHeight;
-        });
-    };
-
-
-    // הפונקציות המלאות והתקינות של סלאק שממוקמות בצורה נכונה
-    const renderSlackActionsModal = () => {
-        return (
-            <>
-                <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-                    <img src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" alt="Slack" style={{ height: "50px", marginBottom: "10px" }} />
-                    <h2>Slack Actions</h2>
-                    <p style={{ color: "#666", marginTop: "10px" }}>Choose the Slack action you want to perform.</p>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <button type="button" onClick={handleSlackTestConnection} disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#4a154b", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}>
-                        Test Connection
-                    </button>
-                    <button type="button" onClick={handleListChannels} disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#2f6fed", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}>
-                        List Channels
-                    </button>
-                    <button type="button" onClick={() => setActiveModal("slackCreateChannel")} disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#0f9d58", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}>
-                        Create Channel
-                    </button>
-                    <button type="button" onClick={() => setActiveModal("slackSendMessage")} disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#f06292", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}>
-                        Send Message
-                    </button>
-                </div>
-
-                {slackChannels.length > 0 && (
-                    <div style={{ marginTop: "20px" }}>
-                        <h3 style={{ marginBottom: "10px" }}>Channels</h3>
-                        <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid #eee", borderRadius: "12px", padding: "12px", background: "#fafafa" }}>
-                            {slackChannels.map((channel) => (
-                                <div key={channel.id} style={{ padding: "8px 0", borderBottom: "1px solid #eee" }}>
-                                    #{channel.name}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </>
-        );
-    };
-
-    const renderSlackCreateChannelModal = () => {
-        return (
-            <>
-                <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-                    <img src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" alt="Slack" style={{ height: "50px", marginBottom: "10px" }} />
-                    <h2>Create Slack Channel</h2>
-                </div>
-                <form className="modal-form" onSubmit={handleCreateSlackChannel}>
-                    <div className="input-group" style={{ marginBottom: "20px" }}>
-                        <label style={{ display: "block", marginBottom: "5px" }}>Channel Name</label>
-                        <input type="text" placeholder="e.g. pami-demo-channel" required value={channelNameInput} onChange={(e) => setChannelNameInput(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
-                    </div>
-                    <button type="submit" className="login-submit-btn" disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#0f9d58", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold", marginBottom: "10px" }}>
-                        {isLoading ? "Processing..." : "Create Channel"}
-                    </button>
-                    <button type="button" onClick={() => setActiveModal("slackActions")} style={{ width: "100%", padding: "12px", background: "#ddd", color: "#333", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}>
-                        Back
-                    </button>
-                </form>
-            </>
-        );
-    };
-
-    const renderSlackSendMessageModal = () => {
-        return (
-            <>
-                <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-                    <img src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" alt="Slack" style={{ height: "50px", marginBottom: "10px" }} />
-                    <h2>Send Slack Message</h2>
-                </div>
-                <form className="modal-form" onSubmit={handleSendSlackMessage}>
-                    <div className="input-group" style={{ marginBottom: "15px" }}>
-                        <label style={{ display: "block", marginBottom: "5px" }}>Channel</label>
-                        <input type="text" placeholder="e.g. social or #social" required value={messageChannelInput} onChange={(e) => setMessageChannelInput(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
-                    </div>
-                    <div className="input-group" style={{ marginBottom: "20px" }}>
-                        <label style={{ display: "block", marginBottom: "5px" }}>Message</label>
-                        <input type="text" placeholder="Write a Slack message..." required value={messageTextInput} onChange={(e) => setMessageTextInput(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
-                    </div>
-                    <button type="submit" className="login-submit-btn" disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#f06292", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold", marginBottom: "10px" }}>
-                        {isLoading ? "Processing..." : "Send Message"}
-                    </button>
-                    <button type="button" onClick={() => setActiveModal("slackActions")} style={{ width: "100%", padding: "12px", background: "#ddd", color: "#333", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}>
-                        Back
-                    </button>
-                </form>
-            </>
-        );
-    };
 
     const renderDefaultIntegrationModal = () => {
         return (
             <>
                 <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-                    <img src={activeModal === "slack" ? "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" : "https://cdn.worldvectorlogo.com/logos/jira-1.svg"} alt={activeModal} style={{ height: "50px", marginBottom: "10px" }} />
-                    <h2>Connect to {activeModal === "slack" ? "Slack" : "Jira"}</h2>
+                    <img src="https://cdn.worldvectorlogo.com/logos/jira-1.svg" alt="Jira" style={{ height: "50px", marginBottom: "10px" }} />
+                    <h2>Connect to Jira</h2>
                 </div>
                 <form className="modal-form" onSubmit={handleConnect}>
                     <div className="input-group" style={{ marginBottom: "15px" }}>
@@ -1047,147 +826,6 @@ const HomePage = () => {
             </>
         );
     };
-
-    const renderSlackConnectModal = () => (
-        <>
-            <div
-                className="modal-header"
-                style={{
-                    textAlign: "center",
-                    marginBottom: "24px"
-                }}
-            >
-                <div
-                    style={{
-                        width: "82px",
-                        height: "82px",
-                        borderRadius: "24px",
-                        margin: "0 auto 16px auto",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: "linear-gradient(135deg, rgba(74,21,75,0.10), rgba(240,98,146,0.12))",
-                        border: "1px solid rgba(74,21,75,0.10)",
-                        boxShadow: "0 14px 34px rgba(74,21,75,0.12)"
-                    }}
-                >
-                    <img
-                        src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
-                        alt="Slack"
-                        style={{
-                            width: "48px",
-                            height: "48px",
-                            objectFit: "contain"
-                        }}
-                    />
-                </div>
-
-                <h2 style={{ margin: "0 0 8px 0", color: "#202124", fontSize: "26px" }}>
-                    Connect Slack Workspace
-                </h2>
-
-                <p
-                    style={{
-                        color: "#6b7280",
-                        margin: "0 auto",
-                        maxWidth: "340px",
-                        fontSize: "14px",
-                        lineHeight: "1.55"
-                    }}
-                >
-                    Connect PAMI to Slack so the dashboard can check channels, create project channels,
-                    and send operational updates directly to your workspace.
-                </p>
-            </div>
-
-            <div
-                style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr",
-                    gap: "10px",
-                    marginBottom: "22px"
-                }}
-            >
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "12px 14px",
-                        borderRadius: "16px",
-                        background: "#faf7ff",
-                        border: "1px solid rgba(139,92,246,0.12)"
-                    }}
-                >
-                    <span style={{ fontSize: "18px" }}>#</span>
-                    <div>
-                        <div style={{ fontWeight: "700", color: "#2d2438", fontSize: "13px" }}>
-                            Channel Management
-                        </div>
-                        <div style={{ color: "#7b7286", fontSize: "12px", marginTop: "2px" }}>
-                            List channels and create new Slack channels from PAMI.
-                        </div>
-                    </div>
-                </div>
-
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "12px 14px",
-                        borderRadius: "16px",
-                        background: "#fff7fb",
-                        border: "1px solid rgba(240,98,146,0.14)"
-                    }}
-                >
-                    <span style={{ fontSize: "18px" }}>↗</span>
-                    <div>
-                        <div style={{ fontWeight: "700", color: "#2d2438", fontSize: "13px" }}>
-                            Team Updates
-                        </div>
-                        <div style={{ color: "#7b7286", fontSize: "12px", marginTop: "2px" }}>
-                            Send messages to selected Slack channels from the dashboard.
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <form className="modal-form" onSubmit={handleConnect}>
-                <button
-                    type="submit"
-                    className="login-submit-btn"
-                    disabled={isLoading}
-                    style={{
-                        width: "100%",
-                        padding: "14px",
-                        background: "linear-gradient(135deg, #4a154b 0%, #8b3f8f 45%, #f06292 100%)",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "16px",
-                        fontWeight: "800",
-                        letterSpacing: "0.2px",
-                        cursor: isLoading ? "not-allowed" : "pointer",
-                        boxShadow: "0 14px 30px rgba(240,98,146,0.24)",
-                        opacity: isLoading ? 0.7 : 1
-                    }}
-                >
-                    {isLoading ? "Connecting..." : "Connect Slack"}
-                </button>
-
-                <p
-                    style={{
-                        margin: "12px 0 0 0",
-                        textAlign: "center",
-                        color: "#9ca3af",
-                        fontSize: "12px"
-                    }}
-                >
-                    Uses the configured Slack backend service. No manual token entry is required here.
-                </p>
-            </form>
-        </>
-    );
 
     const renderModalContent = () => {
         if (activeModal === "createProject") {
@@ -1213,10 +851,6 @@ const HomePage = () => {
                 </>
             );
         }
-        if (activeModal === "slack") return renderSlackConnectModal();
-        if (activeModal === "slackActions") return renderSlackActionsModal();
-        if (activeModal === "slackCreateChannel") return renderSlackCreateChannelModal();
-        if (activeModal === "slackSendMessage") return renderSlackSendMessageModal();
         if (activeModal === "viewNodeDetails") return (
             <NodeDetailsModal
                 selectedNode={selectedNode}
@@ -1239,97 +873,60 @@ const HomePage = () => {
     const selectedProjectNodeCount = selectedProjectId ? (contextNodesMap[selectedProjectId] || []).length : 0;
     const selectedProjectConnectionCount = projectGraph.links.length;
 
-    const { expandedHeight: currentTreeExpandedHeight } = getTreePanelSizes();
-    const isTreePanelExpanded = treeHeight >= currentTreeExpandedHeight - 5;
+    // Share of conversations that reached at least one sibling. This is the metric the
+    // product actually lives or dies on, and it replaces two hardcoded numbers that were
+    // presented as live telemetry.
+    const selectedProjectLinkedShare = projectGraph.nodes.length
+        ? `${Math.round(
+              (projectGraph.nodes.filter((node) => node.degree > 0).length /
+                  projectGraph.nodes.length) *
+                  100
+          )}%`
+        : "—";
+
+    // Lives in the graph's floating control bar in tree mode and in the chat header in chat
+    // mode, so the panel needs no header row of its own.
+    const paneToggle = (
+        <div className="pane-toggle" role="tablist" aria-label="Panel">
+            <button
+                type="button"
+                role="tab"
+                aria-selected={activePane === "tree"}
+                className={`pane-toggle-btn ${activePane === "tree" ? "active" : ""}`}
+                onClick={async () => {
+                    setActivePane("tree");
+                    try {
+                        await fetchProjects();
+                    } catch (e) {
+                        console.error("Failed to refresh projects on tab switch", e);
+                    }
+                }}
+            >
+                Graph
+            </button>
+            <button
+                type="button"
+                role="tab"
+                aria-selected={activePane === "chat"}
+                className={`pane-toggle-btn ${activePane === "chat" ? "active" : ""}`}
+                onClick={() => {
+                    setActivePane("chat");
+                    setConversationId(null);
+                    setChatMessages([]);
+                }}
+            >
+                Chat
+            </button>
+        </div>
+    );
 
     return (
         <div className={`dashboard-container ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
-            <aside className="sidebar">
-                <div className="sidebar-logo">
-                    <img src={pamiLogo} alt="Pami Logo" className="logo-img" />
-                </div>
-                <nav className="sidebar-nav">
-                    <ul>
-                        <li className="active">Neural Dashboard</li>
-                        <li>Context Brain</li>
-                        <li>Health Monitor</li>
-                        <li>Workers</li>
-                        <li>Settings</li>
-                        <li className="logout-item" onClick={() => alert("Logging out...")}>
-                            <span>🚪 Log Out</span>
-                        </li>
-                    </ul>
-                </nav>
-            
-                <div className="pami-sidebar-assistant-panel">
-                    <div className="pami-assistant-panel-header">
-                        <div className="pami-assistant-panel-title">
-                            <span className="pami-assistant-spark" aria-hidden="true"></span>
-                            <span>PAMI Assistant</span>
-                        </div>
-                        <div className="pami-assistant-online">
-                            <span></span>
-                            Online
-                        </div>
-                    </div>
-
-                    <div className="pami-assistant-bubble">
-                        <div className="pami-assistant-bubble-top">
-                            <div className="pami-assistant-recommendation-title">
-                                <span className="pami-assistant-mini-spark" aria-hidden="true"></span>
-                                <span>{currentPamiAssistantRecommendation.title}</span>
-                            </div>
-
-                            <div className="pami-assistant-pager">
-                                <button
-                                    type="button"
-                                    className="pami-assistant-page-btn"
-                                    onClick={goToPreviousPamiRecommendation}
-                                    aria-label="Previous PAMI recommendation"
-                                >
-                                    ‹
-                                </button>
-                                <span>{pamiAssistantIndex + 1} / {pamiAssistantRecommendations.length}</span>
-                                <button
-                                    type="button"
-                                    className="pami-assistant-page-btn"
-                                    onClick={goToNextPamiRecommendation}
-                                    aria-label="Next PAMI recommendation"
-                                >
-                                    ›
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="pami-assistant-message">
-                            <p>{currentPamiAssistantRecommendation.summary}</p>
-                            <ul>
-                                {currentPamiAssistantRecommendation.bullets.map((bullet, idx) => (
-                                    <li key={idx}>{bullet}</li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
-
-                    <div className="pami-assistant-robot-wrap">
-                        <img
-                            src={assistantAvatarUrl || pamiSidebarAssistantImage}
-                            alt="PAMI assistant avatar"
-                            className="pami-assistant-avatar-image"
-                        />
-                    </div>
-
-                    <div className="pami-assistant-actions">
-                        <button type="button" className="pami-assistant-check-btn">
-                            Check for new
-                        </button>
-                        <button type="button" className="pami-assistant-history-btn">
-                            History
-                        </button>
-                    </div>
-                </div>
-
-</aside>
+            <AppSidebar
+                active="dashboard"
+                avatarUrl={assistantAvatarUrl}
+                onJira={() => openModal("jira")}
+            />
 
             <main className={`main-content ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
                 <header className="top-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", boxSizing: "border-box", flexShrink: 0 }}>
@@ -1352,24 +949,23 @@ const HomePage = () => {
                         overflowX: "visible"
                     }}>
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-nodes" aria-hidden="true"></span><strong className="header-stat-value">{selectedProjectNodeCount}</strong><span className="header-stat-label">PROJECT NODES</span>
+                            <StatIcon name="conversations" className="header-stat-icon header-stat-icon-nodes" /><strong className="header-stat-value">{selectedProjectNodeCount}</strong><span className="header-stat-label">CONVERSATIONS</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-workers" aria-hidden="true"></span><strong className="header-stat-value">{selectedProjectConnectionCount}</strong><span className="header-stat-label">CONNECTIONS</span>
+                            <StatIcon name="connections" className="header-stat-icon header-stat-icon-workers" /><strong className="header-stat-value">{selectedProjectConnectionCount}</strong><span className="header-stat-label">CONNECTIONS</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-velocity" aria-hidden="true"></span><strong className="header-stat-value">84%</strong><span className="header-stat-label">VELOCITY</span>
+                            <StatIcon name="connected" className="header-stat-icon header-stat-icon-velocity" /><strong className="header-stat-value">{selectedProjectLinkedShare}</strong><span className="header-stat-label">CONNECTED</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-uptime" aria-hidden="true"></span><strong className="header-stat-value">99.9%</strong><span className="header-stat-label">UPTIME</span>
+                            <StatIcon name="projects" className="header-stat-icon header-stat-icon-uptime" /><strong className="header-stat-value">{realProjects.length}</strong><span className="header-stat-label">PROJECTS</span>
                         </div>
                     </div>
 
                     <div className="header-right" style={{ display: "flex", alignItems: "center", gap: "15px", flex: "0 0 auto" }}>
-                        <span className="notification">🔔</span>
                         <button className="new-node-btn" onClick={() => openModal("createProject")}>+ New Project</button>
                         <div className="project-switcher">
                             <button
@@ -1405,33 +1001,15 @@ const HomePage = () => {
                     </div>
                 </header>
 
-                <div className={`dashboard-grid dashboard-grid-anchored ${isTreePanelExpanded ? "tree-panel-expanded" : ""}`} style={{
+                <div className="dashboard-grid dashboard-grid-anchored" style={{
                     height: `${treeHeight}px`,
                     "--tree-panel-height": `${treeHeight}px`
                 }}>
                     <div className="project-tree-container">
-                        <div className="project-tree-header">
-                            <div className="tree-title-group tabs">
-                                <button className={`tab-btn ${activePane === "tree" ? "active" : ""}`} onClick={async () => { setActivePane("tree"); try { await fetchProjects(); } catch (e) { console.error('Failed to refresh projects on tab switch', e); } }}>Project Tree</button>
-                                <button className={`tab-btn ${activePane === "chat" ? "active" : ""}`} onClick={() => { setActivePane("chat"); setConversationId(null); setChatMessages([]); }}>AI Chat</button>
-                            </div>
-                        </div>
-
                         <div
                             className="project-tree-canvas tree-resizable-canvas"
                             style={{ flex: 1, minHeight: 0 }}
                         >
-                            <button
-                                type="button"
-                                className="tree-resize-handle"
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    toggleTreePanelHeight();
-                                }}
-                                title="Resize tree / chat area"
-                            />
-
                             {activePane === "tree" ? (
                                 realProjects.length > 0 || isLoading ? (
                                     <GraphCanvas
@@ -1441,6 +1019,7 @@ const HomePage = () => {
                                         error={null}
                                         onRetry={fetchProjects}
                                         onOpenNode={openNodeDetails}
+                                        toggle={paneToggle}
                                     />
                                 ) : (
                                     <div className="empty-tree-state">
@@ -1450,21 +1029,54 @@ const HomePage = () => {
                                 )
                             ) : (
                                 <div className="pami-chat-pane" style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }}>
-                                    <div className="chat-header" style={{ padding: "12px 16px", borderBottom: "1px solid #eee", justifyContent: "space-between", display: "flex" }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                            <strong>PAMI Conversation</strong>
-                                            <span style={{ marginLeft: 12, color: "#666" }}>AI channel</span>
+                                    <div className="chat-header chat-header-row">
+                                        <div className="chat-header-title">
+                                            {paneToggle}
+                                            <span>{selectedProjectName}</span>
                                         </div>
-                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                            <button title="Upload assistant avatar" onClick={triggerAvatarUpload} style={{ background: "transparent", border: "none", cursor: "pointer" }}>📤</button>
-                                            {assistantAvatarUrl && <button title="Clear avatar" onClick={clearAssistantAvatar} style={{ background: "transparent", border: "none", cursor: "pointer" }}>✖️</button>}
+                                        <div className="chat-header-actions">
+                                            <button
+                                                type="button"
+                                                className="chat-icon-btn"
+                                                title="Upload assistant avatar"
+                                                aria-label="Upload assistant avatar"
+                                                onClick={triggerAvatarUpload}
+                                            >
+                                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                    <path d="M8 10.5V2.8m0 0L5.4 5.4M8 2.8l2.6 2.6M2.8 10v2.2a1 1 0 0 0 1 1h8.4a1 1 0 0 0 1-1V10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                            </button>
+                                            {assistantAvatarUrl && (
+                                                <button
+                                                    type="button"
+                                                    className="chat-icon-btn"
+                                                    title="Reset assistant avatar"
+                                                    aria-label="Reset assistant avatar"
+                                                    onClick={clearAssistantAvatar}
+                                                >
+                                                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                        <path d="M4.5 4.5l7 7m0-7l-7 7" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                                                    </svg>
+                                                </button>
+                                            )}
                                             <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleAvatarFile(e.target.files && e.target.files[0])} />
-                                            <button type="button" className="create-node-btn" title="Create node from conversation" onClick={handleCreateNodeFromConversation} style={{ marginLeft: 6 }} disabled={realProjects.length === 0 || chatMessages.length === 0}>➕ Create Node</button>
+                                            <button type="button" className="create-node-btn" title="Turn this conversation into a node on the graph" onClick={handleCreateNodeFromConversation} disabled={realProjects.length === 0 || chatMessages.length === 0}>
+                                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                    <path d="M8 3.4v9.2M3.4 8h9.2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                                </svg>
+                                                Create Node
+                                            </button>
                                         </div>
                                     </div>
                                     <div className="chat-body" style={{ padding: "16px", overflowY: "auto", overflowX: "hidden", flex: 1, minHeight: 0 }}>
                                         {chatMessages.length === 0 ? (
-                                            <div className="chat-empty-state"><p>💬 Start chatting with PAMI AI</p></div>
+                                            <div className="chat-empty-state">
+                                                <p>Ask PAMI about this project</p>
+                                                <span>
+                                                    It can pull in what you discussed in your other
+                                                    conversations, and will tell you which ones it used.
+                                                </span>
+                                            </div>
                                         ) : (
                                             chatMessages.map((msg, idx) => {
                                                 const isUser = (msg.role === "user");
@@ -1483,16 +1095,31 @@ const HomePage = () => {
                                         )}
                                         {isChatLoading && (
                                             <div className="chat-message assistant">
-                                                <div className="message-avatar">🤖</div>
+                                                <div className="message-avatar assistant" style={{ backgroundImage: `url(${assistantAvatarUrl || "/pami_ai_avatar.png"})` }} />
                                                 <div className="message-content">
                                                     <div className="typing-indicator"><span></span><span></span><span></span></div>
                                                 </div>
                                             </div>
                                         )}
                                     </div>
-                                    <div className="chat-input" style={{ padding: "12px", borderTop: "1px solid #eee", display: "flex", gap: "8px" }}>
-                                        <input type="text" placeholder="Ask PAMI anything..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyPress={(e) => e.key === "Enter" && handleSendMessage()} disabled={isChatLoading} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
-                                        <button onClick={handleSendMessage} disabled={isChatLoading || !chatInput.trim()} style={{ padding: "10px 14px", borderRadius: "8px", background: "#2f6fed", color: "white", border: "none" }}>Send</button>
+                                    <div className="chat-input chat-input-row">
+                                        <input
+                                            type="text"
+                                            className="chat-text-input"
+                                            placeholder="Ask PAMI anything..."
+                                            value={chatInput}
+                                            onChange={(e) => setChatInput(e.target.value)}
+                                            onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                                            disabled={isChatLoading}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="chat-send-btn"
+                                            onClick={handleSendMessage}
+                                            disabled={isChatLoading || !chatInput.trim()}
+                                        >
+                                            {isChatLoading ? "Sending" : "Send"}
+                                        </button>
                                     </div>
                                 </div>
                             )}
@@ -1501,16 +1128,6 @@ const HomePage = () => {
                 </div>
             </main>
 
-            <aside className="integrations-fixed-container" style={{ position: "fixed", right: "30px", top: "200px", zIndex: 9999 }}>
-                <div className="integrations-stack" style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
-                    <button type="button" className="integration-icon-btn slack-btn" onClick={() => openModal("slack")} style={{ cursor: "pointer", background: "white", border: "1px solid #eee", borderRadius: "18px", width: "70px", height: "70px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
-                        <img src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" alt="Slack" style={{ width: "40px" }} />
-                    </button>
-                    <button type="button" className="integration-icon-btn jira-btn" onClick={() => openModal("jira")} style={{ cursor: "pointer", background: "white", border: "1px solid #eee", borderRadius: "18px", width: "70px", height: "70px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
-                        <img src="https://cdn.worldvectorlogo.com/logos/jira-1.svg" alt="Jira" style={{ width: "40px" }} />
-                    </button>
-                </div>
-            </aside>
 
             {activeModal && (
                 <div className="modal-overlay" onClick={closeModal} style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 10000 }}>

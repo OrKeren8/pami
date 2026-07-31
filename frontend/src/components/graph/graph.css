@@ -66,52 +66,63 @@
     inset: 0;
 }
 
-.graph-pill {
+/* Scoped with .graph-root because `.project-tree-container button` in HomePage.css is a
+   class+element selector and outranks a bare .graph-pill: it was setting the pill's font
+   weight to 800, its padding to 9px 15px, and adding an 8px right margin. The font is
+   declared as longhands because `font: 600 12.5px/1 inherit` is invalid — the shorthand
+   cannot take `inherit` as the family, so the whole declaration was dropped and pills fell
+   back to the browser's default 13.33px Arial. */
+.graph-root .graph-pill {
     position: absolute;
     top: 0;
     left: 0;
     display: flex;
     align-items: center;
     gap: 8px;
+    margin: 0;
     padding: 0 12px;
     border: 1px solid var(--graph-pill-border);
     border-radius: 999px;
     background: var(--graph-pill-bg);
     box-shadow: var(--graph-pill-shadow);
     color: var(--graph-pill-text);
-    font: 600 12.5px/1 inherit;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: normal;
     text-align: left;
     cursor: grab;
     transition: opacity 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
-.graph-pill:active {
+.graph-root .graph-pill:active {
     cursor: grabbing;
 }
 
-.graph-pill-dot {
+.graph-root .graph-pill-dot {
     flex: none;
     border-radius: 50%;
     background: var(--pill-color, #8b5cf6);
 }
 
-.graph-pill-label {
+.graph-root .graph-pill-label {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
 
-.graph-pill:hover,
-.graph-pill-neighbour {
+.graph-root .graph-pill:hover,
+.graph-root .graph-pill-neighbour {
     border-color: rgba(143, 109, 242, 0.48);
 }
 
-.graph-pill-selected {
+.graph-root .graph-pill-selected {
     border-color: rgba(214, 95, 159, 0.55);
     box-shadow: 0 8px 22px rgba(74, 45, 108, 0.16);
 }
 
-.graph-pill-pinned::after {
+.graph-root .graph-pill-pinned::after {
     content: '';
     position: absolute;
     top: -2px;
@@ -122,21 +133,32 @@
     background: var(--primary-purple, #d65f9f);
 }
 
-.graph-pill-dim {
+.graph-root .graph-pill-dim {
     opacity: var(--graph-dim);
 }
 
-.graph-pill:focus-visible {
+.graph-root .graph-pill:focus-visible {
     outline: 2px solid var(--pami-purple, #8f6df2);
     outline-offset: 2px;
 }
 
+/* Floats over the canvas instead of taking a row of its own: stacked above the graph it
+   pushed the canvas 49px further from the stats header, which was most of the gap. */
 .graph-controls {
+    position: absolute;
+    z-index: 5;
+    top: 8px;
+    right: 10px;
+    left: 10px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 14px;
-    padding: 0 4px 12px;
+    padding: 6px 14px;
+    border: 1px solid var(--pami-border, rgba(214, 95, 159, 0.16));
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(8px);
 }
 
 .graph-controls-search {
@@ -145,7 +167,7 @@
     gap: 8px;
 }
 
-.graph-search-input {
+.graph-root .graph-search-input {
     width: 210px;
     padding: 7px 12px;
     border: 1px solid var(--pami-border, rgba(214, 95, 159, 0.16));
@@ -155,7 +177,7 @@
     font-size: 12.5px;
 }
 
-.graph-search-input:focus-visible {
+.graph-root .graph-search-input:focus-visible {
     outline: 2px solid var(--pami-purple, #8f6df2);
     outline-offset: 1px;
 }
@@ -173,7 +195,7 @@
     gap: 16px;
 }
 
-.graph-slider {
+.graph-root .graph-slider {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -183,12 +205,12 @@
     letter-spacing: 0.06em;
 }
 
-.graph-slider input[type='range'] {
+.graph-root .graph-slider input[type='range'] {
     width: 92px;
     accent-color: var(--pami-purple, #8f6df2);
 }
 
-.graph-slider output {
+.graph-root .graph-slider output {
     min-width: 22px;
     color: var(--pami-text, #30263a);
     font-variant-numeric: tabular-nums;
@@ -201,7 +223,7 @@
     margin-left: auto;
 }
 
-.graph-action {
+.graph-root .graph-action {
     padding: 7px 14px;
     border: 1px solid var(--pami-border, rgba(214, 95, 159, 0.16));
     border-radius: 999px;
@@ -213,17 +235,19 @@
     transition: border-color 140ms ease, background 140ms ease;
 }
 
-.graph-action:hover {
+.graph-root .graph-action:hover {
     border-color: rgba(143, 109, 242, 0.48);
     background: #fff;
 }
 
-.graph-action:focus-visible {
+.graph-root .graph-action:focus-visible {
     outline: 2px solid var(--pami-purple, #8f6df2);
     outline-offset: 2px;
 }
 
 .graph-state {
+    position: absolute;
+    inset: 0;
     display: flex;
     flex: 1;
     flex-direction: column;
