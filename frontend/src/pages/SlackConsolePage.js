@@ -107,7 +107,12 @@ function SlackConsolePage() {
                 if (reason === "not_in_channel") {
                     setMessagesError("PAMI's Slack bot hasn't joined this channel yet. Invite it with /invite @PAMI to see the conversation here.");
                 } else if (reason === "missing_scope") {
-                    setMessagesError("The Slack app is missing permission to read channel history.");
+                    const needed = response.data.needed
+                        ? response.data.needed.split(",")[0]
+                        : "channels:history";
+                    setMessagesError(
+                        `The Slack app is missing the "${needed}" scope. Add it under OAuth & Permissions at api.slack.com/apps, then reinstall the app to the workspace.`
+                    );
                 } else {
                     setMessagesError("Couldn't load messages for this channel.");
                 }

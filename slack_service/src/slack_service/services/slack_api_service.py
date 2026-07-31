@@ -1,9 +1,12 @@
+import logging
 import re
 
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 from slack_service.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 class SlackApiService:
@@ -130,6 +133,7 @@ class SlackApiService:
             return {
                 "ok": False,
                 "error": self._get_slack_error(error),
+                **self._scope_detail(error),
             }
 
     def _format_message(self, raw_message: dict):
@@ -220,6 +224,29 @@ class SlackApiService:
             return error.response["error"]
 
         return "unknown_slack_error"
+
+    def _scope_detail(self, error: SlackApiError):
+        """The scopes Slack says are needed, which its error alone does not reveal.
+
+        Without these, a missing_scope reads as a generic permission problem and the only way
+        to learn which scope is missing is to call the Slack API by hand.
+        """
+        if error.response is None:
+            return {}
+
+        detail = {
+            key: error.response[key]
+            for key in ("needed", "provided")
+            if key in error.response
+        }
+
+        if detail:
+            logger.warning(
+                f"Slack rejected the call: needed={detail.get('needed')} "
+                f"provided={detail.get('provided')}"
+            )
+
+        return detail
 
 
 slack_api_service = SlackApiService()
