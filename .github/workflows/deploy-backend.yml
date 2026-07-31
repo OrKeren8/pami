@@ -96,6 +96,37 @@ jobs:
 
       - name: Create or Update Projects Service
         run: |
+          # Looked up by name, not hardcoded: AWS appends a random id to every target group
+          # ARN, so a rebuilt lab account recreates the target group under a new ARN and any
+          # hardcoded one becomes a dead reference that fails CreateService.
+          TG_ARN=$(aws elbv2 describe-target-groups \
+            --names projects-service-tg \
+            --query 'TargetGroups[0].TargetGroupArn' \
+            --output text \
+            --region us-east-1)
+
+          if [ -z "$TG_ARN" ] || [ "$TG_ARN" = "None" ]; then
+            echo "::error::Target group projects-service-tg not found. Run setup_aws_infrastructure.py first."
+            exit 1
+          fi
+          echo "Using target group $TG_ARN"
+
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters Name=is-default,Values=true \
+            --query 'Vpcs[0].VpcId' --output text --region us-east-1)
+          SUBNETS=$(aws ec2 describe-subnets \
+            --filters Name=vpc-id,Values=$VPC_ID \
+            --query 'Subnets[].SubnetId' --output text --region us-east-1 | tr '\t' ',')
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters Name=group-name,Values=pami-ecs-services-sg Name=vpc-id,Values=$VPC_ID \
+            --query 'SecurityGroups[0].GroupId' --output text --region us-east-1)
+
+          if [ -z "$SUBNETS" ] || [ "$SG_ID" = "None" ]; then
+            echo "::error::Could not resolve VPC networking. Run setup_aws_infrastructure.py first."
+            exit 1
+          fi
+          echo "Using subnets $SUBNETS and security group $SG_ID"
+
           # Check if service exists
           if aws ecs describe-services --cluster pami-cluster --services pami-projects-service --region us-east-1 | grep -q "ACTIVE\|DRAINING"; then
             echo "Service exists, updating..."
@@ -114,8 +145,8 @@ jobs:
               --task-definition pami-projects-service \
               --desired-count 1 \
               --launch-type FARGATE \
-              --network-configuration "awsvpcConfiguration={subnets=[subnet-02b60037f031bd077,subnet-00ac61fe81c2383a2],securityGroups=[sg-09b92835d6629a36a],assignPublicIp=ENABLED}" \
-              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:413410781221:targetgroup/projects-service-tg/a25b084c1361e50e,containerName=pami-projects-service,containerPort=8000" \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG_ID],assignPublicIp=ENABLED}" \
+              --load-balancers "targetGroupArn=$TG_ARN,containerName=pami-projects-service,containerPort=8000" \
               --region us-east-1
           fi
           # Ensure desired count is 1 in case the service existed with 0
@@ -228,6 +259,34 @@ jobs:
 
       - name: Create or Update AI Conversation Service
         run: |
+          TG_ARN=$(aws elbv2 describe-target-groups \
+            --names ai-conversation-service-tg \
+            --query 'TargetGroups[0].TargetGroupArn' \
+            --output text \
+            --region us-east-1)
+
+          if [ -z "$TG_ARN" ] || [ "$TG_ARN" = "None" ]; then
+            echo "::error::Target group ai-conversation-service-tg not found. Run setup_aws_infrastructure.py first."
+            exit 1
+          fi
+          echo "Using target group $TG_ARN"
+
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters Name=is-default,Values=true \
+            --query 'Vpcs[0].VpcId' --output text --region us-east-1)
+          SUBNETS=$(aws ec2 describe-subnets \
+            --filters Name=vpc-id,Values=$VPC_ID \
+            --query 'Subnets[].SubnetId' --output text --region us-east-1 | tr '\t' ',')
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters Name=group-name,Values=pami-ecs-services-sg Name=vpc-id,Values=$VPC_ID \
+            --query 'SecurityGroups[0].GroupId' --output text --region us-east-1)
+
+          if [ -z "$SUBNETS" ] || [ "$SG_ID" = "None" ]; then
+            echo "::error::Could not resolve VPC networking. Run setup_aws_infrastructure.py first."
+            exit 1
+          fi
+          echo "Using subnets $SUBNETS and security group $SG_ID"
+
           # Check if service exists
           if aws ecs describe-services --cluster pami-cluster --services pami-ai-conversation-service --region us-east-1 | grep -q "ACTIVE\|DRAINING"; then
             echo "Service exists, updating..."
@@ -245,8 +304,8 @@ jobs:
               --task-definition pami-ai-conversation-service \
               --desired-count 1 \
               --launch-type FARGATE \
-              --network-configuration "awsvpcConfiguration={subnets=[subnet-02b60037f031bd077,subnet-00ac61fe81c2383a2],securityGroups=[sg-09b92835d6629a36a],assignPublicIp=ENABLED}" \
-              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:413410781221:targetgroup/ai-conversation-service-tg/a55b9d20d67e2cbb,containerName=ai-conversation-service,containerPort=8001" \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG_ID],assignPublicIp=ENABLED}" \
+              --load-balancers "targetGroupArn=$TG_ARN,containerName=ai-conversation-service,containerPort=8001" \
               --region us-east-1
           fi
 
