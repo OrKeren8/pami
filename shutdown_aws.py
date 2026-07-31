@@ -14,6 +14,7 @@ Usage:
 import boto3
 import sys
 import os
+import time
 from pathlib import Path
 from typing import List
 
@@ -26,6 +27,13 @@ SERVICES = [
     "pami-projects-service",
     "pami-slack-service",
     "pami-ai-conversation-service",
+]
+
+# Named without the pami- prefix, matching setup_aws_infrastructure.py.
+TARGET_GROUPS = [
+    "projects-service-tg",
+    "slack-service-tg",
+    "ai-conversation-service-tg",
 ]
 
 # AWS Clients (will be initialized at runtime after loading credentials)
@@ -134,10 +142,58 @@ def delete_load_balancer():
         # Delete the load balancer
         elbv2.delete_load_balancer(LoadBalancerArn=lb_arn)
         print_success("Deleted Application Load Balancer")
-        print_info("Target groups will be auto-deleted after a short delay")
+
+        delete_target_groups()
 
     except Exception as e:
         print_error(f"Failed to delete load balancer: {e}")
+
+
+def delete_target_groups():
+    """Delete this project's target groups once the load balancer is gone.
+
+    AWS does not remove target groups when their load balancer is deleted - the old
+    message promising that was simply wrong. Left behind, they are recreated on the next
+    setup run under a new random ARN suffix, which is what silently broke a deploy that
+    had a target-group ARN written into it.
+    """
+    print_header("Deleting Target Groups")
+
+    # Deleting a target group requires its listener rules to be gone first, and the
+    # listeners go with the load balancer. It is not instant.
+    for attempt in range(6):
+        remaining = []
+
+        for tg_name in TARGET_GROUPS:
+            try:
+                response = elbv2.describe_target_groups(Names=[tg_name])
+            except elbv2.exceptions.TargetGroupNotFoundException:
+                continue
+            except Exception as error:
+                print_error(f"Could not look up target group {tg_name}: {error}")
+                continue
+
+            for target_group in response["TargetGroups"]:
+                try:
+                    elbv2.delete_target_group(
+                        TargetGroupArn=target_group["TargetGroupArn"]
+                    )
+                    print_success(f"Deleted target group {tg_name}")
+                except Exception as error:
+                    remaining.append(tg_name)
+                    if attempt == 5:
+                        print_error(
+                            f"Target group {tg_name} could not be deleted: {error}"
+                        )
+
+        if not remaining:
+            return
+
+        if attempt < 5:
+            print_info(
+                f"{len(remaining)} target group(s) still in use; retrying in 10s"
+            )
+            time.sleep(10)
 
 
 def print_summary():
