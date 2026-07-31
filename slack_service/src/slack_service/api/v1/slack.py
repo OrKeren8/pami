@@ -23,6 +23,11 @@ def list_channels():
     return slack_api_service.list_channels()
 
 
+@router.get("/channels/{channel_id}/messages")
+def get_channel_messages(channel_id: str, limit: int = 50):
+    return slack_api_service.get_channel_messages(channel_id, limit)
+
+
 @router.post("/messages")
 def send_message(request: SendMessageRequest):
     return slack_api_service.send_message(request.channel, request.text)
