@@ -6,6 +6,16 @@ import AppSidebar from "../components/layout/AppSidebar";
 import GraphCanvas from "../components/graph/GraphCanvas";
 import { deriveGraph } from "../lib/graph/deriveGraph";
 
+const MODAL_LABELS = {
+    createProject: "Create project",
+    viewNodeDetails: "Node details",
+    slack: "Connect Slack",
+    slackActions: "Slack actions",
+    slackCreateChannel: "Create Slack channel",
+    slackSendMessage: "Send Slack message",
+    jira: "Connect Jira",
+};
+
 const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoading, closeModal, fetchProjects, onNodeColorChange, onOpenConversation }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSavingColor, setIsSavingColor] = useState(false);
@@ -725,6 +735,22 @@ const HomePage = () => {
         }
     };
 
+    const modalRef = useRef(null);
+
+    // Without these the dialog was unreachable and inescapable by keyboard: no role, no
+    // Escape handler, and focus stayed behind it on the page.
+    useEffect(() => {
+        if (!activeModal) return undefined;
+
+        const onKeyDown = (event) => {
+            if (event.key === "Escape") closeModal();
+        };
+
+        window.addEventListener("keydown", onKeyDown);
+        modalRef.current?.focus();
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [activeModal]);
+
     const openModal = (type) => {
         setActiveModal(type);
     };
@@ -1224,8 +1250,24 @@ const HomePage = () => {
 
             {activeModal && (
                 <div className="modal-overlay" onClick={closeModal} style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 10000 }}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ background: "white", padding: "40px", borderRadius: "30px", width: "450px", position: "relative" }}>
-                        <button className="close-modal-btn" onClick={closeModal} style={{ position: "absolute", top: "20px", right: "20px", border: "none", background: "none", fontSize: "24px", cursor: "pointer" }}>&times;</button>
+                    <div
+                        className="modal-content"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={MODAL_LABELS[activeModal] || "Dialog"}
+                        ref={modalRef}
+                        tabIndex={-1}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ background: "white", padding: "40px", borderRadius: "30px", width: "min(450px, calc(100vw - 32px))", maxHeight: "calc(100vh - 32px)", overflowY: "auto", boxSizing: "border-box", position: "relative" }}
+                    >
+                        <button
+                            className="close-modal-btn"
+                            onClick={closeModal}
+                            aria-label="Close dialog"
+                            style={{ position: "absolute", top: "20px", right: "20px", border: "none", background: "none", fontSize: "24px", cursor: "pointer" }}
+                        >
+                            &times;
+                        </button>
                         {renderModalContent()}
                     </div>
                 </div>
