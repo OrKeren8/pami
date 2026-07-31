@@ -278,9 +278,11 @@
     border: 1px solid rgba(240, 98, 146, 0.4);
     border-radius: 20px;
     /* Deliberately see-through: the preview is a peek at the conversation, not a dialog, so
-       the list stays visible behind it. */
-    background: rgba(255, 245, 250, 0.74);
-    backdrop-filter: blur(12px);
+       the list stays visible behind it. Not lower than this - at 0.74 the card text behind
+       showed through the preview text and neither could be read. The blur does most of the
+       work; it is not relied on alone because it is ignored in some rendering paths. */
+    background: rgba(255, 246, 251, 0.93);
+    backdrop-filter: blur(14px);
     box-shadow: 0 30px 70px -20px rgba(190, 24, 93, 0.45);
     cursor: pointer;
     animation: chat-preview-in 130ms ease-out;
