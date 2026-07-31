@@ -21,6 +21,10 @@ app.add_middleware(
 app.include_router(slack_router)
 
 
+# Both paths: the ALB forwards /slack/* here without stripping the prefix, so a bare /health
+# is only reachable from inside the VPC (which is how the target-group check sees it) while
+# anything outside can only reach /slack/health.
+@app.get("/slack/health")
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}

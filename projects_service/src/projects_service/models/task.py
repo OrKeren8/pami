@@ -1,9 +1,7 @@
 from beanie import Document
-from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from pydantic import Field
-from bson import ObjectId
 
 
 class Task(Document):

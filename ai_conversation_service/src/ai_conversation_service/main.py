@@ -133,6 +133,10 @@ app.include_router(ai_conversations_router, prefix="/ai")
 app.include_router(tree_analysis_router, prefix="/ai")
 
 
+# Both paths: the ALB forwards /ai/* here without stripping the prefix, so a bare /health is
+# only reachable from inside the VPC (which is how the target-group check sees it) while
+# anything outside — a deploy smoke check, a monitor — can only reach /ai/health.
+@app.get("/ai/health")
 @app.get("/health")
 async def health_check():
     embedder = getattr(app.state, "embedder", None)

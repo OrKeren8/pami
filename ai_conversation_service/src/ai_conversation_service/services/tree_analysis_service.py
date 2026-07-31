@@ -153,9 +153,9 @@ class TreeAnalysisService:
         # is the strongest signal that its content matters, and its tail is usually below the
         # debounce threshold — so the very messages that motivated the node would otherwise
         # be missing from both the scoring and later retrieval.
-        state = await self._index_now(request) or await self._chunk_index_service.state_for(
-            request.conversation_id
-        )
+        state = await self._index_now(
+            request
+        ) or await self._chunk_index_service.state_for(request.conversation_id)
         if not state:
             return []
 

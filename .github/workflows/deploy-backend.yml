@@ -8,8 +8,19 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  # One cluster, one ALB, one Amplify branch: overlapping runs both push images and both
+  # force a rollout, and which commit ends up serving is a race.
+  group: deploy-backend
+  cancel-in-progress: false
+
 jobs:
+  validate:
+    uses: ./.github/workflows/validate.yml
+    secrets: inherit
+
   deploy-projects-service:
+    needs: validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -59,7 +70,7 @@ jobs:
             "containerDefinitions": [
               {
                 "name": "pami-projects-service",
-                "image": "413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest",
+                "image": "413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:${{ github.sha }}",
                 "portMappings": [
                   {
                     "containerPort": 8000,
@@ -128,13 +139,20 @@ jobs:
           echo "Using subnets $SUBNETS and security group $SG_ID"
 
           # Check if service exists
-          if aws ecs describe-services --cluster pami-cluster --services pami-projects-service --region us-east-1 | grep -q "ACTIVE\|DRAINING"; then
+          # Queried as a field, not grepped from the JSON blob: "INACTIVE" contains "ACTIVE",
+          # so a service deleted within the last hour matched and the workflow tried to update
+          # it instead of recreating it.
+          SERVICE_STATUS=$(aws ecs describe-services --cluster pami-cluster --services pami-projects-service --region us-east-1 --query 'services[0].status' --output text 2>/dev/null || echo "NONE")
+          echo "Projects service status: $SERVICE_STATUS"
+
+          if [ "$SERVICE_STATUS" = "ACTIVE" ] || [ "$SERVICE_STATUS" = "DRAINING" ]; then
             echo "Service exists, updating..."
             aws ecs update-service \
               --cluster pami-cluster \
               --service pami-projects-service \
               --task-definition pami-projects-service \
               --force-new-deployment \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" \
               --desired-count 1 \
               --region us-east-1
           else
@@ -145,6 +163,7 @@ jobs:
               --task-definition pami-projects-service \
               --desired-count 1 \
               --launch-type FARGATE \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" \
               --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG_ID],assignPublicIp=ENABLED}" \
               --load-balancers "targetGroupArn=$TG_ARN,containerName=pami-projects-service,containerPort=8000" \
               --region us-east-1
@@ -160,7 +179,26 @@ jobs:
             --services pami-projects-service \
             --region us-east-1
 
+      - name: Smoke check projects-service through the ALB
+        run: |
+          # `wait services-stable` only asks ECS whether tasks are running; it never checks
+          # that the service answers. A container that boots and then fails its first request
+          # would otherwise be reported as a successful deploy.
+          ALB_DNS=$(aws elbv2 describe-load-balancers --region us-east-1 --query "LoadBalancers[?LoadBalancerName=='pami-alb'].DNSName | [0]" --output text)
+          for attempt in 1 2 3 4 5 6; do
+            CODE=$(curl -s -o /dev/null -m 15 -w "%{http_code}" "http://$ALB_DNS/health" || echo 000)
+            echo "attempt $attempt: /health -> $CODE"
+            if [ "$CODE" = "200" ]; then
+              echo "projects-service is serving"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::projects-service did not answer /health with 200 after the rollout"
+          exit 1
+
   deploy-ai-conversation-service:
+    needs: validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -214,7 +252,7 @@ jobs:
             "containerDefinitions": [
               {
                 "name": "ai-conversation-service",
-                "image": "413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest",
+                "image": "413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:${{ github.sha }}",
                 "portMappings": [
                   {
                     "containerPort": 8001,
@@ -288,13 +326,18 @@ jobs:
           echo "Using subnets $SUBNETS and security group $SG_ID"
 
           # Check if service exists
-          if aws ecs describe-services --cluster pami-cluster --services pami-ai-conversation-service --region us-east-1 | grep -q "ACTIVE\|DRAINING"; then
+          SERVICE_STATUS=$(aws ecs describe-services --cluster pami-cluster --services pami-ai-conversation-service --region us-east-1 --query 'services[0].status' --output text 2>/dev/null || echo "NONE")
+          echo "AI conversation service status: $SERVICE_STATUS"
+
+          if [ "$SERVICE_STATUS" = "ACTIVE" ] || [ "$SERVICE_STATUS" = "DRAINING" ]; then
             echo "Service exists, updating..."
             aws ecs update-service \
               --cluster pami-cluster \
               --service pami-ai-conversation-service \
               --task-definition pami-ai-conversation-service \
               --force-new-deployment \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" \
+              --desired-count 1 \
               --region us-east-1
           else
             echo "Service doesn't exist, creating..."
@@ -304,10 +347,15 @@ jobs:
               --task-definition pami-ai-conversation-service \
               --desired-count 1 \
               --launch-type FARGATE \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" \
               --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG_ID],assignPublicIp=ENABLED}" \
               --load-balancers "targetGroupArn=$TG_ARN,containerName=ai-conversation-service,containerPort=8001" \
               --region us-east-1
           fi
+          # shutdown_aws.py scales every service to 0, and `wait services-stable` succeeds
+          # trivially when desired == running == 0 - so without this the service stays dead
+          # after a shutdown while the deploy reports success.
+          aws ecs update-service --cluster pami-cluster --service pami-ai-conversation-service --desired-count 1 --region us-east-1 || true
 
       - name: Wait for AI Conversation Service deployment
         run: |
@@ -316,6 +364,24 @@ jobs:
             --cluster pami-cluster \
             --services pami-ai-conversation-service \
             --region us-east-1
+
+      - name: Smoke check ai-conversation-service through the ALB
+        run: |
+          # `wait services-stable` only asks ECS whether tasks are running; it never checks
+          # that the service answers. A container that boots and then fails its first request
+          # would otherwise be reported as a successful deploy.
+          ALB_DNS=$(aws elbv2 describe-load-balancers --region us-east-1 --query "LoadBalancers[?LoadBalancerName=='pami-alb'].DNSName | [0]" --output text)
+          for attempt in 1 2 3 4 5 6; do
+            CODE=$(curl -s -o /dev/null -m 15 -w "%{http_code}" "http://$ALB_DNS/ai/health" || echo 000)
+            echo "attempt $attempt: /ai/health -> $CODE"
+            if [ "$CODE" = "200" ]; then
+              echo "ai-conversation-service is serving"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::ai-conversation-service did not answer /ai/health with 200 after the rollout"
+          exit 1
 
       - name: Get AI Conversation Service status
         run: |
