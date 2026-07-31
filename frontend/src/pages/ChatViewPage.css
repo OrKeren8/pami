@@ -10,6 +10,9 @@
 .chat-view-main {
     flex: 1;
     min-width: 0;
+    /* The sidebar is position: fixed, so it takes no space in the flex row and the content
+       ran underneath it. The dashboard's own main pane offsets by the same variable. */
+    margin-left: var(--sidebar-width);
     display: flex;
     flex-direction: column;
     gap: 18px;
