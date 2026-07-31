@@ -1254,6 +1254,17 @@ const HomePage = () => {
     const selectedProjectNodeCount = selectedProjectId ? (contextNodesMap[selectedProjectId] || []).length : 0;
     const selectedProjectConnectionCount = projectGraph.links.length;
 
+    // Share of conversations that reached at least one sibling. This is the metric the
+    // product actually lives or dies on, and it replaces two hardcoded numbers that were
+    // presented as live telemetry.
+    const selectedProjectLinkedShare = projectGraph.nodes.length
+        ? `${Math.round(
+              (projectGraph.nodes.filter((node) => node.degree > 0).length /
+                  projectGraph.nodes.length) *
+                  100
+          )}%`
+        : "—";
+
     const { expandedHeight: currentTreeExpandedHeight } = getTreePanelSizes();
     const isTreePanelExpanded = treeHeight >= currentTreeExpandedHeight - 5;
 
@@ -1367,7 +1378,7 @@ const HomePage = () => {
                         overflowX: "visible"
                     }}>
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-nodes" aria-hidden="true"></span><strong className="header-stat-value">{selectedProjectNodeCount}</strong><span className="header-stat-label">PROJECT NODES</span>
+                            <span className="header-stat-icon header-stat-icon-nodes" aria-hidden="true"></span><strong className="header-stat-value">{selectedProjectNodeCount}</strong><span className="header-stat-label">CONVERSATIONS</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
@@ -1375,11 +1386,11 @@ const HomePage = () => {
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-velocity" aria-hidden="true"></span><strong className="header-stat-value">84%</strong><span className="header-stat-label">VELOCITY</span>
+                            <span className="header-stat-icon header-stat-icon-velocity" aria-hidden="true"></span><strong className="header-stat-value">{selectedProjectLinkedShare}</strong><span className="header-stat-label">CONNECTED</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-uptime" aria-hidden="true"></span><strong className="header-stat-value">99.9%</strong><span className="header-stat-label">UPTIME</span>
+                            <span className="header-stat-icon header-stat-icon-uptime" aria-hidden="true"></span><strong className="header-stat-value">{realProjects.length}</strong><span className="header-stat-label">PROJECTS</span>
                         </div>
                     </div>
 
