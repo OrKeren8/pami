@@ -3,7 +3,6 @@ Integration tests for AI Conversation Service
 Run these tests after setting up the environment properly.
 """
 
-import pytest
 from fastapi.testclient import TestClient
 from ai_conversation_service.main import app
 
