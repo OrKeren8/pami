@@ -2958,7 +2958,6 @@ html, body, #root {
   z-index: 520 !important;
 }
 
-.integrations-fixed-container,
 .integration-icon-btn,
 .integration-card,
 .integration-item,
@@ -2977,6 +2976,10 @@ button[aria-label*="Jira"],
 button[aria-label*="Slack"] {
   position: relative !important;
   z-index: 800 !important;
+}
+
+.integrations-fixed-container {
+  z-index: 9999 !important;
 }
 
 .modal-overlay,
