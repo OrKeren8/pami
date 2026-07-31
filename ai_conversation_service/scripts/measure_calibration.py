@@ -16,7 +16,7 @@ import statistics
 from pymongo import AsyncMongoClient
 
 from ai_conversation_service.core.config import settings
-from ai_conversation_service.services.embedder import LocalOnnxEmbedder
+from ai_conversation_service.services.embedder_factory import build_embedder
 from ai_conversation_service.services.similarity import cosine
 
 
@@ -41,7 +41,13 @@ async def main(show_pairs: int) -> None:
         print("not enough nodes to measure")
         return
 
-    embedder = LocalOnnxEmbedder(settings.embedding_model, settings.embedding_cache_dir)
+    # Whatever the service is configured to use, not a hardcoded second choice: measuring
+    # one model's distribution and writing it down as another's is how the floor ended up
+    # 0.06 too high for OpenAI embeddings.
+    embedder = await build_embedder()
+    if embedder is None:
+        print("no embedder available")
+        return
     vectors = await embedder.embed([text for _, _, text in labelled])
     print(f"model: {embedder.model_id}")
 

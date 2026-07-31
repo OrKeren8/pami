@@ -26,7 +26,21 @@ CALIBRATION: dict[str, tuple[float, float]] = {
     # instead of scraping the 30 threshold. Two labelled points only — re-measure
     # once more clean conversations exist.
     "bge-small-en-v1.5@384/user": (0.46, 0.85),
+    # OpenAI embeddings. Measured 2026-07-31 over the 32 live conversations, scoring them
+    # exactly as production does (user-message centroids), then looking at each
+    # conversation's top-3 peers - the only similarities that decide a link:
+    #   closest peer per conversation: min 0.252, median 0.634
+    #   top-3 peers overall:           min 0.244, median 0.594
+    # Cosine runs lower here than with bge, so the inherited 0.46 floor was scoring 8 of 96
+    # top-3 peers as 0 - an explicit prune instruction - and one conversation lost even its
+    # closest peer. Floors of 0.30, 0.35 and 0.40 all keep the same 96.9%: nothing sits in
+    # that band, and the two links below it (0.244, 0.252) are the "closest of very few"
+    # case the floor exists to reject. 0.40 is the top of that empty band.
+    "text-embedding-3-small@1536": (0.40, 0.85),
+    "text-embedding-3-small@1536/user": (0.40, 0.85),
 }
+# bge-derived, and only reached by a model with no entry above. A model whose cosine runs
+# lower than bge's will over-prune until it is measured - see scripts/measure_calibration.py.
 DEFAULT_CALIBRATION = (0.46, 0.85)
 
 
