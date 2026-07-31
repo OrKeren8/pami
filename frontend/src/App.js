@@ -4,9 +4,11 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import SlackConsolePage from './pages/SlackConsolePage';
+import ToastProvider from './components/feedback/ToastProvider';
 
 function App() {
     return (
+        <ToastProvider>
         <BrowserRouter>
             <Routes>
                 {/* Redirecting to login by default */}
@@ -19,6 +21,7 @@ function App() {
                 <Route path="/slack" element={<SlackConsolePage />} />
             </Routes>
         </BrowserRouter>
+        </ToastProvider>
     );
 }
 

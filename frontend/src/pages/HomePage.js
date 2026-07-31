@@ -5,6 +5,7 @@ import api, { projectsApi, aiApi } from "../api/axios";
 import AppSidebar from "../components/layout/AppSidebar";
 import GraphCanvas from "../components/graph/GraphCanvas";
 import { deriveGraph } from "../lib/graph/deriveGraph";
+import { useToast } from "../components/feedback/ToastProvider";
 
 const MODAL_LABELS = {
     createProject: "Create project",
@@ -19,6 +20,7 @@ const MODAL_LABELS = {
 const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoading, closeModal, fetchProjects, onNodeColorChange, onOpenConversation }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSavingColor, setIsSavingColor] = useState(false);
+    const toast = useToast();
     if (!selectedNode) return null;
 
     const nodeColor = selectedNode.color || "#2196f3";
@@ -68,7 +70,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
             }
 
             await projectsApi.delete(deletePath);
-            alert(`${selectedNode.name} deleted.`);
+            toast.success(`${selectedNode.name} deleted.`);
             closeModal();
             await fetchProjects();
         } catch (err) {
@@ -76,7 +78,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
             // FastAPI validation JSON, which also leaks server internals.
             console.error('Failed to delete node:', err);
             const status = err && err.response ? err.response.status : null;
-            alert(
+            toast.error(
                 status === 503
                     ? "The node's conversation could not be removed, so nothing was deleted. Please try again."
                     : "Could not delete this node. Please try again."
@@ -269,6 +271,7 @@ const StatIcon = ({ name, className }) => (
 
 const HomePage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const toast = useToast();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [activePane, setActivePane] = useState("tree");
 
@@ -453,7 +456,7 @@ const HomePage = () => {
     const handleCreateProject = async (e) => {
         e.preventDefault();
         if (!emailInput) {
-            alert("Please enter a project name");
+            toast.error("Please enter a project name.");
             return;
         }
         setIsLoading(true);
@@ -464,7 +467,7 @@ const HomePage = () => {
                 status: "active",
             });
             const newProjectId = resolveProjectId(response.data);
-            alert(`Project "${emailInput}" created.`);
+            toast.success(`Project "${emailInput}" created.`);
             await fetchProjects();
             if (newProjectId) {
                 await handleProjectSelect(newProjectId);
@@ -473,10 +476,10 @@ const HomePage = () => {
         } catch (error) {
             if (error.response) {
                 console.error("Server Error Data:", error.response.data);
-                alert("Server says: " + JSON.stringify(error.response.data));
+                toast.error("The server rejected the request. See the console for details.");
             } else {
                 console.error("Connection Error:", error.message);
-                alert("Check your frontend .env and backend server.");
+                toast.error("Could not reach the server. Check that the backend is running.");
             }
         } finally {
             setIsLoading(false);
@@ -488,7 +491,7 @@ const HomePage = () => {
 
         const nodeId = node.id || node._id || (node._id && node._id.$oid) || null;
         if (!nodeId) {
-            alert("Could not update color: selected node has no id.");
+            toast.error("Could not update the colour: this node has no id.");
             return;
         }
 
@@ -551,7 +554,7 @@ const HomePage = () => {
         }
 
         console.error("Failed to persist node color. Tried paths:", errors);
-        alert("Color changed visually, but failed to save to backend. Open the console to see the tried paths.");
+        toast.error("Colour changed on screen but could not be saved. It will reset on reload.");
     };
 
     useEffect(() => {
@@ -709,7 +712,7 @@ const HomePage = () => {
         flushConversationIndex(conversationId);
         const convId = node.conversation_id || node.conversationId || node.conversation || null;
         if (!convId) {
-            alert('This node has no associated conversation.');
+            toast.notify('This node has no associated conversation.');
             return;
         }
 
@@ -731,7 +734,7 @@ const HomePage = () => {
             }, 150);
         } catch (err) {
             console.error('Failed to load conversation:', err);
-            alert('Failed to load conversation. Check console for details.');
+            toast.error('Could not load the conversation. Please try again.');
         }
     };
 
@@ -821,11 +824,11 @@ const HomePage = () => {
                 email: emailInput,
                 token: tokenInput,
             });
-            alert(`Connected successfully to ${activeModal}!`);
+            toast.success(`Connected successfully to ${activeModal}.`);
             closeModal();
         } catch (error) {
             console.error("Connection failed:", error);
-            alert("Connection failed.");
+            toast.error("Connection failed.");
         } finally {
             setIsLoading(false);
         }
@@ -847,13 +850,13 @@ const HomePage = () => {
     const handleCreateNodeFromConversation = async () => {
         try {
             if (realProjects.length === 0) {
-                alert('No project available to attach node to.');
+                toast.error('No project is available to attach this node to.');
                 return;
             }
             const projectRaw = realProjects.find((proj) => String(resolveProjectId(proj)) === String(selectedProjectId)) || realProjects[0];
             const projectId = resolveProjectId(projectRaw);
             if (!projectId) {
-                alert('Could not determine project id for node creation.');
+                toast.error('Could not determine which project this node belongs to.');
                 return;
             }
 
@@ -881,12 +884,12 @@ const HomePage = () => {
             } else if (resp && resp.status && resp.status >= 200 && resp.status < 300) {
                 await fetchProjects();
             } else {
-                alert('The server did not confirm the new node. Please try again.');
+                toast.error('The server did not confirm the new node. Please try again.');
             }
         } catch (err) {
             console.error('Failed to create node from conversation', err);
             if (err && err.response) console.error('Response data:', err.response.data);
-            alert('Failed to create node from conversation. Check console/network for details.');
+            toast.error('Could not create a node from this conversation. Please try again.');
         }
     };
 

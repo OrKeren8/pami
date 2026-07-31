@@ -1,0 +1,81 @@
+.toast-stack {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    /* Above the modal layers in HomePage.css, which climb to 30001: a toast fired from
+       inside a modal has to be visible without closing the modal first. */
+    z-index: 40000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(360px, calc(100vw - 40px));
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 12px 12px 14px;
+    border-radius: 12px;
+    border: 1px solid #f3d3e2;
+    border-left: 4px solid #ec4899;
+    background: #ffffff;
+    box-shadow: 0 10px 30px rgba(190, 24, 93, 0.14);
+    font-size: 0.86rem;
+    line-height: 1.4;
+    color: #3f3f46;
+    animation: toast-in 160ms ease-out;
+}
+
+.toast-success {
+    border-left-color: #16a34a;
+}
+
+.toast-error {
+    border-left-color: #dc2626;
+    color: #7f1d1d;
+}
+
+.toast-message {
+    flex: 1;
+    /* Server payloads can be long single tokens; wrap rather than widen the card. */
+    overflow-wrap: anywhere;
+}
+
+.toast-dismiss {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #a1a1aa;
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.toast-dismiss:hover {
+    background: #fdf2f8;
+    color: #be185d;
+}
+
+@keyframes toast-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .toast {
+        animation: none;
+    }
+}
