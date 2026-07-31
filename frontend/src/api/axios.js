@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+import { getIdToken } from '../auth/cognito';
+
 const ensureAiPrefix = (baseUrl) => {
     if (!baseUrl) return baseUrl;
     const trimmed = String(baseUrl).replace(/\/+$/, '');
@@ -28,3 +30,18 @@ export const slackApi = axios.create({
 // ����� ���� ������ ����� ��� ������ ����� ���� �������� �-api �����
 const api = projectsApi;
 export default api;
+
+// Attached to every request rather than passed per call: a single missed call site would be
+// an endpoint that silently acts as nobody, which is exactly what this replaces.
+const attachIdToken = async (config) => {
+    const token = await getIdToken();
+    if (token) {
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+};
+
+[projectsApi, aiApi, slackApi].forEach((client) => {
+    client.interceptors.request.use(attachIdToken);
+});

@@ -17,6 +17,7 @@ const MODAL_LABELS = {
     slackCreateChannel: "Create Slack channel",
     slackSendMessage: "Send Slack message",
     jira: "Connect Jira",
+    shareProject: "Share project",
 };
 
 const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, nearPeers = [], isModalDataLoading, closeModal, fetchProjects, onNodeColorChange, onOpenConversation }) => {
@@ -391,6 +392,9 @@ const HomePage = () => {
     // Node just created from a conversation, highlighted on the graph while its connections
     // are revealed.
     const [spotlightNodeId, setSpotlightNodeId] = useState(null);
+    const [shareEmail, setShareEmail] = useState("");
+    const [members, setMembers] = useState({ members: [], pending_invites: [] });
+    const [isSharing, setIsSharing] = useState(false);
     const {
         containerRef: chatBodyRef,
         scrollToBottom: scrollChatToBottom
@@ -964,6 +968,79 @@ const HomePage = () => {
         );
     };
 
+    const openShareProject = async () => {
+        if (!selectedProjectId) return;
+        setShareEmail("");
+        setMembers({ members: [], pending_invites: [] });
+        openModal("shareProject");
+        try {
+            const response = await projectsApi.get(`/projects/${selectedProjectId}/members`);
+            setMembers(response.data || { members: [], pending_invites: [] });
+        } catch (err) {
+            console.error("Failed to load project members:", err);
+            toast.error("Could not load who this project is shared with.");
+        }
+    };
+
+    const handleShareProject = async (event) => {
+        event.preventDefault();
+        const email = shareEmail.trim().toLowerCase();
+        if (!email) {
+            toast.error("Enter the email address to share with.");
+            return;
+        }
+
+        setIsSharing(true);
+        try {
+            const response = await projectsApi.post(
+                `/projects/${selectedProjectId}/members`,
+                { email }
+            );
+            const status = response.data?.status;
+            // "invited" is not a failure: the address has no account yet, and the invite is
+            // claimed the first time they sign in. Saying so is the difference between the
+            // user thinking it worked and the user thinking nothing happened.
+            if (status === "added") {
+                toast.success(`${email} can now see this project.`);
+            } else if (status === "invited") {
+                toast.notify(
+                    `${email} has no PAMI account yet. They will get this project the first time they sign in.`,
+                    { duration: 9000 }
+                );
+            } else if (status === "already_member") {
+                toast.notify(`${email} already has access.`);
+            } else {
+                toast.notify(`${email} has already been invited.`);
+            }
+
+            setShareEmail("");
+            const refreshed = await projectsApi.get(`/projects/${selectedProjectId}/members`);
+            setMembers(refreshed.data || { members: [], pending_invites: [] });
+        } catch (err) {
+            console.error("Failed to share the project:", err);
+            const status = err?.response?.status;
+            toast.error(
+                status === 403
+                    ? "Only the project owner can share it."
+                    : "Could not share this project. Please try again."
+            );
+        } finally {
+            setIsSharing(false);
+        }
+    };
+
+    const handleRemoveMember = async (memberId, label) => {
+        try {
+            await projectsApi.delete(`/projects/${selectedProjectId}/members/${memberId}`);
+            toast.success(`${label} no longer has access.`);
+            const refreshed = await projectsApi.get(`/projects/${selectedProjectId}/members`);
+            setMembers(refreshed.data || { members: [], pending_invites: [] });
+        } catch (err) {
+            console.error("Failed to remove the member:", err);
+            toast.error("Could not remove that person. Please try again.");
+        }
+    };
+
     const handleCreateNodeFromConversation = async () => {
         try {
             if (realProjects.length === 0) {
@@ -1043,6 +1120,80 @@ const HomePage = () => {
     };
 
     const renderModalContent = () => {
+        if (activeModal === "shareProject") {
+            const owner = (members.members || []).find((m) => m.role === "owner");
+            const others = (members.members || []).filter((m) => m.role !== "owner");
+
+            return (
+                <>
+                    <div className="modal-icon" aria-hidden="true">🤝</div>
+                    <h2>Share this project</h2>
+                    <p className="modal-subtitle">
+                        Add someone by email and this project appears in their list too. If they
+                        have no account yet, they will get it when they first sign in.
+                    </p>
+
+                    <form onSubmit={handleShareProject} className="modal-form">
+                        <div className="input-group" style={{ marginBottom: "15px" }}>
+                            <label htmlFor="share-email" style={{ display: "block", marginBottom: "5px" }}>
+                                Their email
+                            </label>
+                            <input
+                                id="share-email"
+                                type="email"
+                                placeholder="teammate@example.com"
+                                value={shareEmail}
+                                onChange={(e) => setShareEmail(e.target.value)}
+                                required
+                                style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            className="login-submit-btn"
+                            disabled={isSharing}
+                            style={{ width: "100%", padding: "12px", background: "#f06292", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
+                        >
+                            {isSharing ? "Sharing..." : "Share project"}
+                        </button>
+                    </form>
+
+                    <div className="share-members">
+                        <span className="share-members-label">Who has access</span>
+                        <ul>
+                            {owner && (
+                                <li>
+                                    <span>{owner.email || owner.user_id}</span>
+                                    <span className="share-role">Owner</span>
+                                </li>
+                            )}
+                            {others.map((member) => (
+                                <li key={member.user_id}>
+                                    <span>{member.email || member.user_id}</span>
+                                    <button
+                                        type="button"
+                                        className="share-remove"
+                                        onClick={() => handleRemoveMember(member.user_id, member.email || "They")}
+                                    >
+                                        Remove
+                                    </button>
+                                </li>
+                            ))}
+                            {(members.pending_invites || []).map((invite) => (
+                                <li key={invite.email}>
+                                    <span>{invite.email}</span>
+                                    <span className="share-role">Invited</span>
+                                </li>
+                            ))}
+                            {!owner && !others.length && !(members.pending_invites || []).length && (
+                                <li className="share-empty">Only you, so far.</li>
+                            )}
+                        </ul>
+                    </div>
+                </>
+            );
+        }
+
         if (activeModal === "createProject") {
             return (
                 <>
@@ -1191,6 +1342,15 @@ const HomePage = () => {
 
                     <div className="header-right" style={{ display: "flex", alignItems: "center", gap: "15px", flex: "0 0 auto" }}>
                         <button className="new-node-btn" onClick={() => openModal("createProject")}>+ New Project</button>
+                        <button
+                            type="button"
+                            className="share-project-btn"
+                            onClick={openShareProject}
+                            disabled={!selectedProjectId}
+                            title="Share this project with someone by email"
+                        >
+                            Share
+                        </button>
                         <div className="project-switcher">
                             <button
                                 type="button"

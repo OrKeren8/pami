@@ -46,6 +46,7 @@ logs = None
 s3 = None
 amplify = None
 apigateway = None
+cognito = None
 
 
 def load_env_file(env_path: str = None):
@@ -77,7 +78,7 @@ def load_env_file(env_path: str = None):
 
 def init_aws_clients(region: str = None):
     """Initialize global boto3 clients using environment variables if present."""
-    global ecs, ec2, ecr, elbv2, logs, s3, amplify, apigateway, ACCOUNT_ID
+    global ecs, ec2, ecr, elbv2, logs, s3, amplify, apigateway, cognito, ACCOUNT_ID
     # Prefer explicit parameter, then common env vars, then module default
     region = (
         region
@@ -118,6 +119,7 @@ def init_aws_clients(region: str = None):
         s3 = boto3.client("s3", **session_kwargs)
         amplify = boto3.client("amplify", **session_kwargs)
         apigateway = boto3.client("apigatewayv2", **session_kwargs)
+        cognito = boto3.client("cognito-idp", **session_kwargs)
     else:
         # Let boto3 resolve endpoints using the region_name parameter instead of building endpoint URLs manually.
         ecs = boto3.client("ecs", region_name=region)
@@ -128,6 +130,7 @@ def init_aws_clients(region: str = None):
         s3 = boto3.client("s3", region_name=region)
         amplify = boto3.client("amplify", region_name=region)
         apigateway = boto3.client("apigatewayv2", region_name=region)
+        cognito = boto3.client("cognito-idp", region_name=region)
 
     try:
         ACCOUNT_ID = boto3.client(
@@ -625,6 +628,151 @@ def create_alb_listeners(lb_arn: str, target_groups: Dict[str, str]):
         print_error(f"Failed to setup listeners: {e}")
 
 
+USER_POOL_NAME = "pami-users"
+USER_POOL_CLIENT_NAME = "pami-web"
+
+
+def create_or_get_user_pool() -> Optional[Dict[str, str]]:
+    """Create the Cognito user pool and its web client, or find the existing ones.
+
+    Returns None rather than aborting if Cognito is unavailable: this account is an AWS
+    Academy lab with restricted IAM, and the app is designed to run with AUTH_REQUIRED off
+    until a pool exists. A setup run that failed here would take out the ECS and ALB work
+    that follows for a reason unrelated to it.
+
+    Never deletes or recreates a pool. The pool holds the user accounts - recreating it would
+    destroy every login and orphan every project's owner id.
+    """
+    print_header("Setting up Cognito User Pool")
+
+    try:
+        pools = cognito.list_user_pools(MaxResults=60).get("UserPools", [])
+    except Exception as error:
+        print_error(
+            f"Cannot list Cognito user pools ({type(error).__name__}). "
+            f"Authentication stays disabled; run with AUTH_REQUIRED unset."
+        )
+        return None
+
+    pool_id = next(
+        (pool["Id"] for pool in pools if pool.get("Name") == USER_POOL_NAME), None
+    )
+
+    if pool_id:
+        print_success(f"User pool already exists: {pool_id}")
+    else:
+        try:
+            response = cognito.create_user_pool(
+                PoolName=USER_POOL_NAME,
+                # Email is the identity everywhere in the app: it is what a project is shared
+                # with and what the admin gate matches on.
+                UsernameAttributes=["email"],
+                AutoVerifiedAttributes=["email"],
+                Policies={
+                    "PasswordPolicy": {
+                        "MinimumLength": 8,
+                        "RequireUppercase": True,
+                        "RequireLowercase": True,
+                        "RequireNumbers": True,
+                        "RequireSymbols": False,
+                    }
+                },
+                AccountRecoverySetting={
+                    "RecoveryMechanisms": [
+                        {"Priority": 1, "Name": "verified_email"}
+                    ]
+                },
+                Schema=[
+                    {
+                        "Name": "email",
+                        "AttributeDataType": "String",
+                        "Required": True,
+                        "Mutable": True,
+                    }
+                ],
+            )
+            pool_id = response["UserPool"]["Id"]
+            print_success(f"Created user pool: {pool_id}")
+        except Exception as error:
+            print_error(
+                f"Could not create the user pool ({type(error).__name__}: {error}). "
+                f"Authentication stays disabled."
+            )
+            return None
+
+    try:
+        clients = cognito.list_user_pool_clients(
+            UserPoolId=pool_id, MaxResults=60
+        ).get("UserPoolClients", [])
+        client_id = next(
+            (
+                client["ClientId"]
+                for client in clients
+                if client.get("ClientName") == USER_POOL_CLIENT_NAME
+            ),
+            None,
+        )
+
+        if client_id:
+            print_success(f"App client already exists: {client_id}")
+        else:
+            created = cognito.create_user_pool_client(
+                UserPoolId=pool_id,
+                ClientName=USER_POOL_CLIENT_NAME,
+                # No secret: this is a browser app, where a secret could not be kept.
+                GenerateSecret=False,
+                ExplicitAuthFlows=[
+                    "ALLOW_USER_SRP_AUTH",
+                    "ALLOW_REFRESH_TOKEN_AUTH",
+                ],
+                IdTokenValidity=60,
+                AccessTokenValidity=60,
+                RefreshTokenValidity=30,
+                TokenValidityUnits={
+                    "IdToken": "minutes",
+                    "AccessToken": "minutes",
+                    "RefreshToken": "days",
+                },
+                PreventUserExistenceErrors="ENABLED",
+            )
+            client_id = created["UserPoolClient"]["ClientId"]
+            print_success(f"Created app client: {client_id}")
+    except Exception as error:
+        print_error(
+            f"Could not set up the app client ({type(error).__name__}: {error})."
+        )
+        return None
+
+    # Best effort: the admin gate falls back to an email allowlist precisely because
+    # CreateGroup may be denied here.
+    try:
+        cognito.create_group(
+            UserPoolId=pool_id,
+            GroupName="admins",
+            Description="PAMI administrators",
+        )
+        print_success("Created the admins group")
+    except Exception as error:
+        if "GroupExistsException" in type(error).__name__:
+            print_info("admins group already exists")
+        else:
+            print_info(
+                f"Could not create the admins group ({type(error).__name__}); "
+                f"ADMIN_EMAILS still applies"
+            )
+
+    return {"user_pool_id": pool_id, "client_id": client_id}
+
+
+def _cognito_frontend_env(user_pool: Optional[Dict[str, str]]) -> Dict[str, str]:
+    """The two variables the frontend needs, or empty strings when there is no pool."""
+    return {
+        "REACT_APP_COGNITO_USER_POOL_ID": (user_pool or {}).get("user_pool_id", ""),
+        "REACT_APP_COGNITO_CLIENT_ID": (user_pool or {}).get("client_id", ""),
+        "REACT_APP_COGNITO_REGION": REGION,
+    }
+
+
 def create_api_gateway(lb_dns: str) -> Optional[str]:
     """Create API Gateway HTTP API for HTTPS support."""
     print_header("Setting up API Gateway for HTTPS")
@@ -935,7 +1083,9 @@ def refresh_projects_service_ai_url(lb_dns: Optional[str]) -> bool:
 
 
 def create_amplify_app(
-    api_base_url: str, github_token: Optional[str] = None
+    api_base_url: str,
+    github_token: Optional[str] = None,
+    user_pool: Optional[Dict[str, str]] = None,
 ) -> Optional[str]:
     """Create or update AWS Amplify app for frontend."""
     print_header("Setting up AWS Amplify for Frontend")
@@ -983,6 +1133,9 @@ def create_amplify_app(
                         "REACT_APP_SLACK_API_URL": f"{api_base_url}/slack",
                         # Bake the `/ai` prefix into the frontend env so builds use `/ai` as base
                         "REACT_APP_AI_API_URL": f"{api_base_url}/ai",
+                        # Empty when no pool exists, which is how the frontend decides whether
+                        # to show a real sign-in or continue as a local user.
+                        **_cognito_frontend_env(user_pool),
                         "_LIVE_UPDATES": '[{"pkg":"@aws-amplify/cli","type":"npm","version":"latest"}]',
                     },
                 )
@@ -1089,6 +1242,7 @@ def create_amplify_app(
                 "REACT_APP_SLACK_API_URL": f"{api_base_url}/slack",
                 # Bake the `/ai` prefix into the frontend so built app targets /ai
                 "REACT_APP_AI_API_URL": f"{api_base_url}/ai",
+                **_cognito_frontend_env(user_pool),
                 "_LIVE_UPDATES": '[{"pkg":"@aws-amplify/cli","type":"npm","version":"latest"}]',
             },
             "buildSpec": """version: 1
@@ -1338,6 +1492,10 @@ def main():
 
         # Create API Gateway for HTTPS
         api_gateway_url = None
+        # Before Amplify, because the frontend build needs the pool ids as env vars. Returns
+        # None if Cognito is unavailable, and everything else carries on.
+        user_pool = create_or_get_user_pool()
+
         if lb_dns:
             api_gateway_url = create_api_gateway(lb_dns)
 
@@ -1355,7 +1513,7 @@ def main():
         # Setup Amplify for frontend (optional - will skip if no GitHub token)
         amplify_url = None
         if api_base_url:
-            amplify_url = create_amplify_app(api_base_url)
+            amplify_url = create_amplify_app(api_base_url, user_pool=user_pool)
 
         # Print summary
         print_summary(

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useSession } from '../../auth/SessionProvider';
+
 import pamiLogo from '../../assets/pami-logo.png';
 
 const ASSISTANT_IMAGE = '/pami-assistant.png';
@@ -52,6 +54,10 @@ const LogoutIcon = () => (
 // modal in place, while other pages fall back to navigating there.
 function AppSidebar({ active, avatarUrl, onJira }) {
     const navigate = useNavigate();
+    // From the server, not from decoding the token here: the client must not be the one
+    // deciding it is an admin. This only draws or hides a link - /admin/users refuses anyone
+    // else regardless of what is rendered.
+    const { isAdmin, email, signOut } = useSession();
     const [index, setIndex] = useState(0);
     const recommendation = RECOMMENDATIONS[index];
     const avatar = avatarUrl || readStoredAvatar() || ASSISTANT_IMAGE;
@@ -71,6 +77,14 @@ function AppSidebar({ active, avatarUrl, onJira }) {
         { id: 'jira', label: 'Jira', icon: JIRA_LOGO, onClick: openJira },
         { id: 'settings', label: 'Settings', disabled: true }
     ];
+
+    if (isAdmin) {
+        items.push({
+            id: 'admin',
+            label: 'Admin',
+            onClick: () => navigate('/admin')
+        });
+    }
 
     return (
         <aside className="sidebar">
@@ -113,7 +127,11 @@ function AppSidebar({ active, avatarUrl, onJira }) {
                         <button
                             type="button"
                             className="sidebar-nav-btn sidebar-logout-btn"
-                            onClick={() => navigate('/login')}
+                            onClick={async () => {
+                                await signOut();
+                                navigate('/login');
+                            }}
+                            title={email ? `Signed in as ${email}` : undefined}
                         >
                             <LogoutIcon />
                             Log Out
