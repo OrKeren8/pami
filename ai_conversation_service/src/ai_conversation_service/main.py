@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from beanie import init_beanie
 from fastapi import FastAPI
@@ -19,6 +20,9 @@ from ai_conversation_service.services.context_retrieval_service import (
 from ai_conversation_service.services.embedder_factory import build_embedder
 from ai_conversation_service.services.projects_service_client import (
     ProjectsServiceClient,
+)
+from ai_conversation_service.services.reindex_backfill import (
+    reindex_stale_conversations,
 )
 from ai_conversation_service.services.reindex_trigger import ReindexTrigger
 from ai_conversation_service.services.ai_conversation_service.service import (
@@ -85,12 +89,30 @@ async def lifespan(app: FastAPI):
         await ensure_vector_index(database, embedder.dimensions) if embedder else False
     )
 
+    # Backgrounded, not awaited: a model change makes every previously indexed
+    # conversation unsearchable, and the fix must not hold up the port the load balancer
+    # is health-checking. The reference is kept so the task is not garbage-collected
+    # mid-flight.
+    backfill_task = None
+    if embedder and chunk_index_service:
+        backfill_task = asyncio.create_task(
+            reindex_stale_conversations(
+                database,
+                chunk_index_service,
+                ai_conversation_service,
+                settings.startup_reindex_limit,
+            )
+        )
+        app.state.backfill_task = backfill_task
+
     if embedder:
         logger.info("Cross-conversation retrieval enabled")
     logger.info("AI Conversation Service initialized")
 
     yield
 
+    if backfill_task and not backfill_task.done():
+        backfill_task.cancel()
     await mongo_client.close()
     logger.info("AI Conversation Service shutting down")
 

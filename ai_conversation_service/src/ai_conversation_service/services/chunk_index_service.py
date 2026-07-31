@@ -43,6 +43,11 @@ class ChunkIndexService:
         self._window_size = window_size
         self._window_step = max(1, window_size - window_overlap)
 
+    @property
+    def embedding_model(self) -> str:
+        """The model id stamped on every chunk this service writes."""
+        return self._embedder.model_id if self._embedder else ""
+
     async def reindex_conversation(
         self,
         conversation_id: str,
@@ -63,6 +68,10 @@ class ChunkIndexService:
             node_id=node_id,
             windows=windows,
             vectors=vectors,
+        )
+
+        await self._drop_superseded_chunks(
+            conversation_id, [start for start, _, _ in windows]
         )
 
         graph_vector, graph_model = await self._graph_vector(messages, vectors)
@@ -411,6 +420,31 @@ class ChunkIndexService:
             if offset + self._window_size >= len(usable):
                 break
         return windows
+
+    async def _drop_superseded_chunks(
+        self, conversation_id: str, kept_starts: list[int]
+    ) -> None:
+        """Remove this conversation's chunks that the re-index did not rewrite.
+
+        Chunks are upserted on (conversation_id, message_start), so changing the window
+        size or the embedding model leaves the previous run's chunks in place under
+        different starts. They keep their old vector width, which the width guard in
+        _rank_by_cosine then skips - permanently, since nothing ever rewrites them.
+        """
+        result = await self._database[CHUNK_COLLECTION].delete_many(
+            {
+                "conversation_id": conversation_id,
+                "$or": [
+                    {"message_start": {"$nin": kept_starts}},
+                    {"embedding_model": {"$ne": self._embedder.model_id}},
+                ],
+            }
+        )
+        if result.deleted_count:
+            self._logger.info(
+                f"Dropped {result.deleted_count} superseded chunks from "
+                f"{conversation_id}"
+            )
 
     async def _upsert_chunks(
         self,

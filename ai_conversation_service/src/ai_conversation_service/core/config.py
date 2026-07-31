@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     # expansion can weight a hit below that). A real relevance cut-off is model-specific,
     # so raise this from measured data rather than by guessing.
     retrieval_consulted_min_score: float = 0.0
+    # Conversations re-embedded per start when the embedding model has changed. Bounded so
+    # one boot cannot spend an unlimited amount on embeddings; the remainder is picked up on
+    # the next start, and the whole thing is a no-op once nothing is stale.
+    startup_reindex_limit: int = 200
 
     # API root path (useful for tests and deployments). Leave empty string for no prefix.
     api_root: str = ""
