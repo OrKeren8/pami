@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { slackApi } from "../api/axios";
+import AppSidebar from "../components/layout/AppSidebar";
+import "./HomePage.css";
 import "./SlackConsolePage.css";
 
 const AVATAR_COLORS = ["#4a154b", "#1264a3", "#0f9d58", "#e01e5a", "#ecb22e", "#36c5f0", "#8b3f8f"];
@@ -208,15 +210,20 @@ function SlackConsolePage() {
 
     if (connection.status === "checking") {
         return (
-            <div className="slack-console-gate">
-                <div className="slack-console-gate-spinner" />
+            <div className="slack-console-shell">
+                <AppSidebar active="slack" />
+                <div className="slack-console-gate">
+                    <div className="slack-console-gate-spinner" />
+                </div>
             </div>
         );
     }
 
     if (connection.status === "disconnected") {
         return (
-            <div className="slack-console-gate">
+            <div className="slack-console-shell">
+                <AppSidebar active="slack" />
+                <div className="slack-console-gate">
                 <div className="slack-console-login-card">
                     <div className="slack-console-login-icon">P</div>
                     <h1>Connect Slack Workspace</h1>
@@ -254,12 +261,15 @@ function SlackConsolePage() {
                         Uses the configured Slack backend service. No manual token entry is required here.
                     </span>
                 </div>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="slack-console">
+        <div className="slack-console-shell">
+            <AppSidebar active="slack" />
+            <div className="slack-console">
             <aside className="slack-console-sidebar">
                 <div className="slack-console-workspace">
                     <div className="slack-console-workspace-icon">P</div>
@@ -430,6 +440,7 @@ function SlackConsolePage() {
                     </div>
                 )}
             </main>
+            </div>
         </div>
     );
 }

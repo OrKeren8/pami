@@ -676,3 +676,79 @@
         padding: 12px 16px 18px 16px;
     }
 }
+
+/* The console is a route in the app rather than a popup window, so it needs its own way
+   back to the dashboard. */
+.slack-console-back {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 14px 18px 12px 18px;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: none;
+    color: rgba(255, 255, 255, 0.62);
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.slack-console-back svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+}
+
+.slack-console-back:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.slack-console-back:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.6);
+    outline-offset: -2px;
+}
+
+/* Both gate states need an exit too: as a route rather than a popup, a user who cannot
+   connect Slack would otherwise be stranded on this page. */
+.slack-console-gate-back {
+    margin-top: 18px;
+    padding: 9px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    border-radius: 999px;
+    background: transparent !important;
+    color: rgba(255, 255, 255, 0.78) !important;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.slack-console-gate-back:hover {
+    border-color: rgba(255, 255, 255, 0.45) !important;
+    color: #fff !important;
+}
+
+/* The console is a route inside the app, so it sits next to the shared sidebar rather than
+   filling a popup window. */
+.slack-console-shell {
+    display: flex;
+    min-height: 100vh;
+}
+
+.slack-console-shell .sidebar {
+    position: relative;
+    flex: 0 0 var(--sidebar-width, 256px);
+}
+
+/* Both of these are declared 100vw/100vh for the popup they used to live in; next to the
+   sidebar they have to take the remaining space instead. */
+.slack-console-shell .slack-console,
+.slack-console-shell .slack-console-gate {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+}

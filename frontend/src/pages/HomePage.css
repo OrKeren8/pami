@@ -6807,3 +6807,18 @@ button[aria-label*="Slack"] {
 .graph-root .graph-controls-actions {
   margin-left: 0;
 }
+
+/* The sidebar is shared between the dashboard and the Slack console, but 'Inter' is declared
+   on .dashboard-container - a wrapper only the dashboard has - so on /slack the same markup
+   fell back to the browser default serif. Typography is declared on the sidebar itself so it
+   renders identically wherever it is mounted. */
+.sidebar {
+  font-family: 'Inter', sans-serif;
+}
+
+.sidebar-nav .sidebar-nav-logo {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  object-fit: contain;
+}
