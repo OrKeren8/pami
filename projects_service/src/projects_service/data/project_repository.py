@@ -42,12 +42,40 @@ class ProjectRepository:
                 )
             return None
 
-    async def list_all(self, session=None) -> List[Project]:
-        """List all projects."""
+    async def list_for_member(self, user_id: str, session=None) -> List[Project]:
+        """Projects this user owns or has been added to.
+
+        There is deliberately no list_all: it existed, GET /projects/ called it, and every
+        caller therefore saw every project in the database. Leaving an unscoped lister in
+        place is an invitation to reach for it in the next endpoint.
+        """
+        try:
+            return await Project.find(
+                {"members.user_id": user_id}, session=session
+            ).to_list()
+        except Exception as e:
+            self._logger.error(f"Error listing projects for {user_id}: {e}")
+            return []
+
+    async def list_all_for_admin(self, session=None) -> List[Project]:
+        """Every project, for the admin dashboard's counts only.
+
+        Named so that using it from a user-facing path reads as obviously wrong.
+        """
         try:
             return await Project.find_all(session=session).to_list()
         except Exception as e:
-            self._logger.error(f"Error listing projects: {e}")
+            self._logger.error(f"Error listing all projects: {e}")
+            return []
+
+    async def list_with_pending_invite(self, email: str, session=None) -> List[Project]:
+        """Projects someone was invited to before they had an account."""
+        try:
+            return await Project.find(
+                {"pending_invites.email": email.lower()}, session=session
+            ).to_list()
+        except Exception as e:
+            self._logger.error(f"Error listing invites for {email}: {e}")
             return []
 
     async def update(

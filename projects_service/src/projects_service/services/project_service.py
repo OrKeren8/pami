@@ -3,7 +3,12 @@ from datetime import datetime
 from loguru import logger
 
 from projects_service.data.project_repository import ProjectRepository
-from projects_service.models.project import Project
+from projects_service.models.project import (
+    PendingInvite,
+    Project,
+    ProjectMember,
+    ProjectRole,
+)
 from projects_service.schemas.project_schemas import (
     CreateProjectRequest,
     UpdateProjectRequest,
@@ -18,14 +23,25 @@ class ProjectService:
         self._logger = logger.bind(service="ProjectService")
         self._project_repository = project_repository
 
-    async def create_project(self, request: CreateProjectRequest) -> ProjectResponse:
-        """Create a new project."""
-        # Create domain model from request
+    async def create_project(
+        self,
+        request: CreateProjectRequest,
+        owner_id: str,
+        owner_email: Optional[str] = None,
+    ) -> ProjectResponse:
+        """Create a new project owned by the caller."""
+        # The owner is also a member row, so membership is the single access test.
         project = Project(
             name=request.name,
             goal=request.goal,
             status=request.status,
             color=request.color,
+            owner_id=owner_id,
+            members=[
+                ProjectMember(
+                    user_id=owner_id, email=owner_email, role=ProjectRole.OWNER
+                )
+            ],
         )
         created_project = await self._project_repository.create(project)
 
@@ -61,9 +77,9 @@ class ProjectService:
             updated_at=project.updated_at,
         )
 
-    async def list_projects(self) -> List[ProjectResponse]:
-        """List all projects."""
-        projects = await self._project_repository.list_all()
+    async def list_projects(self, user_id: str) -> List[ProjectResponse]:
+        """The projects this user owns or was added to."""
+        projects = await self._project_repository.list_for_member(user_id)
         return [
             ProjectResponse(
                 id=str(p.id),
@@ -106,3 +122,86 @@ class ProjectService:
     async def delete_project(self, project_id: str) -> bool:
         """Delete a project."""
         return await self._project_repository.delete(project_id)
+
+    async def add_member_by_email(
+        self,
+        project: Project,
+        email: str,
+        invited_by: str,
+        existing_user: Optional[object] = None,
+    ) -> dict:
+        """Share a project with an email address.
+
+        If the address has an account it becomes a member immediately. If not, the invite is
+        held on the project and claimed the first time that address signs in - otherwise
+        sharing would only work with people who had already signed up.
+        """
+        email = email.strip().lower()
+        if not email:
+            raise ValueError("An email address is required")
+
+        if existing_user is not None:
+            if existing_user.sub in project.member_ids():
+                return {"status": "already_member", "email": email}
+
+            members = [member.model_dump() for member in project.members]
+            members.append(
+                ProjectMember(
+                    user_id=existing_user.sub, email=email, role=ProjectRole.MEMBER
+                ).model_dump()
+            )
+            await self._project_repository.update(
+                str(project.id), {"members": members, "updated_at": datetime.utcnow()}
+            )
+            self._logger.info(f"Added {email} to project {project.id}")
+            return {"status": "added", "email": email}
+
+        if any(invite.email.lower() == email for invite in project.pending_invites):
+            return {"status": "already_invited", "email": email}
+
+        invites = [invite.model_dump() for invite in project.pending_invites]
+        invites.append(PendingInvite(email=email, invited_by=invited_by).model_dump())
+        await self._project_repository.update(
+            str(project.id),
+            {"pending_invites": invites, "updated_at": datetime.utcnow()},
+        )
+        self._logger.info(f"Invited {email} to project {project.id}; no account yet")
+        return {"status": "invited", "email": email}
+
+    async def remove_member(self, project: Project, user_id: str) -> bool:
+        """Revoke access. The owner cannot be removed - that would orphan the project.
+
+        Their conversations stay with the project. Deleting them would destroy the shared
+        memory the project exists to hold, which is not what "remove this person" means.
+        """
+        if user_id == project.owner_id:
+            raise ValueError("The owner cannot be removed from their own project")
+
+        members = [
+            member.model_dump()
+            for member in project.members
+            if member.user_id != user_id
+        ]
+        if len(members) == len(project.members):
+            return False
+
+        await self._project_repository.update(
+            str(project.id), {"members": members, "updated_at": datetime.utcnow()}
+        )
+        self._logger.info(f"Removed {user_id} from project {project.id}")
+        return True
+
+    async def cancel_invite(self, project: Project, email: str) -> bool:
+        email = email.strip().lower()
+        invites = [
+            invite.model_dump()
+            for invite in project.pending_invites
+            if invite.email.lower() != email
+        ]
+        if len(invites) == len(project.pending_invites):
+            return False
+        await self._project_repository.update(
+            str(project.id),
+            {"pending_invites": invites, "updated_at": datetime.utcnow()},
+        )
+        return True

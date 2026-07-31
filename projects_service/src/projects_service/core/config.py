@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     admin_emails: str = "orkerem8@gmail.com"
     admin_group: str = "admins"
 
+    # Shared secret for calls from the other services, which have no user to act as. Empty
+    # means "not configured": with auth_required off that still lets internal calls through,
+    # so this can ship before the secret is distributed.
+    service_key: str = ""
+
     @property
     def admin_email_list(self) -> set[str]:
         return {

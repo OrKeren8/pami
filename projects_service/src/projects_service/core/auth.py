@@ -10,6 +10,7 @@ signature-verified token, which is what makes ownership checks meaningful - a ca
 claim to be someone else by setting a header.
 """
 
+import hmac
 from typing import Annotated, Any, Optional
 
 import httpx
@@ -183,6 +184,31 @@ async def current_user(request: Request) -> AuthenticatedUser:
     )
 
 
+async def require_service_key(request: Request) -> str:
+    """A trusted peer service, not a person.
+
+    The AI service pushes sibling scores and reads project metadata with no user request in
+    flight - the idle reindex, the startup backfill and the tree analysis all run on their
+    own. A user token cannot represent those, so a shared secret does.
+
+    Compared with compare_digest so a wrong key cannot be discovered a character at a time.
+    """
+    presented = request.headers.get("x-service-key") or ""
+    expected = settings.service_key
+
+    if expected and hmac.compare_digest(presented, expected):
+        return "service"
+
+    if not settings.auth_required and not expected:
+        # Nothing is configured yet; behave as before rather than breaking the running app.
+        return "service"
+
+    _logger.warning("Rejected an internal call with a missing or wrong service key")
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
+    )
+
+
 async def current_admin(
     user: Annotated[AuthenticatedUser, Depends(current_user)],
 ) -> AuthenticatedUser:
@@ -197,6 +223,7 @@ async def current_admin(
 
 
 CurrentUserDep = Annotated[AuthenticatedUser, Depends(current_user)]
+ServiceCallerDep = Annotated[str, Depends(require_service_key)]
 CurrentAdminDep = Annotated[AuthenticatedUser, Depends(current_admin)]
 
 

@@ -9,15 +9,20 @@ from projects_service.core.config import settings
 from projects_service.models.project import Project
 from projects_service.models.task import Task
 from projects_service.models.context_tree import ContextTreeNode
+from projects_service.models.user import User
 from projects_service.data.project_repository import ProjectRepository
 from projects_service.data.task_repository import TaskRepository
 from projects_service.data.context_tree_repository import ContextTreeRepository
+from projects_service.core.auth import prime_signing_keys
 from projects_service.services.project_service import ProjectService
+from projects_service.services.user_directory import UserDirectory
 from projects_service.services.task_service import TaskService
 from projects_service.services.context_tree_service import ContextTreeService
 from projects_service.api.v1.projects import router as projects_router
 from projects_service.api.v1.tasks import router as tasks_router
 from projects_service.api.v1.context_tree import router as context_tree_router
+from projects_service.api.v1.admin import router as admin_router
+from projects_service.api.v1.session import router as session_router
 
 
 @asynccontextmanager
@@ -32,7 +37,7 @@ async def lifespan(app: FastAPI):
     # Initialize Beanie with connection string
     await init_beanie(
         connection_string=mongodb_url_with_database,
-        document_models=[Project, Task, ContextTreeNode],
+        document_models=[Project, Task, ContextTreeNode, User],
     )
 
     # Get database for repositories
@@ -49,6 +54,13 @@ async def lifespan(app: FastAPI):
     app.state.context_tree_repository = context_tree_repository
 
     # Create services
+    app.state.user_directory = UserDirectory(project_repository)
+
+    # Fetched now so the first authenticated request does not pay for the round trip. Warns
+    # rather than raises: a container that never becomes healthy is rolled back, and an
+    # unreachable Cognito must not fail a deploy of unrelated code.
+    await prime_signing_keys()
+
     project_service = ProjectService(project_repository)
     app.state.project_service = project_service
 
@@ -87,6 +99,8 @@ app.add_middleware(
 app.include_router(projects_router)
 app.include_router(tasks_router)
 app.include_router(context_tree_router)
+app.include_router(session_router)
+app.include_router(admin_router)
 
 
 @app.get("/health")
