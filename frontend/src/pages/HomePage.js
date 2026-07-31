@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import "./HomePage.css";
 import api, { projectsApi, aiApi } from "../api/axios";
@@ -19,7 +19,7 @@ const MODAL_LABELS = {
     jira: "Connect Jira",
 };
 
-const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoading, closeModal, fetchProjects, onNodeColorChange, onOpenConversation }) => {
+const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, nearPeers = [], isModalDataLoading, closeModal, fetchProjects, onNodeColorChange, onOpenConversation }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSavingColor, setIsSavingColor] = useState(false);
     const toast = useToast();
@@ -210,6 +210,28 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                             ) : (
                                 <p className="node-details-empty">No sibling links are attached to this context node yet.</p>
                             )}
+
+                            {/* Named, not linked. Nothing cleared the similarity floor, and
+                                drawing an edge anyway would assert a relationship the
+                                numbers do not support. */}
+                            {nearPeers.length > 0 && (
+                                <div className="node-details-near-peers">
+                                    <span className="node-details-near-peers-label">
+                                        Closest, but not close enough to link
+                                    </span>
+                                    <div className="node-details-chip-list">
+                                        {nearPeers.map((peer, idx) => (
+                                            <span
+                                                key={idx}
+                                                className="node-details-chip node-details-chip-weak"
+                                                title={`Similarity ${peer.similarity.toFixed(2)}`}
+                                            >
+                                                {peer.header}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </section>
 
                         <section className="node-details-section">
@@ -319,6 +341,7 @@ const HomePage = () => {
     const [selectedNode, setSelectedNode] = useState(null);
     const [nodeTasks, setNodeTasks] = useState([]);
     const [subNodes, setSubNodes] = useState([]);
+    const [nearPeers, setNearPeers] = useState([]);
     const [isModalDataLoading, setIsModalDataLoading] = useState(false);
 
     const [emailInput, setEmailInput] = useState("");
@@ -365,6 +388,9 @@ const HomePage = () => {
     // where it started.
     const { revealedChars, reveal: revealReply, stop: stopReveal } = useRevealedText();
     const [assistantAvatarUrl, setAssistantAvatarUrl] = useState(null);
+    // Node just created from a conversation, highlighted on the graph while its connections
+    // are revealed.
+    const [spotlightNodeId, setSpotlightNodeId] = useState(null);
     const {
         containerRef: chatBodyRef,
         scrollToBottom: scrollChatToBottom
@@ -720,6 +746,7 @@ const HomePage = () => {
         setSelectedNode(null);
         setNodeTasks([]);
         setSubNodes([]);
+        setNearPeers([]);
         setEmailInput("");
         setTokenInput("");
     };
@@ -842,8 +869,23 @@ const HomePage = () => {
                     siblingIds.has(String(n.id || n._id || (n._id && n._id.$oid) || n._id))
                 );
                 setSubNodes(siblingNodes);
+
+                const idOf = (n) => String(n.id || n._id || (n._id && n._id.$oid) || n._id);
+                setNearPeers(
+                    ((selectedServerNode || node).near_peers || [])
+                        .map((peer) => {
+                            const match = allNodes.find(
+                                (candidate) => idOf(candidate) === String(peer.sibling_id)
+                            );
+                            return match
+                                ? { header: match.header || "Untitled node", similarity: peer.similarity }
+                                : null;
+                        })
+                        .filter(Boolean)
+                );
             } else {
                 setSubNodes(allNodes);
+                setNearPeers([]);
             }
         } catch (error) {
             console.error("Failed to fetch node sub-resources:", error);
@@ -873,14 +915,53 @@ const HomePage = () => {
     // Polls briefly for the node the AI organizer is still filling in. Bounded, and stops as
     // soon as the node has either links or a generated title.
     const refetchNodesUntilLinked = async (projectId, nodeId) => {
+        let latest = null;
         for (const delay of [1200, 1800, 2500]) {
             await new Promise((resolve) => setTimeout(resolve, delay));
             const nodes = await fetchContextNodes(projectId);
             const node = (nodes || []).find(
                 (candidate) => String(candidate.id || candidate._id) === String(nodeId)
             );
-            if (node && (node.sibling_links || []).length > 0) return;
+            if (node) latest = node;
+            if (node && (node.sibling_links || []).length > 0) return node;
         }
+        // Returned even without links so the caller can tell the user why there are none.
+        return latest;
+    };
+
+    // useCallback so the canvas effect that owns the reveal timers is not torn down and
+    // restarted on every render of this page.
+    const clearSpotlight = useCallback(() => setSpotlightNodeId(null), []);
+
+    // A node with no links is a legitimate outcome - nothing in the project was close
+    // enough - but silently dropping it on the graph as an island looks like a failure. The
+    // service reports the nearest peers it considered, so say what they were.
+    const announceIfUnlinked = (node, projectId) => {
+        if (!node || (node.sibling_links || []).length > 0) return;
+
+        const nearby = node.near_peers || [];
+        if (!nearby.length) {
+            toast.notify('Added to the graph. Nothing in this project was close enough to link to it yet.');
+            return;
+        }
+
+        const others = contextNodesMap[projectId] || [];
+        const names = nearby
+            .map((peer) => {
+                const match = others.find(
+                    (candidate) => String(candidate.id || candidate._id) === String(peer.sibling_id)
+                );
+                return match?.header;
+            })
+            .filter(Boolean)
+            .slice(0, 3);
+
+        toast.notify(
+            names.length
+                ? `Added to the graph, but nothing was close enough to link. Nearest: ${names.join(', ')}.`
+                : 'Added to the graph. Nothing in this project was close enough to link to it yet.',
+            { duration: 9000 }
+        );
     };
 
     const handleCreateNodeFromConversation = async () => {
@@ -912,11 +993,18 @@ const HomePage = () => {
 
             const resp = await projectsApi.post(`/context-tree/projects/${projectId}/nodes`, body);
             if (resp && resp.data && resp.data.id) {
+                // Straight to the graph, before the refetch: the point of creating a node is
+                // to see where it lands, and waiting for the links would leave the user on
+                // the chat pane for the several seconds the background task takes.
+                flushConversationIndex(conversationId);
+                setSpotlightNodeId(String(resp.data.id));
+                setActivePane("tree");
                 await fetchProjects();
                 // The title and the sibling links are produced by a background task that
                 // finishes a second or two after this responds, so a single refetch here
                 // stores a stub with no links - which is also what pushes it off-screen.
-                await refetchNodesUntilLinked(projectId, resp.data.id);
+                const settled = await refetchNodesUntilLinked(projectId, resp.data.id);
+                announceIfUnlinked(settled, projectId);
             } else if (resp && resp.status && resp.status >= 200 && resp.status < 300) {
                 await fetchProjects();
             } else {
@@ -982,6 +1070,7 @@ const HomePage = () => {
             <NodeDetailsModal
                 selectedNode={selectedNode}
                 nodeTasks={nodeTasks}
+                nearPeers={nearPeers}
                 subNodes={subNodes}
                 isModalDataLoading={isModalDataLoading}
                 closeModal={closeModal}
@@ -1154,6 +1243,8 @@ const HomePage = () => {
                                         error={null}
                                         onRetry={fetchProjects}
                                         onOpenNode={openNodeDetails}
+                                        spotlightId={spotlightNodeId}
+                                        onSpotlightDone={clearSpotlight}
                                         toggle={paneToggle}
                                     />
                                 ) : (

@@ -22,9 +22,18 @@ class ProjectsServiceClient:
         return [f"{self.base_url}/projects/{project_id}"]
 
     async def push_sibling_scores(
-        self, node_id: str, scores: Dict[str, int], source: str = "embedding"
+        self,
+        node_id: str,
+        scores: Dict[str, int],
+        source: str = "embedding",
+        near_peers: Dict[str, float] | None = None,
     ) -> bool:
-        """Send freshly computed sibling scores for a node; safe to retry."""
+        """Send freshly computed sibling scores for a node; safe to retry.
+
+        `near_peers` are the closest peers that did not clear the similarity floor. They are
+        reported, never linked - a node with nothing close enough stays unlinked, and the UI
+        says what it was nearest to instead of showing an unexplained island.
+        """
         if not self.base_url or not node_id:
             return False
 
@@ -33,6 +42,10 @@ class ProjectsServiceClient:
             "scores": [
                 {"sibling_id": sibling_id, "correlation_score": score}
                 for sibling_id, score in scores.items()
+            ],
+            "near_peers": [
+                {"sibling_id": sibling_id, "similarity": similarity}
+                for sibling_id, similarity in (near_peers or {}).items()
             ],
             "source": source,
         }

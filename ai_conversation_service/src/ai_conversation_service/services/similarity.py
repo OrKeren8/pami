@@ -112,3 +112,22 @@ def top_k_scores(
             RANK_SCORES[rank] if rank < len(RANK_SCORES) else MIN_CORRELATION_SCORE
         )
     return scores
+
+
+def near_miss_peers(
+    similarities: dict[str, float], model_id: str, top_k: int
+) -> dict[str, float]:
+    """The closest peers that did not clear the floor, so they can be reported not linked.
+
+    A conversation whose text is a generic instruction - "tell me everything I should add to
+    the system" - has no topical content to match on, so every peer lands below the floor and
+    the node is created with no links. That is the right answer: nothing was close enough.
+    Naming the nearest ones lets the UI say so, instead of showing an unexplained island.
+    """
+    floor, _ = CALIBRATION.get(model_id, DEFAULT_CALIBRATION)
+    ranked = sorted(similarities.items(), key=lambda item: item[1], reverse=True)
+    return {
+        peer_id: similarity
+        for peer_id, similarity in ranked[:top_k]
+        if similarity < floor
+    }

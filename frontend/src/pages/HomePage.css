@@ -6900,3 +6900,27 @@ button[aria-label*="Slack"] {
     animation: none;
   }
 }
+
+/* Peers that were nearest but did not clear the similarity floor: shown so an unlinked node
+   explains itself, and styled as clearly weaker than a real sibling chip. */
+.node-details-near-peers {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(104, 78, 160, 0.22);
+}
+
+.node-details-near-peers-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #9b8bb4;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.node-details-chip.node-details-chip-weak {
+  border-style: dashed !important;
+  background: transparent !important;
+  color: #8b7ba8 !important;
+}

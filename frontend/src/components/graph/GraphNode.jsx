@@ -5,6 +5,7 @@ function GraphNode({
     isSelected,
     isNeighbour,
     isPinned,
+    isSpotlit,
     dimmed,
     onPointerDown,
     onOpen,
@@ -15,6 +16,7 @@ function GraphNode({
     if (isSelected) classNames.push('graph-pill-selected');
     if (isNeighbour) classNames.push('graph-pill-neighbour');
     if (isPinned) classNames.push('graph-pill-pinned');
+    if (isSpotlit) classNames.push('graph-pill-spotlight');
     if (dimmed) classNames.push('graph-pill-dim');
 
     return (

@@ -1,7 +1,7 @@
 const strokeWidth = (score) => 0.8 + (Math.min(100, Math.max(0, score)) / 100) * 1.8;
 const strokeOpacity = (score) => 0.16 + (Math.min(100, Math.max(0, score)) / 100) * 0.44;
 
-function GraphEdges({ links, activeLinkIds, dimmed }) {
+function GraphEdges({ links, activeLinkIds, dimmed, hiddenLinkIds }) {
     return (
         <svg className="graph-edges" aria-hidden="true">
             {links.map((link) => {
@@ -16,12 +16,16 @@ function GraphEdges({ links, activeLinkIds, dimmed }) {
                     return null;
                 }
 
+                // Not rendered at all rather than made transparent: this is how a
+                // connection appears one after another during the reveal.
+                if (hiddenLinkIds && hiddenLinkIds.has(link.id)) return null;
+
                 const isActive = activeLinkIds.has(link.id);
                 const className = dimmed && !isActive ? 'graph-edge graph-edge-dim' : 'graph-edge';
                 return (
                     <line
                         key={link.id}
-                        className={className}
+                        className={`${className}${isActive ? ' graph-edge-revealed' : ''}`}
                         x1={link.source.x}
                         y1={link.source.y}
                         x2={link.target.x}

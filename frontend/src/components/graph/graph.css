@@ -309,3 +309,43 @@
         animation: none;
     }
 }
+
+/* A node just created from a conversation. The ring pulses so the eye finds it even in a
+   crowded graph, and it stays at full contrast while everything else is dimmed. */
+.graph-root .graph-pill-spotlight {
+  border-color: var(--pill-color);
+  box-shadow:
+    0 0 0 3px rgba(240, 98, 146, 0.35),
+    0 8px 22px -6px rgba(190, 24, 93, 0.5);
+  animation: graph-spotlight-pulse 1.4s ease-in-out infinite;
+  z-index: 5;
+}
+
+@keyframes graph-spotlight-pulse {
+  50% {
+    box-shadow:
+      0 0 0 8px rgba(240, 98, 146, 0.14),
+      0 8px 22px -6px rgba(190, 24, 93, 0.5);
+  }
+}
+
+/* Each connection fades in as it is revealed rather than simply existing. */
+.graph-root .graph-edge-revealed {
+  animation: graph-edge-appear 320ms ease-out;
+}
+
+@keyframes graph-edge-appear {
+  from {
+    stroke-opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .graph-root .graph-pill-spotlight {
+    animation: none;
+  }
+
+  .graph-root .graph-edge-revealed {
+    animation: none;
+  }
+}

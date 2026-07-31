@@ -8,6 +8,7 @@ from ai_conversation_service.services.projects_service_client import (
     ProjectsServiceClient,
 )
 from ai_conversation_service.services.similarity import (
+    near_miss_peers,
     prune_score_if_unrelated,
     top_k_scores,
 )
@@ -103,6 +104,15 @@ class ReindexTrigger:
         state = await self._chunk_index_service.state_for(conversation_id)
         model_id = state.embedding_model if state else ""
         scores = top_k_scores(similarities, model_id, settings.sibling_top_k)
+        near_peers = near_miss_peers(similarities, model_id, settings.sibling_top_k)
+        # The two numbers that explain an unlinked node, neither of which was logged: how
+        # many peers were actually comparable, and how close the closest one was.
+        best = max(similarities.values(), default=0.0)
+        self._logger.info(
+            f"Node {node_id}: {len(similarities)} comparable peers, best cosine "
+            f"{best:.3f}, {sum(1 for value in scores.values() if value > 0)} linked, "
+            f"{len(near_peers)} near but below the floor"
+        )
 
         # A peer that already has a link and has now drifted below the floor must be
         # named explicitly, because absence means "retain" on the projects side and the
@@ -118,7 +128,7 @@ class ReindexTrigger:
                 scores[peer_node_id] = prune
 
         pushed = await self._projects_service_client.push_sibling_scores(
-            node_id, scores
+            node_id, scores, near_peers=near_peers
         )
         if pushed:
             await self._chunk_index_service.mark_scored(

@@ -27,7 +27,25 @@ const readSettings = () => {
     }
 };
 
-function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpenNode, toggle }) {
+// One connection at a time, slow enough to read which peer it reached.
+const SPOTLIGHT_LINK_INTERVAL_MS = 520;
+const SPOTLIGHT_HOLD_MS = 1500;
+// The links are written by a background task and arrive over several seconds, so the
+// spotlight has to outlast the polling that fetches them or it would end before the
+// connections it exists to show.
+const SPOTLIGHT_MIN_MS = 7000;
+
+function GraphCanvas({
+    contextNodes,
+    projectId,
+    isLoading,
+    error,
+    onRetry,
+    onOpenNode,
+    toggle,
+    spotlightId,
+    onSpotlightDone
+}) {
     const viewportRef = useRef(null);
     const zoomBehaviourRef = useRef(null);
     const userAdjustedRef = useRef(false);
@@ -153,6 +171,68 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
         [dragEnd, dragMove, dragStart, toScene]
     );
 
+    // A node just created from a conversation: everything else dims and its connections are
+    // revealed one after another, so the user can see where it landed and what it attached to.
+    const [revealedCount, setRevealedCount] = useState(0);
+    const spotlightStartedRef = useRef(0);
+
+    const spotlightLinks = useMemo(() => {
+        if (!spotlightId) return [];
+        return links
+            .filter(
+                (link) => link.source.id === spotlightId || link.target.id === spotlightId
+            )
+            // Strongest first, so the reveal reads as "closest relative, then the next".
+            .sort((left, right) => right.score - left.score);
+    }, [links, spotlightId]);
+
+    const spotlightActive = Boolean(spotlightId) && nodes.some((node) => node.id === spotlightId);
+
+    useEffect(() => {
+        if (!spotlightId) return;
+        spotlightStartedRef.current = performance.now();
+        setRevealedCount(0);
+    }, [spotlightId]);
+
+    useEffect(() => {
+        if (!spotlightActive) return undefined;
+
+        if (revealedCount < spotlightLinks.length) {
+            const timer = setTimeout(
+                () => setRevealedCount((count) => count + 1),
+                SPOTLIGHT_LINK_INTERVAL_MS
+            );
+            return () => clearTimeout(timer);
+        }
+
+        // Waiting out the minimum here, rather than ending as soon as the known links are
+        // shown, is what lets a link that arrives late still be revealed: this effect re-runs
+        // and cancels the pending finish.
+        const elapsed = performance.now() - spotlightStartedRef.current;
+        const wait = Math.max(SPOTLIGHT_HOLD_MS, SPOTLIGHT_MIN_MS - elapsed);
+        const timer = setTimeout(() => onSpotlightDone && onSpotlightDone(), wait);
+        return () => clearTimeout(timer);
+    }, [spotlightActive, revealedCount, spotlightLinks.length, onSpotlightDone]);
+
+    const { spotlightNeighbourIds, spotlightShownIds, spotlightHiddenIds } = useMemo(() => {
+        const shown = new Set();
+        const hidden = new Set();
+        const neighbours = new Set();
+        spotlightLinks.forEach((link, index) => {
+            if (index < revealedCount) {
+                shown.add(link.id);
+                neighbours.add(link.source.id === spotlightId ? link.target.id : link.source.id);
+            } else {
+                hidden.add(link.id);
+            }
+        });
+        return {
+            spotlightNeighbourIds: neighbours,
+            spotlightShownIds: shown,
+            spotlightHiddenIds: hidden
+        };
+    }, [spotlightLinks, revealedCount, spotlightId]);
+
     const focusId = hoverId || selectedId;
 
     const searchTerm = search.trim().toLowerCase();
@@ -258,9 +338,14 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
         fitToView();
     }, [fitToView, nodes.length, tick]);
 
-    const isDimmed = Boolean(focusId) || Boolean(matchIds);
+    const isDimmed = spotlightActive || Boolean(focusId) || Boolean(matchIds);
 
     const nodeIsDimmed = (node) => {
+        // The spotlight wins over hover and search: it is a short, deliberate animation, and
+        // the pointer happening to rest on a pill must not undo it.
+        if (spotlightActive) {
+            return node.id !== spotlightId && !spotlightNeighbourIds.has(node.id);
+        }
         if (matchIds) return !matchIds.has(node.id);
         if (!focusId) return false;
         return node.id !== focusId && !neighbourIds.has(node.id);
@@ -329,7 +414,12 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
                         transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.k})`
                     }}
                 >
-                    <GraphEdges links={links} activeLinkIds={activeLinkIds} dimmed={isDimmed} />
+                    <GraphEdges
+                        links={links}
+                        activeLinkIds={spotlightActive ? spotlightShownIds : activeLinkIds}
+                        dimmed={isDimmed}
+                        hiddenLinkIds={spotlightActive ? spotlightHiddenIds : null}
+                    />
                     <div className="graph-nodes">
                         {nodes.map((node) => (
                             <GraphNode
@@ -338,6 +428,7 @@ function GraphCanvas({ contextNodes, projectId, isLoading, error, onRetry, onOpe
                                 isSelected={node.id === selectedId}
                                 isNeighbour={neighbourIds.has(node.id)}
                                 isPinned={pinnedIds.includes(node.id)}
+                                isSpotlit={spotlightActive && node.id === spotlightId}
                                 dimmed={nodeIsDimmed(node)}
                                 onPointerDown={handlePointerDown}
                                 onOpen={onOpenNode}

@@ -59,7 +59,7 @@ async def update_sibling_scores(
     """Apply externally computed sibling correlation scores to a node."""
     try:
         node = await context_tree_service.apply_sibling_scores(
-            node_id, request.scores, request.source
+            node_id, request.scores, request.source, request.near_peers
         )
     except UnknownSiblingError as error:
         raise HTTPException(status_code=422, detail=str(error))

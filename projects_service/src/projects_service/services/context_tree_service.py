@@ -6,11 +6,16 @@ import aiohttp
 import traceback
 
 from projects_service.data.context_tree_repository import ContextTreeRepository
-from projects_service.models.context_tree import ContextTreeNode, SiblingLink
+from projects_service.models.context_tree import (
+    ContextTreeNode,
+    NearPeer,
+    SiblingLink,
+)
 from projects_service.schemas.context_tree_schemas import (
     CreateContextTreeNodeRequest,
     UpdateContextTreeNodeRequest,
     ContextTreeNodeResponse,
+    NearPeerPayload,
     SiblingLinkPayload,
     SiblingScorePayload,
 )
@@ -198,6 +203,30 @@ class ContextTreeService:
                     },
                 )
 
+    @staticmethod
+    def _serialize_near_peers(raw) -> List[NearPeerPayload]:
+        """Accept models or dicts.
+
+        A node fetched from Mongo carries NearPeer models, but one this service has just
+        written to holds the plain dicts it persisted, and the response mapper runs on both.
+        """
+        peers = []
+        for peer in raw or []:
+            if isinstance(peer, dict):
+                sibling_id = peer.get("sibling_id")
+                similarity = peer.get("similarity")
+            else:
+                sibling_id = getattr(peer, "sibling_id", None)
+                similarity = getattr(peer, "similarity", None)
+            if sibling_id is None or similarity is None:
+                continue
+            peers.append(
+                NearPeerPayload(
+                    sibling_id=str(sibling_id), similarity=float(similarity)
+                )
+            )
+        return peers
+
     def _to_response(self, node: ContextTreeNode) -> ContextTreeNodeResponse:
         color_val = getattr(node, "color", None)
         color = color_val if isinstance(color_val, str) else None
@@ -222,6 +251,7 @@ class ContextTreeService:
             project_id=str(getattr(node, "project_id")),
             node_type=str(getattr(node, "node_type")),
             conversation_id=conv,
+            near_peers=self._serialize_near_peers(getattr(node, "near_peers", [])),
             created_at=getattr(node, "created_at"),
             updated_at=getattr(node, "updated_at"),
         )
@@ -525,12 +555,14 @@ class ContextTreeService:
         node_id: str,
         scores: List[SiblingScorePayload],
         source: str = "embedding",
+        near_peers: Optional[List[NearPeerPayload]] = None,
     ) -> Optional[ContextTreeNodeResponse]:
         """Apply externally computed sibling scores and mirror them onto peers."""
         node = await self._context_tree_repository.get_by_id(node_id)
         if not node:
             return None
 
+        near_peers = near_peers or []
         node_id_str = str(node_id)
         project_id = str(getattr(node, "project_id"))
         all_nodes = await self._context_tree_repository.list_by_project(project_id)
@@ -550,6 +582,21 @@ class ContextTreeService:
             node_id=node_id_str,
             include_peer_scores={s.sibling_id: s.correlation_score for s in scores},
             all_nodes=all_nodes,
+        )
+
+        # Recorded on every push, including as an empty list, so a node that used to have
+        # near peers and now has real links does not keep advertising the old ones.
+        await self._persist_node_fields(
+            node,
+            {
+                "near_peers": [
+                    NearPeer(
+                        sibling_id=p.sibling_id, similarity=p.similarity
+                    ).model_dump()
+                    for p in near_peers
+                    if p.sibling_id in known_ids
+                ]
+            },
         )
 
         refreshed = await self._context_tree_repository.get_by_id(node_id_str)

@@ -59,6 +59,7 @@ class RecordingProjectsClient:
 
     def __init__(self, sibling_map: dict[str, list[str]] | None = None):
         self.pushed: list[tuple[str, dict[str, int]]] = []
+        self.pushed_near_peers: list[tuple[str, dict[str, float]]] = []
         self._sibling_map = sibling_map or {}
         # conversation_id -> the node that owns it, as projects_service would report
         self._node_for_conversation: dict[str, str] = {}
@@ -75,9 +76,14 @@ class RecordingProjectsClient:
         return self.known_node_ids
 
     async def push_sibling_scores(
-        self, node_id: str, scores: dict, source: str = "embedding"
+        self,
+        node_id: str,
+        scores: dict,
+        source: str = "embedding",
+        near_peers: dict | None = None,
     ) -> bool:
         self.pushed.append((node_id, scores))
+        self.pushed_near_peers.append((node_id, near_peers or {}))
         return True
 
     async def get_sibling_node_ids(self, node_id: str) -> list[str]:

@@ -14,6 +14,7 @@ from ai_conversation_service.services.context_retrieval_service import (
 )
 from ai_conversation_service.services.similarity import (
     MIN_CORRELATION_SCORE,
+    near_miss_peers,
     top_k_scores,
 )
 
@@ -361,3 +362,57 @@ async def test_mismatched_vector_widths_do_not_break_search(
 
     assert any(hit.conversation_id == "conv-current-model" for hit in hits)
     assert all(hit.conversation_id != "conv-stale-model" for hit in hits)
+
+
+def test_near_miss_peers_names_the_closest_without_linking_them():
+    """A node with nothing close enough stays unlinked, but not unexplained.
+
+    Measured on the live project: a conversation that is one generic instruction had a best
+    peer of 0.394 against a 0.40 floor, so every peer was pruned and the node was created
+    with no edges and no indication why. The peers are reported instead of linked - forcing a
+    link would draw a relationship the similarity does not support.
+    """
+    similarities = {"node-a": 0.394, "node-b": 0.345, "node-c": 0.20, "node-d": 0.10}
+
+    scores = top_k_scores(similarities, "text-embedding-3-small@1536", 3)
+    near = near_miss_peers(similarities, "text-embedding-3-small@1536", 3)
+
+    assert set(scores.values()) == {0}, "nothing clears the floor, so nothing is linked"
+    assert near == {"node-a": 0.394, "node-b": 0.345, "node-c": 0.20}
+    assert "node-d" not in near, "bounded by top-k, like the scores"
+
+
+def test_near_miss_peers_is_empty_when_peers_clear_the_floor():
+    """Reported on every push, so a node that gains real links stops advertising near ones."""
+    assert (
+        near_miss_peers(
+            {"node-a": 0.72, "node-b": 0.61}, "text-embedding-3-small@1536", 3
+        )
+        == {}
+    )
+
+
+async def test_unlinked_node_reports_its_nearest_peers(
+    chunk_index_service, projects_client, family_messages, billing_messages
+):
+    """End to end through the trigger: nothing linked, the nearest peer still named."""
+    from ai_conversation_service.services.reindex_trigger import ReindexTrigger
+
+    await chunk_index_service.reindex_conversation(
+        "conv-billing", "proj-1", "node-billing", billing_messages, "Payment Retry"
+    )
+
+    trigger = ReindexTrigger(chunk_index_service, projects_client)
+    await trigger.maybe_reindex(
+        conversation_id="conv-family",
+        project_id="proj-1",
+        node_id="node-family",
+        messages=family_messages,
+        header="Dana Nursing",
+        force=True,
+    )
+
+    _, scores = projects_client.pushed[-1]
+    _, near = projects_client.pushed_near_peers[-1]
+    assert scores.get("node-billing") == 0, "an unrelated peer must not be linked"
+    assert "node-billing" in near, "but it is still the nearest thing there is"

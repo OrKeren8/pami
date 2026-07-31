@@ -10,6 +10,18 @@ class SiblingLink(BaseModel):
     correlation_score: int = Field(default=0, ge=0, le=100)
 
 
+class NearPeer(BaseModel):
+    """A conversation that is this node's closest, but not close enough to link.
+
+    Kept so the UI can say "these are the nearest, and none was near enough" instead of
+    showing an isolated node with no explanation. Deliberately not a link: forcing one would
+    draw a relationship the similarity does not support.
+    """
+
+    sibling_id: str
+    similarity: float = Field(ge=-1.0, le=1.0)
+
+
 class ContextTreeNode(Document):
     # Accept both ObjectId (PydanticObjectId) and legacy string IDs (UUIDs)
     id: Optional[Union[PydanticObjectId, str]] = None
@@ -24,6 +36,7 @@ class ContextTreeNode(Document):
     node_type: str  # e.g., "goal", "task", "milestone"
     color: Optional[str] = None
     conversation_id: Optional[str] = None  # Link to AI conversation
+    near_peers: List[NearPeer] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
