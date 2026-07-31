@@ -623,7 +623,17 @@ const HomePage = () => {
             });
 
             const aiText = resp.data && (resp.data.response || resp.data.text || resp.data.message);
-            setChatMessages((p) => [...p, { role: "assistant", content: aiText || "(no response)" }]);
+            setChatMessages((p) => [
+                ...p,
+                {
+                    role: "assistant",
+                    content: aiText || "(no response)",
+                    // The service reports which other conversations it drew on. Showing them is
+                    // the whole promise of the feature: without it the user cannot tell that an
+                    // answer came from somewhere else, or check where.
+                    consulted: (resp.data && resp.data.consulted) || []
+                }
+            ]);
         } catch (err) {
             console.error("Failed to send message to AI:", err);
             setChatMessages((p) => [...p, { role: "assistant", content: "I'm having trouble connecting right now. Please try again." }]);
@@ -1142,7 +1152,31 @@ const HomePage = () => {
                                                         ) : (
                                                             <div className="message-avatar assistant" style={{ backgroundImage: `url(${assistantAvatarUrl || "/pami_ai_avatar.png"})` }} />
                                                         )}
-                                                        <div className="message-content"><p>{msg.content}</p></div>
+                                                        <div className="message-content">
+                                                            <p>{msg.content}</p>
+                                                            {!isUser && (msg.consulted || []).length > 0 && (
+                                                                <div className="message-sources">
+                                                                    <span className="message-sources-label">
+                                                                        Answered using
+                                                                    </span>
+                                                                    {msg.consulted.map((source) => (
+                                                                        <button
+                                                                            key={source.conversation_id}
+                                                                            type="button"
+                                                                            className="message-source"
+                                                                            title={`Open "${source.header || "this conversation"}"`}
+                                                                            onClick={() =>
+                                                                                goToNodeConversation({
+                                                                                    conversation_id: source.conversation_id
+                                                                                })
+                                                                            }
+                                                                        >
+                                                                            {source.header || "Untitled conversation"}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 );
                                             })

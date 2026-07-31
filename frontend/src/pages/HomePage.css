@@ -6822,3 +6822,51 @@ button[aria-label*="Slack"] {
   height: 17px;
   object-fit: contain;
 }
+
+/* Which other conversations an answer drew on. The service has always reported this and the
+   chat pane discarded it, so the one thing that distinguishes PAMI - answering from a
+   different conversation - was invisible unless you read the network tab. */
+.pami-chat-pane .message-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(104, 78, 160, 0.12);
+}
+
+.pami-chat-pane .message-sources-label {
+  color: var(--pami-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.pami-chat-pane .message-source {
+  max-width: 220px;
+  margin: 0 !important;
+  overflow: hidden;
+  padding: 3px 10px !important;
+  border: 1px solid rgba(104, 78, 160, 0.2) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.75) !important;
+  color: var(--primary-purple) !important;
+  font-family: inherit;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pami-chat-pane .message-source:hover {
+  border-color: rgba(143, 109, 242, 0.5) !important;
+  background: #fff !important;
+}
+
+.pami-chat-pane .message-source:focus-visible {
+  outline: 2px solid var(--pami-purple);
+  outline-offset: 2px;
+}
