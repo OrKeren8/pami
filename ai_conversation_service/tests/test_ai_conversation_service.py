@@ -201,9 +201,7 @@ class TestAIConversationService:
 
         # Assert: the third belongs to another node and must be excluded
         assert len(conversations) == 2
-        assert all(
-            conv["context_node_id"] == context_node_id for conv in conversations
-        )
+        assert all(conv["context_node_id"] == context_node_id for conv in conversations)
         assert {conv["conversation_id"] for conv in conversations} == {"conv1", "conv2"}
 
     @pytest.mark.asyncio

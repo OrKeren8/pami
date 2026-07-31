@@ -64,6 +64,11 @@ class Settings(BaseSettings):
     # Per-hit ceiling so one long window cannot consume the whole token budget. Generous on
     # purpose: the budget above is what actually limits the total.
     retrieval_snippet_chars: int = 1200
+    # Floor a search hit must clear before the UI claims the conversation was consulted.
+    # 0.0 drops only genuine noise (stale vector widths score exactly 0.0, and graph
+    # expansion can weight a hit below that). A real relevance cut-off is model-specific,
+    # so raise this from measured data rather than by guessing.
+    retrieval_consulted_min_score: float = 0.0
 
     # API root path (useful for tests and deployments). Leave empty string for no prefix.
     api_root: str = ""

@@ -90,6 +90,7 @@ async def search_context(
             ),
         )
         entry.hit_count += 1
+        entry.best_score = max(entry.best_score, hit.score)
     _logger.info(
         f"search_context returned {len(hits)} hits "
         f"(query_len={len(query)}, project={ctx.deps.project_id})"
@@ -125,6 +126,15 @@ async def read_conversation(
     windows = await ctx.deps.chunk_index.read_window(
         conversation_id, around_message, project_id=ctx.deps.project_id
     )
+    if windows:
+        entry = ctx.deps.consulted.setdefault(
+            conversation_id,
+            ConsultedConversation(
+                conversation_id=conversation_id,
+                header=getattr(conversation, "title", None),
+            ),
+        )
+        entry.read = True
     _logger.info(
         f"read_conversation returned {len(windows)} windows from {conversation_id}"
     )

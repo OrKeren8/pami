@@ -13,9 +13,18 @@ class ContextHit(BaseModel):
 
 
 class ConsultedConversation(BaseModel):
+    """One other conversation whose text reached the model on this turn.
+
+    `read` separates the two very different levels of access: a search hit puts one
+    window in front of the model, while read_conversation pulls a wide span of the
+    transcript. Reporting both as simply "consulted" overstated the first.
+    """
+
     conversation_id: str
     header: str | None = None
     hit_count: int = 0
+    best_score: float = 0.0
+    read: bool = False
 
 
 class SearchContextRequest(BaseModel):

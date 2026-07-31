@@ -396,10 +396,23 @@ class AIConversationService:
 
         self._schedule_reindex(conversation)
 
-        consulted = list(deps.consulted.values())
+        # A hit at or below the floor was returned only because the search had slots left to
+        # fill, and listing it told the user PAMI had consulted a conversation it drew
+        # nothing from. Anything the model actually read is kept regardless of score.
+        consulted = sorted(
+            (
+                entry
+                for entry in deps.consulted.values()
+                if entry.read
+                or entry.best_score > settings.retrieval_consulted_min_score
+            ),
+            key=lambda entry: (entry.read, entry.best_score),
+            reverse=True,
+        )
         self._logger.info(
             f"Answered in conversation {conversation_id}; tool_calls={deps.tool_calls}; "
-            f"consulted {[c.conversation_id for c in consulted]}"
+            f"consulted {[c.conversation_id for c in consulted]} "
+            f"of {len(deps.consulted)} surfaced"
         )
         return SendMessageResult(
             response=answer, consulted=consulted, tool_calls_used=deps.tool_calls

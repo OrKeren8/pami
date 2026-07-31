@@ -104,6 +104,33 @@ async def test_read_conversation_returns_windows_for_own_project(
 
     assert windows
     assert any("Dana" in window for window in windows)
+    # Reading marks the conversation as read even though no search hit produced it, so the
+    # UI can say the transcript was opened rather than merely matched.
+    assert deps.consulted["conv-mine"].read is True
+
+
+async def test_search_hit_records_score_without_claiming_a_full_read(
+    chunk_index_service, retrieval_service, family_messages
+):
+    """A search hit and a full read are reported differently.
+
+    The UI listed both as "consulted", which overstated a single matched window. The
+    score is what lets a caller drop hits that only filled an empty result slot.
+    """
+    await chunk_index_service.reindex_conversation(
+        "conv-family", "proj-1", "node-family", family_messages, "Dana Nursing"
+    )
+    deps = AgentDeps(
+        project_id="proj-1",
+        conversation_id="conv-current",
+        retrieval=retrieval_service,
+    )
+
+    await search_context(FakeRunContext(deps), "my family", limit=5)
+
+    entry = deps.consulted["conv-family"]
+    assert entry.read is False
+    assert entry.best_score > 0.0
 
 
 async def test_read_conversation_denies_unknown_conversation(retrieval_service):

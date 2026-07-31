@@ -1197,8 +1197,12 @@ const HomePage = () => {
                                                                         <button
                                                                             key={source.conversation_id}
                                                                             type="button"
-                                                                            className="message-source"
-                                                                            title={`Open "${source.header || "this conversation"}"`}
+                                                                            className={`message-source${source.read ? " message-source-read" : ""}`}
+                                                                            title={
+                                                                                source.read
+                                                                                    ? `Read in full: "${source.header || "this conversation"}"`
+                                                                                    : `Matched a passage in "${source.header || "this conversation"}"`
+                                                                            }
                                                                             onClick={() =>
                                                                                 goToNodeConversation({
                                                                                     conversation_id: source.conversation_id
