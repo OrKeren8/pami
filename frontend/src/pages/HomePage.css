@@ -1462,8 +1462,6 @@ html, body, #root {
 /* Keep floating integrations from being too dominant */
 .integrations-fixed-container {
   right: 28px;
-  top: 50%;
-  transform: translateY(-50%);
   z-index: 90;
 }
 
@@ -6578,4 +6576,179 @@ button[aria-label*="Slack"] {
   width: 100%;
   height: 100%;
   display: block;
+}
+
+/* AI Chat pane. The header carried a meaningless "AI channel" caption and three emoji
+   buttons; the empty state was one line pinned to the top-left of a 500px void; the Send
+   button was a hardcoded #2f6fed blue in a pink and purple app. */
+.pami-chat-pane .chat-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 18px !important;
+  border-bottom: 1px solid var(--pami-border) !important;
+}
+
+.pami-chat-pane .chat-header-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.pami-chat-pane .chat-header-title strong {
+  color: var(--pami-text);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.pami-chat-pane .chat-header-title span {
+  overflow: hidden;
+  color: var(--pami-muted);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pami-chat-pane .chat-header-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.pami-chat-pane .chat-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--pami-border) !important;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: var(--pami-muted) !important;
+  cursor: pointer;
+}
+
+.pami-chat-pane .chat-icon-btn svg,
+.pami-chat-pane .create-node-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.pami-chat-pane .chat-icon-btn:hover {
+  color: var(--primary-purple) !important;
+  border-color: rgba(214, 95, 159, 0.34) !important;
+}
+
+.pami-chat-pane .create-node-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 !important;
+}
+
+.pami-chat-pane .chat-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+}
+
+.pami-chat-pane .chat-empty-state p {
+  margin: 0;
+  color: var(--pami-text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.pami-chat-pane .chat-empty-state span {
+  max-width: 380px;
+  color: var(--pami-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.pami-chat-pane .chat-input-row {
+  display: flex;
+  gap: 10px;
+  padding: 12px 18px !important;
+  border-top: 1px solid var(--pami-border) !important;
+}
+
+.pami-chat-pane .chat-text-input {
+  flex: 1;
+  min-width: 0;
+  padding: 11px 16px;
+  border: 1px solid var(--pami-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--pami-text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.pami-chat-pane .chat-text-input:focus-visible {
+  outline: 2px solid var(--pami-purple);
+  outline-offset: 1px;
+}
+
+.pami-chat-pane .chat-send-btn {
+  flex: none;
+  margin: 0 !important;
+  padding: 11px 22px !important;
+  border: none !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, #d65f9f 0%, #8f6df2 100%) !important;
+  color: #fff !important;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pami-chat-pane .chat-send-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The header was laid out as a centred column with an "AI project assistant" caption pinned
+   underneath by a pseudo-element - three stacked centred rows where one row was needed. The
+   empty state was capped at a fit-content 70% width, so it could not centre in the pane. */
+.pami-chat-pane .chat-header.chat-header-row {
+  flex-direction: row !important;
+  align-items: center !important;
+  min-height: 0 !important;
+}
+
+.pami-chat-pane .chat-header.chat-header-row::after {
+  content: none !important;
+}
+
+.pami-chat-pane .chat-empty-state {
+  width: auto !important;
+  max-width: none !important;
+  align-self: stretch !important;
+}
+
+/* Slack / Jira launchers. This has to sit at the end of the file: a blanket
+   `position: relative !important` around line 2960 overrides the inline `position: fixed`,
+   which makes the container stretch to full height - so the translateY(-50%) that was meant
+   to centre it moved it 367px off the top of the screen and the buttons vanished. Anchored
+   bottom right instead, with no transform, clear of the canvas controls at the top. */
+.integrations-fixed-container {
+  position: fixed !important;
+  top: auto !important;
+  bottom: 26px !important;
+  right: 24px !important;
+  height: auto !important;
+  transform: none !important;
+  z-index: 800 !important;
 }
