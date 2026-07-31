@@ -88,12 +88,17 @@ class ContextTreeService:
         return serialized
 
     async def _persist_node_fields(self, node: ContextTreeNode, fields: dict) -> None:
-        try:
-            for key, val in fields.items():
-                setattr(node, key, val)
-            await node.save()
-        except TypeError:
-            await self._context_tree_repository.update(self._node_id(node), fields)
+        """Write only the named fields.
+
+        This used to mutate the in-memory node and call save(), which replaces the whole
+        document. The AI organizer loads a node, spends seconds in an LLM call, then persists
+        header/summary/topics - and the save silently reverted any sibling_links written by
+        the embedding scorer during that window. That is why links appeared and then
+        disappeared. A field-scoped update cannot clobber a concurrent writer's other fields.
+        """
+        for key, value in fields.items():
+            setattr(node, key, value)
+        await self._context_tree_repository.update(self._node_id(node), fields)
 
     def _merge_scores(
         self, existing: Dict[str, int], fresh: Dict[str, int]
