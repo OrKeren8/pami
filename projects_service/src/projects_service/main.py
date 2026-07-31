@@ -22,6 +22,7 @@ from projects_service.api.v1.projects import router as projects_router
 from projects_service.api.v1.tasks import router as tasks_router
 from projects_service.api.v1.context_tree import router as context_tree_router
 from projects_service.api.v1.admin import router as admin_router
+from projects_service.api.v1.internal import router as internal_router
 from projects_service.api.v1.session import router as session_router
 
 
@@ -101,6 +102,7 @@ app.include_router(tasks_router)
 app.include_router(context_tree_router)
 app.include_router(session_router)
 app.include_router(admin_router)
+app.include_router(internal_router)
 
 
 @app.get("/health")
