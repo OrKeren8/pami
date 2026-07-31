@@ -4,13 +4,13 @@ on:
   # Manual runs can target any branch, so a feature branch can be deployed and
   # tested before it is merged. Note there is a single environment: a manual run
   # replaces whatever is currently deployed until main is deployed again.
+  # A manual run can target this branch. Deliberately NOT a push trigger: there is a single
+  # environment, and until scripts/backfill_project_owners.py has given the existing projects
+  # an owner, a deploy of the ownership work would leave them visible to nobody - the app
+  # would look empty even though nothing was lost.
   workflow_dispatch:
   push:
-    # The feature branch is deployable on demand so the auth work can be exercised against
-    # real Cognito before it is merged. There is only one environment, so a push here
-    # replaces what main deployed - see AUTH_REQUIRED, which is off by default precisely so
-    # that swap cannot lock anyone out.
-    branches: [main, feat/user-accounts-and-admin]
+    branches: [main]
 
 concurrency:
   # One cluster, one ALB, one Amplify branch: overlapping runs both push images and both
