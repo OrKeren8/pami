@@ -66,16 +66,34 @@ export const getSignedInUser = async () => {
  * that follows it, *after* the account had been confirmed successfully.
  */
 const clearAnyExistingSession = async () => {
+    // Unconditional, and deliberately not guarded by getCurrentUser(). That guard was the bug:
+    // when the stored session belongs to an account that no longer exists, getCurrentUser()
+    // throws, the guard swallows it, no sign-out happens, and signIn then refuses with "There
+    // is already a signed in user" - the stored tokens are still there regardless of whether
+    // the user behind them can be fetched. signOut() is safe when there is nothing to sign
+    // out of.
     try {
-        if (await getCurrentUser()) await signOut();
+        await signOut();
     } catch (error) {
-        // No session, or it is already unusable. Either way there is nothing to clear.
+        // Nothing was stored, or the sign-out call itself could not reach Cognito. Local
+        // state is cleared either way, which is what blocks the next sign-in.
+    }
+};
+
+/** Retries once after clearing state, for the one error that clearing state fixes. */
+const withCleanSession = async (attempt) => {
+    try {
+        return await attempt();
+    } catch (error) {
+        if (error?.name !== 'UserAlreadyAuthenticatedException') throw error;
+        await clearAnyExistingSession();
+        return attempt();
     }
 };
 
 export const login = async (email, password) => {
     await clearAnyExistingSession();
-    const result = await signIn({ username: email, password });
+    const result = await withCleanSession(() => signIn({ username: email, password }));
     // A user who signed up but never confirmed lands here rather than in the catch, so the
     // caller can send them to the confirmation step instead of showing "wrong password".
     if (result?.nextStep?.signInStep === 'CONFIRM_SIGN_UP') {
@@ -89,11 +107,13 @@ export const login = async (email, password) => {
 
 export const register = async (email, password) => {
     await clearAnyExistingSession();
-    const result = await signUp({
-        username: email,
-        password,
-        options: { userAttributes: { email } }
-    });
+    const result = await withCleanSession(() =>
+        signUp({
+            username: email,
+            password,
+            options: { userAttributes: { email } }
+        })
+    );
     return { needsConfirmation: !result.isSignUpComplete };
 };
 
