@@ -107,16 +107,11 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      # Pinned to the major the lock file is generated with. Node 20 ships npm 10, which
-      # installs postcss-load-config's *optional* peer `yaml` and then rejects a lock that
-      # omits it; npm 11 leaves optional peers out. The lock cannot satisfy both, so `npm ci`
-      # failed on a tree that installs cleanly locally - twice, and one of those left Amplify
-      # serving a 17-hour-old build behind a green Action.
-      - name: Match the npm the lock file was built with
-        run: npm install -g npm@11
-
-      # `npm ci` also fails when package-lock.json has drifted from package.json, which is the
-      # other half of that same failure.
+      # `npm ci` also fails when package-lock.json has drifted from package.json, which is
+      # exactly what silently broke an Amplify build for 17 hours. The lock is generated with
+      # npm 10 - the version this runner and the Amplify build image both ship - because a
+      # lock built by npm 11 omits postcss-load-config's optional `yaml` peer and npm 10 then
+      # refuses it. A lock built by npm 10 satisfies both.
       - name: Install
         working-directory: frontend
         run: npm ci
