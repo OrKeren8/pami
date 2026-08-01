@@ -1,16 +1,9 @@
 name: Deploy Jira Service
 
 on:
-  # A manual run can target this branch. Deliberately NOT a push trigger: there is a single
-  # environment, and until scripts/backfill_project_owners.py has given the existing projects
-  # an owner, a deploy of the ownership work would leave them visible to nobody - the app
-  # would look empty even though nothing was lost.
+  # Manual-only until AWS infra/secrets for Jira are ready: no push trigger, so merging to
+  # main will not try to deploy this service on its own.
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'jira_service/**'
-      - '.github/workflows/deploy-jira-service.yml'
 
 concurrency:
   group: deploy-jira
