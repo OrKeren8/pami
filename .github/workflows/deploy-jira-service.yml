@@ -56,7 +56,7 @@ jobs:
         run: |
           # Unquoted delimiter so ${ACCOUNT_ID} expands. Quoted, the task definition reached
           # AWS with the literal string "${ACCOUNT_ID}" in the image URI and both role ARNs.
-          # No other $ appears in the body, and the ${{ }} forms are substituted by Actions
+          # No other $ appears in the body, and the GitHub expression syntax forms are substituted by Actions
           # before the shell ever sees them.
           cat > task-def.json << EOF
           {
