@@ -41,6 +41,21 @@ jobs:
         # file was missed for a whole account generation.
         run: echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
 
+      - name: Resolve the frontend origin
+        # The browser origin is per-account: a new Amplify app means a new domain, and the
+        # allowed-origins list had the previous account's baked in - so every request from the
+        # new frontend failed CORS. Sign-in succeeded and then the session call was blocked,
+        # which presents as a login that silently does nothing.
+        run: |
+          APP_ID=$(aws amplify list-apps --region us-east-1 \
+            --query "apps[?name=='pami'].appId | [0]" --output text 2>/dev/null || echo "")
+          ORIGINS="http://localhost:3000,http://127.0.0.1:3000"
+          if [ -n "$APP_ID" ] && [ "$APP_ID" != "None" ]; then
+            ORIGINS="$ORIGINS,https://main.$APP_ID.amplifyapp.com"
+          fi
+          echo "CORS_ALLOWED_ORIGINS=$ORIGINS" >> $GITHUB_ENV
+          echo "Allowing origins: $ORIGINS"
+
       - name: Resolve the Cognito pool
         # Looked up by name at deploy time rather than stored as a literal, matching how the
         # target groups and the account id are resolved. Empty values are fine: the services
@@ -116,6 +131,10 @@ jobs:
                   {
                     "name": "COGNITO_REGION",
                     "value": "us-east-1"
+                  },
+                  {
+                    "name": "CORS_ALLOWED_ORIGINS",
+                    "value": "${CORS_ALLOWED_ORIGINS}"
                   },
                   {
                     "name": "AUTH_REQUIRED",
@@ -271,6 +290,21 @@ jobs:
         # file was missed for a whole account generation.
         run: echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
 
+      - name: Resolve the frontend origin
+        # The browser origin is per-account: a new Amplify app means a new domain, and the
+        # allowed-origins list had the previous account's baked in - so every request from the
+        # new frontend failed CORS. Sign-in succeeded and then the session call was blocked,
+        # which presents as a login that silently does nothing.
+        run: |
+          APP_ID=$(aws amplify list-apps --region us-east-1 \
+            --query "apps[?name=='pami'].appId | [0]" --output text 2>/dev/null || echo "")
+          ORIGINS="http://localhost:3000,http://127.0.0.1:3000"
+          if [ -n "$APP_ID" ] && [ "$APP_ID" != "None" ]; then
+            ORIGINS="$ORIGINS,https://main.$APP_ID.amplifyapp.com"
+          fi
+          echo "CORS_ALLOWED_ORIGINS=$ORIGINS" >> $GITHUB_ENV
+          echo "Allowing origins: $ORIGINS"
+
       - name: Resolve the Cognito pool
         # Looked up by name at deploy time rather than stored as a literal, matching how the
         # target groups and the account id are resolved. Empty values are fine: the services
@@ -346,6 +380,10 @@ jobs:
                   {
                     "name": "COGNITO_REGION",
                     "value": "us-east-1"
+                  },
+                  {
+                    "name": "CORS_ALLOWED_ORIGINS",
+                    "value": "${CORS_ALLOWED_ORIGINS}"
                   },
                   {
                     "name": "AUTH_REQUIRED",
