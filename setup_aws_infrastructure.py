@@ -35,6 +35,7 @@ SERVICES = [
     {"name": "projects-service", "port": 8000, "health_check_path": "/health"},
     {"name": "slack-service", "port": 8002, "health_check_path": "/health"},
     {"name": "ai-conversation-service", "port": 8001, "health_check_path": "/health"},
+    {"name": "jira-service", "port": 8003, "health_check_path": "/health"},
 ]
 
 # AWS Clients (initialized at runtime after loading .env)
@@ -214,7 +215,7 @@ def get_vpc_subnets(vpc_id: str) -> List[str]:
 # of, so ALB -> task traffic and health checks still work. Opening 8000-8002 to 0.0.0.0/0
 # published every service directly on its task's public IP, bypassing the load balancer.
 PUBLIC_PORTS = [80, 443]
-SERVICE_PORTS = [8000, 8001, 8002]
+SERVICE_PORTS = [8000, 8001, 8002, 8003]
 
 
 def create_or_get_security_group(vpc_id: str) -> Optional[str]:
@@ -617,6 +618,11 @@ def create_alb_listeners(lb_arn: str, target_groups: Dict[str, str]):
                 "path": "/ai/*",
                 "priority": 20,
                 "target_group": target_groups.get("ai-conversation-service"),
+            },
+            {
+                "path": "/jira/*",
+                "priority": 30,
+                "target_group": target_groups.get("jira-service"),
             },
         ]
 
@@ -1148,6 +1154,7 @@ def create_amplify_app(
                         "REACT_APP_SLACK_API_URL": f"{api_base_url}/slack",
                         # Bake the `/ai` prefix into the frontend env so builds use `/ai` as base
                         "REACT_APP_AI_API_URL": f"{api_base_url}/ai",
+                        "REACT_APP_JIRA_API_URL": f"{api_base_url}/jira",
                         # Empty when no pool exists, which is how the frontend decides whether
                         # to show a real sign-in or continue as a local user.
                         **_cognito_frontend_env(user_pool),
@@ -1158,6 +1165,7 @@ def create_amplify_app(
                 print_info(f"  REACT_APP_PROJECTS_API_URL = {api_base_url}")
                 print_info(f"  REACT_APP_SLACK_API_URL = {api_base_url}/slack")
                 print_info(f"  REACT_APP_AI_API_URL = {api_base_url}/ai")
+                print_info(f"  REACT_APP_JIRA_API_URL = {api_base_url}/jira")
 
                 # Trigger a new build with handling for pending jobs
                 def list_branch_jobs():
@@ -1257,6 +1265,7 @@ def create_amplify_app(
                 "REACT_APP_SLACK_API_URL": f"{api_base_url}/slack",
                 # Bake the `/ai` prefix into the frontend so built app targets /ai
                 "REACT_APP_AI_API_URL": f"{api_base_url}/ai",
+                "REACT_APP_JIRA_API_URL": f"{api_base_url}/jira",
                 **_cognito_frontend_env(user_pool),
                 "_LIVE_UPDATES": '[{"pkg":"@aws-amplify/cli","type":"npm","version":"latest"}]',
             },

@@ -9,25 +9,30 @@ const ensureAiPrefix = (baseUrl) => {
     return `${trimmed}/ai`;
 };
 
-// ����� ��� ����� ����� (Gateway) ���������, ������ ��� �������
+//                       (Gateway)          ,                   
 export const projectsApi = axios.create({
     baseURL: process.env.REACT_APP_PROJECTS_API_URL,
     timeout: 8000,
 });
 
-// ����� ������ ������� �-AI �� ���
+//                       -AI       
 export const aiApi = axios.create({
     baseURL: ensureAiPrefix(process.env.REACT_APP_AI_API_URL),
     timeout: 12000,
 });
 
-// ����� ������ ������� ����� �� ������
+//                                     
 export const slackApi = axios.create({
     baseURL: process.env.REACT_APP_SLACK_API_URL,
     timeout: 8000,
 });
 
-// ����� ���� ������ ����� ��� ������ ����� ���� �������� �-api �����
+export const jiraApi = axios.create({
+    baseURL: process.env.REACT_APP_JIRA_API_URL,
+    timeout: 8000,
+});
+
+//                                                         -api      
 const api = projectsApi;
 export default api;
 
