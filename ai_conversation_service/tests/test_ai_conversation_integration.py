@@ -25,13 +25,12 @@ def test_create_conversation_endpoint():
         "title": "Test Conversation",
     }
 
-    # Note: This test will fail without proper AWS credentials and mocking
-    # It's here as a placeholder for when the environment is properly set up
     response = client.post("/ai/ai-conversations/", json=request_data)
 
-    # In a real test environment with mocked AWS services, this should work
-    # For now, we just check that the endpoint exists and returns a proper error
-    assert response.status_code in [200, 500]  # 200 if AWS works, 500 if not configured
+    # 404 is the correct answer here and the reason this assertion changed: creating a
+    # conversation now confirms the caller may see the named project, projects-service is not
+    # running in this suite, and the check fails closed. 200/500 remain valid where it is.
+    assert response.status_code in [200, 404, 500]
 
 
 def test_list_conversations_for_node():

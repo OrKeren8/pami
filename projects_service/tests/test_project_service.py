@@ -2,7 +2,6 @@ import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from projects_service.models.project import Project
 from projects_service.services.project_service import ProjectService
 from projects_service.schemas.project_schemas import (
     CreateProjectRequest,
@@ -47,7 +46,7 @@ class TestProjectService:
 
         mock_repository.create = AsyncMock(return_value=created_project)
 
-        result = await service.create_project(request)
+        result = await service.create_project(request, "user-1", "owner@example.com")
 
         assert isinstance(result, ProjectResponse)
         assert result.id == "507f1f77bcf86cd799439011"
@@ -95,7 +94,7 @@ class TestProjectService:
 
     @pytest.mark.asyncio
     async def test_list_projects(self, service, mock_repository):
-        """Test listing all projects."""
+        """Only the caller's own projects: this used to list the whole database."""
         project1 = MagicMock()
         project1.name = "Project 1"
         project1.goal = "Goal 1"
@@ -112,15 +111,17 @@ class TestProjectService:
 
         projects = [project1, project2]
 
-        mock_repository.list_all = AsyncMock(return_value=projects)
+        mock_repository.list_for_member = AsyncMock(return_value=projects)
 
-        result = await service.list_projects()
+        result = await service.list_projects("user-1")
 
         assert len(result) == 2
         assert result[0].name == "Project 1"
         assert result[1].name == "Project 2"
         assert all(isinstance(r, ProjectResponse) for r in result)
-        mock_repository.list_all.assert_called_once()
+        mock_repository.list_for_member.assert_called_once_with(
+            "user-1", include_unowned=False
+        )
 
     @pytest.mark.asyncio
     async def test_update_project_found(self, service, mock_repository):

@@ -125,6 +125,16 @@ class ContextTreeService:
         self._background_tasks.add(task)
         task.add_done_callback(_finished)
 
+    def _service_headers(self) -> Dict[str, str]:
+        """Identify this service to the AI service.
+
+        These calls happen from background tasks reacting to a node being created, so there is
+        no user token to forward even in principle.
+        """
+        if settings.service_key:
+            return {"X-Service-Key": settings.service_key}
+        return {}
+
     async def _persist_node_fields(self, node: ContextTreeNode, fields: dict) -> None:
         """Write only the named fields.
 
@@ -334,7 +344,9 @@ class ContextTreeService:
                             "message": seed_message,
                             "context_snapshot": {"project_id": project_id},
                         }
-                        async with session.post(seed_url, json=seed_payload):
+                        async with session.post(
+                            seed_url, json=seed_payload, headers=self._service_headers()
+                        ):
                             pass
                 except Exception as e:
                     self._logger.warning(
@@ -358,7 +370,9 @@ class ContextTreeService:
                 "title": f"AI Discussion - Node {context_node_id[:8]}",
             }
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload) as response:
+                async with session.post(
+                    url, json=payload, headers=self._service_headers()
+                ) as response:
                     status = response.status
                     body = await response.text()
                     if 200 <= status < 300:
@@ -409,7 +423,9 @@ class ContextTreeService:
                     "conversation_id": conversation_id,
                     "current_tree": tree_context,
                 }
-                async with session.post(url, json=payload) as response:
+                async with session.post(
+                    url, json=payload, headers=self._service_headers()
+                ) as response:
                     status = response.status
                     raw_body = await response.text()
                     if 200 <= status < 300:
@@ -660,7 +676,9 @@ class ContextTreeService:
         try:
             url = f"{self._ai_base_url()}/ai-conversations/{conversation_id}"
             async with aiohttp.ClientSession() as session:
-                async with session.delete(url) as response:
+                async with session.delete(
+                    url, headers=self._service_headers()
+                ) as response:
                     status = response.status
                     body = await response.text()
                     if 200 <= status < 300:

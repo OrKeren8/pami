@@ -6924,3 +6924,84 @@ button[aria-label*="Slack"] {
   background: transparent !important;
   color: #8b7ba8 !important;
 }
+
+/* Sharing a project: who has access, and the pending invites that will become access. */
+.share-project-btn {
+  padding: 8px 16px;
+  border: 1px solid #f4a9cb;
+  border-radius: 999px;
+  background: #fff;
+  color: #be185d;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.share-project-btn:hover:not(:disabled) {
+  background: #fff1f8;
+}
+
+.share-project-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.share-members {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #f3e3ee;
+  text-align: left;
+}
+
+.share-members-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #a1a1aa;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.share-members ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.share-members li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: #3f3f46;
+}
+
+.share-role {
+  color: #9b6e86;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.share-remove {
+  padding: 3px 10px;
+  border: 1px solid #f0d8e6;
+  border-radius: 999px;
+  background: transparent;
+  color: #be185d;
+  font-family: inherit;
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.share-empty {
+  color: #a1a1aa;
+}

@@ -1,7 +1,10 @@
-from typing import Dict, List, Optional
+import time
+from typing import Dict, List, Optional, Tuple
 
 import httpx
 from loguru import logger
+
+from ai_conversation_service.core.config import settings
 
 
 class ProjectsServiceClient:
@@ -10,6 +13,60 @@ class ProjectsServiceClient:
     def __init__(self, base_url: str = ""):
         self.base_url = (base_url or "").strip().rstrip("/")
         self._logger = logger.bind(service="ProjectsServiceClient")
+        # (user_id, project_id) -> (allowed, checked_at). Bounded by how many projects one
+        # process sees, and the chat endpoint would otherwise ask on every message.
+        self._access_cache: Dict[Tuple[str, str], Tuple[bool, float]] = {}
+
+    def _headers(self) -> Dict[str, str]:
+        """Identify this service. Its calls have no user behind them to borrow a token from."""
+        if settings.service_key:
+            return {"X-Service-Key": settings.service_key}
+        return {}
+
+    def _service_root(self) -> str:
+        """The projects-service root, with any trailing /projects removed."""
+        if self.base_url.endswith("/projects"):
+            return self.base_url[: -len("/projects")]
+        return self.base_url
+
+    async def can_access_project(self, user_id: str, project_id: str) -> bool:
+        """Whether this user may see this project, according to projects-service.
+
+        Fails closed. If the answer cannot be obtained, the request is refused rather than
+        allowed: an outage must not turn into everyone being able to read everything.
+        """
+        if not self.base_url or not user_id or not project_id:
+            return False
+
+        key = (user_id, project_id)
+        cached = self._access_cache.get(key)
+        now = time.monotonic()
+        if cached and now - cached[1] < settings.authz_cache_seconds:
+            return cached[0]
+
+        url = f"{self._service_root()}/internal/authz/check"
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
+                response = await client.post(
+                    url,
+                    json={"user_id": user_id, "project_id": project_id},
+                    headers=self._headers(),
+                )
+            if response.status_code != 200:
+                self._logger.error(
+                    f"Access check for project {project_id} returned "
+                    f"{response.status_code}"
+                )
+                return False
+            allowed = bool(response.json().get("allowed"))
+        except Exception as exc:
+            self._logger.error(
+                f"Access check for project {project_id} failed: {type(exc).__name__}"
+            )
+            return False
+
+        self._access_cache[key] = (allowed, now)
+        return allowed
 
     def _project_urls(self, project_id: str) -> List[str]:
         """Build candidate project URLs from the configured base URL."""
@@ -51,7 +108,7 @@ class ProjectsServiceClient:
         }
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(10.0)) as client:
-                response = await client.put(url, json=payload)
+                response = await client.put(url, json=payload, headers=self._headers())
             if response.status_code != 200:
                 self._logger.error(
                     f"Sibling score push for node {node_id} returned "
@@ -82,7 +139,7 @@ class ProjectsServiceClient:
         url = f"{self.base_url}/context-tree/projects/{project_id}/nodes"
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
-                response = await client.get(url)
+                response = await client.get(url, headers=self._headers())
             if response.status_code != 200:
                 return None
             for node in response.json() or []:
@@ -108,7 +165,7 @@ class ProjectsServiceClient:
         url = f"{self.base_url}/context-tree/projects/{project_id}/nodes"
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(5.0)) as client:
-                response = await client.get(url)
+                response = await client.get(url, headers=self._headers())
             if response.status_code != 200:
                 return None
             return {str(node.get("id")) for node in response.json() or []}
@@ -126,7 +183,7 @@ class ProjectsServiceClient:
         url = f"{self.base_url}/context-tree/nodes/{node_id}"
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(3.0)) as client:
-                response = await client.get(url)
+                response = await client.get(url, headers=self._headers())
             if response.status_code != 200:
                 return []
             links = (response.json() or {}).get("sibling_links") or []
@@ -151,7 +208,7 @@ class ProjectsServiceClient:
         async with httpx.AsyncClient(timeout=timeout) as client:
             for url in urls:
                 try:
-                    response = await client.get(url)
+                    response = await client.get(url, headers=self._headers())
                     if response.status_code != 200:
                         continue
 

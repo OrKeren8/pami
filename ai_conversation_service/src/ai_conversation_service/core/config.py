@@ -74,6 +74,23 @@ class Settings(BaseSettings):
     # the next start, and the whole thing is a no-op once nothing is stale.
     startup_reindex_limit: int = 200
 
+    # --- Authentication (AWS Cognito) ---
+    # Same pool as projects-service: one identity across the whole app.
+    cognito_region: str = "us-east-1"
+    cognito_user_pool_id: str = ""
+    cognito_client_id: str = ""
+    auth_required: bool = False
+    unauthenticated_user_id: str = "local-dev-user"
+    unauthenticated_user_email: str = "local@pami.dev"
+    # Presented to projects-service on calls that have no user behind them - the idle
+    # reindex, the startup backfill, the sibling scoring - and required of anything calling
+    # this service's own internal endpoints.
+    service_key: str = ""
+    # Membership answers are cached briefly: the chat endpoint would otherwise ask
+    # projects-service on every single message. The cost of the cache is that revoking
+    # someone's access can lag by this long.
+    authz_cache_seconds: int = 60
+
     # API root path (useful for tests and deployments). Leave empty string for no prefix.
     api_root: str = ""
 
@@ -93,6 +110,15 @@ class Settings(BaseSettings):
             for origin in self.cors_allowed_origins.split(",")
             if origin.strip()
         ]
+
+    @field_validator("auth_required", mode="before")
+    @classmethod
+    def normalize_auth_required(cls, value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return False
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
     @field_validator("debug", mode="before")
     @classmethod

@@ -2,16 +2,47 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './LoginPage.css';
 import pamiLogo from '../assets/pami-logo.png';
+import {
+    confirm,
+    describeAuthError,
+    isAuthConfigured,
+    login,
+    register,
+    resendCode
+} from '../auth/cognito';
+import { useSession } from '../auth/SessionProvider';
+
+// One page for all three steps rather than three routes: they share the same card, the same
+// two fields, and the confirmation step always follows sign-up immediately.
+const MODES = {
+    SIGN_IN: 'sign-in',
+    SIGN_UP: 'sign-up',
+    CONFIRM: 'confirm'
+};
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [code, setCode] = useState('');
+    const [mode, setMode] = useState(MODES.SIGN_IN);
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
+    const [notice, setNotice] = useState('');
+    const [isBusy, setIsBusy] = useState(false);
     const navigate = useNavigate();
+    const { refresh } = useSession();
 
-    const handleLogin = (e) => {
+    const finishSignIn = async () => {
+        // The session is loaded before navigating so the dashboard does not render, discover
+        // it has no session, and bounce back to this page.
+        await refresh();
+        navigate('/dashboard');
+    };
+
+    const handleLogin = async (e) => {
         e.preventDefault();
+        setError('');
+        setNotice('');
 
         if (!email || !password) {
             // Inline instead of a blocking alert(), which stops the page until dismissed and
@@ -20,8 +51,71 @@ const LoginPage = () => {
             return;
         }
 
+        // With no user pool configured there is nobody to authenticate against, and the
+        // backends still answer as a local development user.
+        if (!isAuthConfigured) {
+            await finishSignIn();
+            return;
+        }
+
+        setIsBusy(true);
+        try {
+            if (mode === MODES.SIGN_UP) {
+                const { needsConfirmation } = await register(email, password);
+                if (needsConfirmation) {
+                    setMode(MODES.CONFIRM);
+                    setNotice(`We sent a confirmation code to ${email}.`);
+                    return;
+                }
+                await login(email, password);
+                await finishSignIn();
+                return;
+            }
+
+            const { needsConfirmation } = await login(email, password);
+            if (needsConfirmation) {
+                setMode(MODES.CONFIRM);
+                setNotice('This account still needs confirming. Enter the code we emailed you.');
+                return;
+            }
+            await finishSignIn();
+        } catch (authError) {
+            setError(describeAuthError(authError));
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handleConfirm = async (e) => {
+        e.preventDefault();
         setError('');
-        navigate('/dashboard');
+        setNotice('');
+
+        if (!code.trim()) {
+            setError('Enter the code from your email.');
+            return;
+        }
+
+        setIsBusy(true);
+        try {
+            await confirm(email, code.trim());
+            await login(email, password);
+            await finishSignIn();
+        } catch (authError) {
+            setError(describeAuthError(authError));
+        } finally {
+            setIsBusy(false);
+        }
+    };
+
+    const handleResend = async () => {
+        setError('');
+        try {
+            await resendCode(email);
+            setNotice(`We sent another code to ${email}.`);
+        } catch (authError) {
+            setError(describeAuthError(authError));
+        }
     };
 
     return (
@@ -33,10 +127,55 @@ const LoginPage = () => {
                     </div>
 
                     <div className="login-header">
-                        <h1>Welcome to Pami!</h1>
-                        <p>Welcome back! Please login to create your company, and manage projects effectively.</p>
+                        <h1>
+                            {mode === MODES.SIGN_UP
+                                ? 'Create your Pami account'
+                                : mode === MODES.CONFIRM
+                                    ? 'Confirm your email'
+                                    : 'Welcome to Pami!'}
+                        </h1>
+                        <p>
+                            {mode === MODES.SIGN_UP
+                                ? 'Your projects are yours. You can share any of them with a teammate by email.'
+                                : mode === MODES.CONFIRM
+                                    ? `Enter the code we sent to ${email}.`
+                                    : 'Welcome back! Please login to manage your projects effectively.'}
+                        </p>
                     </div>
 
+                    {mode === MODES.CONFIRM ? (
+                        <form onSubmit={handleConfirm} className="login-form-fields" noValidate>
+                            <div className="input-group">
+                                <label htmlFor="confirm-code">Confirmation code</label>
+                                <input
+                                    id="confirm-code"
+                                    name="code"
+                                    type="text"
+                                    inputMode="numeric"
+                                    autoComplete="one-time-code"
+                                    placeholder="123456"
+                                    value={code}
+                                    onChange={(e) => setCode(e.target.value)}
+                                    required
+                                />
+                            </div>
+
+                            {error && (
+                                <p className="login-error" role="alert">
+                                    {error}
+                                </p>
+                            )}
+                            {notice && <p className="login-mode-note">{notice}</p>}
+
+                            <button type="submit" className="login-submit-btn" disabled={isBusy}>
+                                {isBusy ? 'Confirming…' : 'Confirm and sign in'}
+                            </button>
+
+                            <button type="button" className="login-secondary-action" onClick={handleResend}>
+                                Send me a new code
+                            </button>
+                        </form>
+                    ) : (
                     <form onSubmit={handleLogin} className="login-form-fields" noValidate>
                         <div className="input-group">
                             <label htmlFor="login-email">Company Email</label>
@@ -60,7 +199,9 @@ const LoginPage = () => {
                                     id="login-password"
                                     name="password"
                                     type={showPassword ? 'text' : 'password'}
-                                    autoComplete="current-password"
+                                    autoComplete={
+                                        mode === MODES.SIGN_UP ? 'new-password' : 'current-password'
+                                    }
                                     placeholder="••••••••"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
@@ -98,17 +239,39 @@ const LoginPage = () => {
                             </p>
                         )}
 
-                        <button type="submit" className="login-submit-btn">
-                            Sign In
-                        </button>
-                    </form>
+                        {notice && <p className="login-mode-note">{notice}</p>}
 
-                    {/* "Forgot Password?" and "Sign Up" were <a href="#"> that jumped to the top
-                        of the page. Neither flow exists, so they are stated as unavailable
-                        rather than pretending to be links. */}
+                        <button type="submit" className="login-submit-btn" disabled={isBusy}>
+                            {isBusy
+                                ? 'Please wait…'
+                                : mode === MODES.SIGN_UP
+                                    ? 'Create account'
+                                    : 'Sign In'}
+                        </button>
+
+                        {isAuthConfigured && (
+                            <button
+                                type="button"
+                                className="login-secondary-action"
+                                onClick={() => {
+                                    setMode(mode === MODES.SIGN_UP ? MODES.SIGN_IN : MODES.SIGN_UP);
+                                    setError('');
+                                    setNotice('');
+                                }}
+                            >
+                                {mode === MODES.SIGN_UP
+                                    ? 'I already have an account'
+                                    : 'Create an account instead'}
+                            </button>
+                        )}
+                    </form>
+                    )}
+
                     <div className="login-footer">
                         <p className="login-footer-note">
-                            Password recovery and self-service sign-up are not available yet.
+                            {isAuthConfigured
+                                ? 'Password recovery is not available yet.'
+                                : 'Accounts are not configured yet, so signing in continues as a local user.'}
                         </p>
                     </div>
                 </div>

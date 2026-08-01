@@ -27,6 +27,10 @@ class InMemoryAIConversationService:
         self.conversations[conversation.conversation_id] = conversation
         return conversation
 
+    async def get_conversation(self, conversation_id: str):
+        """The access check resolves a conversation to the project that owns it."""
+        return self.conversations.get(conversation_id)
+
     async def send_message(
         self, conversation_id: str, user_message: str, context_snapshot=None
     ):
@@ -100,7 +104,18 @@ def _make_test_client():
     fake_service = InMemoryAIConversationService()
     app.dependency_overrides[get_ai_conversation_service] = lambda: fake_service
 
+    # The routes now confirm with projects-service that the caller may see the project a
+    # conversation belongs to. This suite covers the conversation behaviour, so membership is
+    # granted here; the check itself is covered in test_ai_access_e2e.py.
+    fake_service.projects_service_client = AlwaysAllowsAccess()
+    app.state.ai_conversation_service = fake_service
+
     return TestClient(app)
+
+
+class AlwaysAllowsAccess:
+    async def can_access_project(self, user_id: str, project_id: str) -> bool:
+        return True
 
 
 def test_ai_conversation_end_to_end_flow():

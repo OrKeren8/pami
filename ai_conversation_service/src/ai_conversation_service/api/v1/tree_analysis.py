@@ -5,6 +5,7 @@ from ai_conversation_service.schemas.tree_analysis_schemas import (
     AnalyzeTreeRequest,
     NodeOrganizationResponse,
 )
+from ai_conversation_service.core.auth import ServiceCallerDep
 from ai_conversation_service.services.tree_analysis_service import TreeAnalysisService
 from ai_conversation_service.dependencies import get_tree_analysis_service
 
@@ -14,10 +15,15 @@ router = APIRouter(prefix="/tree-analysis", tags=["tree-analysis"])
 @router.post("/organize-node", response_model=NodeOrganizationResponse)
 async def organize_node(
     request: AnalyzeTreeRequest,
+    caller: ServiceCallerDep,
     service: TreeAnalysisService = Depends(get_tree_analysis_service),
 ):
     """
     Analyze conversation and existing tree to suggest optimal node organization.
+
+    Called by projects-service when a node is created, from a background task with no user
+    request in flight - so it authenticates a peer service rather than a person. Left open, it
+    would read any conversation whose id a caller could name.
 
     AI will:
     - Read the conversation about this node

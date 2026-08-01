@@ -23,6 +23,7 @@ dependencies = [
     "fastembed>=0.8.0",
     "pydantic-ai>=2.8.0",
     "beanie>=2.1.0",
+    "pyjwt[crypto]>=2.8.0",
 ]
 
 [project.optional-dependencies]

@@ -1,0 +1,186 @@
+/* Same shell as the dashboard and Chat View so the sidebar keeps its context. */
+.admin-page {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.admin-main {
+    flex: 1;
+    min-width: 0;
+    /* The sidebar is position: fixed and takes no space in the flex row. */
+    margin-left: var(--sidebar-width);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 26px 30px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #fdf7fb 0%, #ffffff 45%);
+}
+
+.admin-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f3e3ee;
+}
+
+.admin-kicker {
+    display: inline-block;
+    margin-bottom: 6px;
+    color: #be185d;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.admin-header h1 {
+    margin: 0 0 6px;
+    color: #18181b;
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.admin-header p {
+    margin: 0;
+    max-width: 56ch;
+    color: #71717a;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.admin-stats {
+    display: flex;
+    gap: 10px;
+}
+
+.admin-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 92px;
+    padding: 10px 14px;
+    border: 1px solid #f7d6e7;
+    border-radius: 14px;
+    background: linear-gradient(150deg, #ffffff 0%, #fff6fb 100%);
+    box-shadow: 0 8px 18px -12px rgba(190, 24, 93, 0.3);
+}
+
+.admin-stat strong {
+    color: #18181b;
+    font-size: 1.2rem;
+}
+
+.admin-stat span {
+    color: #a1a1aa;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.admin-stat-warn {
+    border-color: #f4b400;
+}
+
+.admin-stat-warn strong {
+    color: #b45309;
+}
+
+.admin-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* The table scrolls inside its own box so the page itself never scrolls sideways. */
+.admin-table-scroll {
+    height: 100%;
+    overflow: auto;
+    border: 1px solid #f3e3ee;
+    border-radius: 14px;
+    background: #ffffff;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+.admin-table th,
+.admin-table td {
+    padding: 11px 14px;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.admin-table thead th {
+    position: sticky;
+    top: 0;
+    background: #fff6fb;
+    color: #9b6e86;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.admin-table tbody tr {
+    border-top: 1px solid #f7ebf3;
+}
+
+.admin-table tbody tr:hover {
+    background: #fffafd;
+}
+
+.admin-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    height: 100%;
+    min-height: 220px;
+    color: #71717a;
+    font-size: 0.88rem;
+    text-align: center;
+}
+
+.admin-retry {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #f06292, #ec4899);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.admin-spinner {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 3px solid #f6e3ee;
+    border-top-color: #f06292;
+    animation: admin-spin 0.8s linear infinite;
+}
+
+@keyframes admin-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .admin-spinner {
+        animation-duration: 2s;
+    }
+}

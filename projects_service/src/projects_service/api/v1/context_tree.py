@@ -16,38 +16,40 @@ from projects_service.dependencies import (
     ContextTreeServiceDep,
     get_context_tree_service,
 )
+from projects_service.core.access import NodeForMemberDep, ProjectForMemberDep
+from projects_service.core.auth import ServiceCallerDep
 
 router = APIRouter(prefix="/context-tree", tags=["context-tree"])
 
 
 @router.post("/projects/{project_id}/nodes", response_model=ContextTreeNodeResponse)
 async def create_node(
-    project_id: str,
     request: CreateContextTreeNodeRequest,
+    project: ProjectForMemberDep,
     service: ContextTreeService = Depends(get_context_tree_service),
 ):
-    return await service.create_node(project_id, request)
+    return await service.create_node(str(project.id), request)
 
 
 @router.get(
     "/projects/{project_id}/nodes", response_model=List[ContextTreeNodeResponse]
 )
 async def list_nodes(
-    project_id: str,
+    project: ProjectForMemberDep,
     service: ContextTreeService = Depends(get_context_tree_service),
 ):
-    return await service.list_nodes_by_project(project_id)
+    return await service.list_nodes_by_project(str(project.id))
 
 
 @router.get("/nodes/{node_id}", response_model=ContextTreeNodeResponse)
 async def get_node(
-    node_id: str,
+    node: NodeForMemberDep,
     service: ContextTreeService = Depends(get_context_tree_service),
 ):
-    node = await service.get_node(node_id)
-    if not node:
+    found = await service.get_node(str(node.id))
+    if not found:
         raise HTTPException(status_code=404, detail="Node not found")
-    return node
+    return found
 
 
 @router.put("/nodes/{node_id}/sibling-scores", response_model=ContextTreeNodeResponse)
@@ -55,8 +57,13 @@ async def update_sibling_scores(
     node_id: str,
     request: UpdateSiblingScoresRequest,
     context_tree_service: ContextTreeServiceDep,
+    caller: ServiceCallerDep,
 ):
-    """Apply externally computed sibling correlation scores to a node."""
+    """Apply externally computed sibling correlation scores to a node.
+
+    Called by the AI service, not a browser: the scoring runs from a background task with no
+    user request in flight, so this authenticates a peer service rather than a person.
+    """
     try:
         node = await context_tree_service.apply_sibling_scores(
             node_id, request.scores, request.source, request.near_peers
@@ -70,21 +77,22 @@ async def update_sibling_scores(
 
 @router.put("/nodes/{node_id}", response_model=ContextTreeNodeResponse)
 async def update_node(
-    node_id: str,
     request: UpdateContextTreeNodeRequest,
+    node: NodeForMemberDep,
     service: ContextTreeService = Depends(get_context_tree_service),
 ):
-    node = await service.update_node(node_id, request)
-    if not node:
+    updated = await service.update_node(str(node.id), request)
+    if not updated:
         raise HTTPException(status_code=404, detail="Node not found")
-    return node
+    return updated
 
 
 @router.delete("/nodes/{node_id}")
 async def delete_node(
-    node_id: str,
+    node: NodeForMemberDep,
     service: ContextTreeService = Depends(get_context_tree_service),
 ):
+    node_id = str(node.id)
     try:
         deleted = await service.delete_node(node_id)
     except ConversationPurgeError as error:

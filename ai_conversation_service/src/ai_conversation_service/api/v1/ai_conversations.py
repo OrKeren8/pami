@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 
 from ai_conversation_service.schemas.ai_conversation_schemas import (
@@ -6,6 +6,12 @@ from ai_conversation_service.schemas.ai_conversation_schemas import (
     SendMessageRequest,
     ConversationResponse,
     ConversationHistoryResponse,
+)
+from ai_conversation_service.core.access import (
+    CallerDep,
+    ConversationForMemberDep,
+    ProjectIdForMemberDep,
+    assert_project_access,
 )
 from ai_conversation_service.core.config import settings
 from ai_conversation_service.dependencies import AIConversationServiceDep
@@ -30,9 +36,12 @@ async def health_check():
 @router.post("/", response_model=ConversationResponse)
 async def create_conversation(
     request: CreateConversationRequest,
+    http_request: Request,
+    user: CallerDep,
     ai_conversation_service: AIConversationServiceDep,
 ):
     """Create a new AI conversation for a context node."""
+    await assert_project_access(http_request, user, request.project_id)
     try:
         conversation = await ai_conversation_service.create_conversation(
             request.context_node_id, request.project_id, request.title
@@ -51,6 +60,7 @@ async def create_conversation(
 async def send_message(
     conversation_id: str,
     request: SendMessageRequest,
+    conversation: ConversationForMemberDep,
     ai_conversation_service: AIConversationServiceDep,
 ):
     """Send a message and get a response, with any consulted conversations reported."""
@@ -73,6 +83,9 @@ async def send_message(
 @router.get("/{conversation_id}", response_model=ConversationHistoryResponse)
 async def get_conversation(
     conversation_id: str,
+    # Named for what it does: the dependency's job is the membership check, and the handler
+    # then loads the history separately.
+    authorized: ConversationForMemberDep,
     ai_conversation_service: AIConversationServiceDep,
     limit: int | None = None,
 ):
@@ -99,14 +112,31 @@ async def get_conversation(
 @router.get("/node/{context_node_id}", response_model=list[ConversationResponse])
 async def list_conversations_for_node(
     context_node_id: str,
+    http_request: Request,
+    user: CallerDep,
     ai_conversation_service: AIConversationServiceDep,
 ):
-    """List all conversations for a context node."""
+    """List all conversations for a context node.
+
+    A node id alone says nothing about who may see it, so each conversation is filtered by
+    membership of the project it belongs to rather than trusting the node id.
+    """
     try:
         conversations = await ai_conversation_service.list_conversations_for_node(
             context_node_id
         )
-        return [ConversationResponse(**conv) for conv in conversations]
+        if user is None:
+            # A peer service asking; it has done its own authorization.
+            return [ConversationResponse(**conv) for conv in conversations]
+
+        allowed = []
+        for conv in conversations:
+            client = getattr(ai_conversation_service, "projects_service_client", None)
+            if client and await client.can_access_project(
+                user.user_id, conv.get("project_id")
+            ):
+                allowed.append(conv)
+        return [ConversationResponse(**conv) for conv in allowed]
     except Exception as error:
         # str(error) here is a botocore, OpenAI or pymongo message: it leaks the S3
         # bucket and key layout, the model and org ids, or the replica-set hostnames
@@ -118,7 +148,7 @@ async def list_conversations_for_node(
 
 @router.get("/project/{project_id}", response_model=list[ConversationResponse])
 async def list_conversations_for_project(
-    project_id: str,
+    project_id: ProjectIdForMemberDep,
     ai_conversation_service: AIConversationServiceDep,
 ):
     """Every conversation in a project, most recently updated first."""
@@ -137,6 +167,8 @@ async def list_conversations_for_project(
 @router.post("/context-retrieval/search", response_model=list[ContextHit])
 async def search_context(
     request: SearchContextRequest,
+    http_request: Request,
+    user: CallerDep,
     ai_conversation_service: AIConversationServiceDep,
 ):
     """Run the same retrieval the agent tool runs. Debug only, disabled by default."""
@@ -144,6 +176,9 @@ async def search_context(
         raise HTTPException(status_code=404, detail="Not found")
     if not ai_conversation_service.context_retrieval_service:
         raise HTTPException(status_code=503, detail="Retrieval is unavailable")
+    # Even behind a flag: this endpoint returns snippets from a client-supplied project id,
+    # which is the whole point of checking it.
+    await assert_project_access(http_request, user, request.project_id)
     return await ai_conversation_service.context_retrieval_service.search(
         project_id=request.project_id,
         query=request.query,
@@ -155,6 +190,7 @@ async def search_context(
 @router.post("/context-retrieval/reindex/{conversation_id}", status_code=202)
 async def reindex_conversation(
     conversation_id: str,
+    conversation: ConversationForMemberDep,
     ai_conversation_service: AIConversationServiceDep,
 ):
     """Force a reindex, ignoring the debounce. Idempotent."""
@@ -172,6 +208,7 @@ async def reindex_conversation(
 @router.delete("/{conversation_id}")
 async def delete_conversation(
     conversation_id: str,
+    conversation: ConversationForMemberDep,
     ai_conversation_service: AIConversationServiceDep,
 ):
     """Delete a conversation and remove it from the search index."""

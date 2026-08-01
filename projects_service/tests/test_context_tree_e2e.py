@@ -3,10 +3,12 @@ from uuid import uuid4
 from unittest.mock import AsyncMock
 
 from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from projects_service.api.v1.context_tree import router as context_tree_router
 from projects_service.dependencies import get_context_tree_service
+from projects_service.core.access import node_for_member, project_for_member
 from projects_service.services.context_tree_service import ContextTreeService
 import projects_service.services.context_tree_service as context_tree_service_module
 
@@ -73,7 +75,32 @@ def _make_test_client(monkeypatch):
     service._delete_ai_conversation = AsyncMock(return_value=True)
 
     app.dependency_overrides[get_context_tree_service] = lambda: service
+
+    # These routes now resolve the project (and, for node routes, the node's project) to check
+    # membership. This suite is about the node/scoring behaviour, so the access checks are
+    # stubbed out here and covered on their own in test_project_access_e2e.py.
+    app.dependency_overrides[project_for_member] = lambda: FakeProject()
+    app.dependency_overrides[node_for_member] = _node_from_path(repository)
     return TestClient(app)
+
+
+class FakeProject:
+    """Stands in for the project an access check would have loaded."""
+
+    def __init__(self, project_id: str = "project-under-test"):
+        self.id = project_id
+
+
+def _node_from_path(repository):
+    """Resolve the node the way the real dependency does, minus the membership check."""
+
+    async def resolve(node_id: str):
+        node = await repository.get_by_id(node_id)
+        if not node:
+            raise HTTPException(status_code=404, detail="Node not found")
+        return node
+
+    return resolve
 
 
 def _create_node(client, project_id: str, header: str, conversation_id: str) -> str:
