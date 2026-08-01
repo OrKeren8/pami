@@ -1,16 +1,10 @@
 name: Deploy Slack Service
 
 on:
-  # A manual run can target this branch. Deliberately NOT a push trigger: there is a single
-  # environment, and until scripts/backfill_project_owners.py has given the existing projects
-  # an owner, a deploy of the ownership work would leave them visible to nobody - the app
-  # would look empty even though nothing was lost.
+  # Manual-only for now: current AWS credentials fail on ECR permissions, so a push
+  # trigger here would fail a deploy on every push to main. Re-add a push trigger once
+  # credentials are fixed.
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'slack_service/**'
-      - '.github/workflows/deploy-slack-service.yml'
 
 concurrency:
   group: deploy-slack
