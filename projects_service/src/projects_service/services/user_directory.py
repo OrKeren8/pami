@@ -5,6 +5,7 @@ from loguru import logger
 from pymongo.errors import DuplicateKeyError
 
 from projects_service.core.auth import AuthenticatedUser
+from projects_service.core.config import settings
 from projects_service.data.project_repository import ProjectRepository
 from projects_service.models.project import ProjectMember, ProjectRole
 from projects_service.models.user import User
@@ -28,6 +29,12 @@ class UserDirectory:
             self._logger.warning(
                 f"Sign-in for {user.user_id} carried no email; cannot mirror or claim invites"
             )
+            return None
+
+        # The stand-in identity used while authentication is off is not a person. Recording it
+        # put "local@pami.dev" in the admin dashboard's user list as though someone had signed
+        # up, and it would keep a row there long after real accounts existed.
+        if user.user_id == settings.unauthenticated_user_id:
             return None
 
         record = await User.find_one(User.sub == user.user_id)

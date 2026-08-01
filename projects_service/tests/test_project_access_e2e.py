@@ -387,3 +387,22 @@ def test_a_project_with_no_owner_is_visible_to_nobody(app_context, monkeypatch):
     assert client.get("/admin/users").json()["orphaned_projects"] == 1, (
         "an unreachable project must be surfaced, not silently ignored"
     )
+
+
+def test_the_stand_in_identity_is_not_recorded_as_a_user():
+    """It is not a person, and it appeared in the admin dashboard as though it were.
+
+    Seen live: signing in as nobody, which is what happens while AUTH_REQUIRED is off, left a
+    "local@pami.dev" row in the user list next to the real accounts.
+    """
+    import asyncio
+
+    from projects_service.core.config import settings
+    from projects_service.services.user_directory import UserDirectory
+
+    directory = UserDirectory(InMemoryProjectRepository())
+    stand_in = AuthenticatedUser(
+        settings.unauthenticated_user_id, settings.unauthenticated_user_email, []
+    )
+
+    assert asyncio.run(directory.record_sign_in(stand_in)) is None
