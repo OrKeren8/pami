@@ -35,7 +35,10 @@ from projects_service.services.project_service import ProjectService
 OWNER = AuthenticatedUser("owner-sub", "owner@example.com", [])
 OUTSIDER = AuthenticatedUser("outsider-sub", "outsider@example.com", [])
 INVITEE = AuthenticatedUser("invitee-sub", "invitee@example.com", [])
-ADMIN = AuthenticatedUser("admin-sub", "orkerem8@gmail.com", [])
+# Admin by group, not by a hardcoded address: writing the address here meant that changing
+# who the administrator is broke two unrelated tests, and the failure looked like the admin
+# dashboard was broken rather than like a stale literal in a test.
+ADMIN = AuthenticatedUser("admin-sub", "an-administrator@example.com", ["admins"])
 
 
 class FakeProjectDoc:
@@ -406,3 +409,21 @@ def test_the_stand_in_identity_is_not_recorded_as_a_user():
     )
 
     assert asyncio.run(directory.record_sign_in(stand_in)) is None
+
+
+def test_the_configured_admin_address_grants_access():
+    """The email path, checked against the configured value rather than a literal.
+
+    Worth its own test: the address was written into the allowlist with one letter wrong, so
+    the admin page would have refused the one account it exists for.
+    """
+    from projects_service.core.config import settings
+
+    assert settings.admin_email_list, "an administrator must be configured"
+    for address in settings.admin_email_list:
+        assert AuthenticatedUser("sub", address, []).is_admin
+        assert AuthenticatedUser("sub", address.upper(), []).is_admin, (
+            "an address the user types with capitals must still match"
+        )
+
+    assert not AuthenticatedUser("sub", "someone-else@example.com", []).is_admin

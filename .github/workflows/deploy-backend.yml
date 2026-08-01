@@ -109,7 +109,7 @@ jobs:
                 "environment": [
                   {
                     "name": "ADMIN_EMAILS",
-                    "value": "${{ vars.ADMIN_EMAILS || 'orkerem8@gmail.com' }}"
+                    "value": "${{ vars.ADMIN_EMAILS || 'orkeren8@gmail.com' }}"
                   },
                   {
                     "name": "COGNITO_USER_POOL_ID",

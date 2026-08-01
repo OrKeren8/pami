@@ -43,7 +43,10 @@ class Settings(BaseSettings):
     # Comma-separated. Checked against the email claim in a verified token, so it cannot be
     # spoofed by a request field. A Cognito group is the better long-term answer, but group
     # management needs IAM permissions a restricted lab account may not have.
-    admin_emails: str = "orkerem8@gmail.com"
+    # Matched against the email on the verified Cognito account - orkeren8@gmail.com, with an
+    # "n". It was written here with an "m", so the admin page would have refused the very
+    # account it exists for.
+    admin_emails: str = "orkeren8@gmail.com"
     admin_group: str = "admins"
 
     # Shared secret for calls from the other services, which have no user to act as. Empty

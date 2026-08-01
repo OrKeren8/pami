@@ -56,7 +56,25 @@ export const getSignedInUser = async () => {
     }
 };
 
+/**
+ * Drop any existing session before authenticating.
+ *
+ * Cognito refuses signIn with "There is already a signed in user" when one is already stored,
+ * and the stored session outlives the account it belongs to - a token from a deleted user, or
+ * simply someone switching accounts, blocks the next sign-in with an error that says nothing
+ * about what to do. Hit exactly that way: confirming a new account failed at the sign-in step
+ * that follows it, *after* the account had been confirmed successfully.
+ */
+const clearAnyExistingSession = async () => {
+    try {
+        if (await getCurrentUser()) await signOut();
+    } catch (error) {
+        // No session, or it is already unusable. Either way there is nothing to clear.
+    }
+};
+
 export const login = async (email, password) => {
+    await clearAnyExistingSession();
     const result = await signIn({ username: email, password });
     // A user who signed up but never confirmed lands here rather than in the catch, so the
     // caller can send them to the confirmation step instead of showing "wrong password".
@@ -70,6 +88,7 @@ export const login = async (email, password) => {
 };
 
 export const register = async (email, password) => {
+    await clearAnyExistingSession();
     const result = await signUp({
         username: email,
         password,
@@ -78,8 +97,12 @@ export const register = async (email, password) => {
     return { needsConfirmation: !result.isSignUpComplete };
 };
 
-export const confirm = (email, code) =>
-    confirmSignUp({ username: email, confirmationCode: code });
+export const confirm = async (email, code) => {
+    // Confirmation itself works with a session present; it is the sign-in straight afterwards
+    // that does not, so the session goes now rather than between the two.
+    await clearAnyExistingSession();
+    return confirmSignUp({ username: email, confirmationCode: code });
+};
 
 export const resendCode = (email) => resendSignUpCode({ username: email });
 
@@ -117,6 +140,11 @@ export const describeAuthError = (error) => {
             return 'An account with that email already exists.';
         case 'InvalidPasswordException':
             return 'That password does not meet the requirements.';
+        case 'UserAlreadyAuthenticatedException':
+            return 'Someone is already signed in here. Reload the page and try again.';
+        case 'NotAuthorizedException_AlreadyConfirmed':
+        case 'AliasExistsException':
+            return 'That email is already confirmed. Try signing in instead.';
         case 'CodeMismatchException':
             return 'That confirmation code is not right.';
         case 'ExpiredCodeException':
