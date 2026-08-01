@@ -119,7 +119,9 @@ class TestProjectService:
         assert result[0].name == "Project 1"
         assert result[1].name == "Project 2"
         assert all(isinstance(r, ProjectResponse) for r in result)
-        mock_repository.list_for_member.assert_called_once_with("user-1")
+        mock_repository.list_for_member.assert_called_once_with(
+            "user-1", include_unowned=False
+        )
 
     @pytest.mark.asyncio
     async def test_update_project_found(self, service, mock_repository):

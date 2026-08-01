@@ -18,7 +18,11 @@ from projects_service.dependencies import (
     get_task_service,
     get_user_directory,
 )
-from projects_service.core.access import ProjectForMemberDep, ProjectForOwnerDep
+from projects_service.core.access import (
+    ProjectForMemberDep,
+    ProjectForOwnerDep,
+    pre_migration_caller,
+)
 from projects_service.core.auth import CurrentUserDep
 from projects_service.schemas.project_schemas import (
     InviteMemberRequest,
@@ -51,7 +55,9 @@ async def list_projects(
     their next refresh instead of only after signing out and back in.
     """
     await directory.claim_pending_invites(user)
-    return await service.list_projects(user.user_id)
+    return await service.list_projects(
+        user.user_id, include_unowned=pre_migration_caller(user)
+    )
 
 
 @router.get("/{project_id}", response_model=ProjectResponse)

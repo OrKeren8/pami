@@ -81,11 +81,12 @@ class InMemoryProjectRepository:
     async def get_by_id(self, project_id: str, session=None):
         return self.projects.get(str(project_id))
 
-    async def list_for_member(self, user_id: str, session=None):
+    async def list_for_member(self, user_id: str, session=None, include_unowned=False):
         return [
             project
             for project in self.projects.values()
             if user_id in project.member_ids()
+            or (include_unowned and not project.members)
         ]
 
     async def list_all_for_admin(self, session=None):
@@ -329,7 +330,51 @@ def test_admin_dashboard_is_refused_to_everyone_else(app_context):
     assert any(row["email"] == "owner@example.com" for row in body["users"])
 
 
-def test_a_project_with_no_owner_is_visible_to_nobody(app_context):
+def test_unowned_projects_stay_reachable_while_auth_is_off(app_context, monkeypatch):
+    """The bridge that keeps a deploy from emptying the app.
+
+    Ownership arrives before anyone has signed in, so the projects that predate it have nobody
+    to belong to. While AUTH_REQUIRED is off every request is the same stand-in user, and that
+    user can still see them - otherwise deploying this would hide the existing projects until
+    the backfill ran.
+    """
+    from projects_service.core.config import settings
+
+    monkeypatch.setattr(settings, "auth_required", False, raising=False)
+    _, client, repository, _, as_user = app_context
+    orphan = FakeProjectDoc(name="Legacy", owner_id=None, members=[])
+    repository.projects[str(orphan.id)] = orphan
+
+    as_user(AuthenticatedUser(settings.unauthenticated_user_id, "local@pami.dev", []))
+
+    assert [p["name"] for p in client.get("/projects/").json()] == ["Legacy"]
+    assert client.get(f"/projects/{orphan.id}").status_code == 200
+
+    # A real signed-in user is not the stand-in, so the allowance does not reach them.
+    as_user(OUTSIDER)
+    assert client.get("/projects/").json() == []
+    assert client.get(f"/projects/{orphan.id}").status_code == 404
+
+
+def test_unowned_projects_are_hidden_once_auth_is_required(app_context, monkeypatch):
+    """With authentication on, the bridge must be gone."""
+    from projects_service.core.config import settings
+
+    monkeypatch.setattr(settings, "auth_required", True, raising=False)
+    _, client, repository, _, as_user = app_context
+    orphan = FakeProjectDoc(name="Legacy", owner_id=None, members=[])
+    repository.projects[str(orphan.id)] = orphan
+
+    as_user(AuthenticatedUser(settings.unauthenticated_user_id, "local@pami.dev", []))
+
+    assert client.get("/projects/").json() == []
+    assert client.get(f"/projects/{orphan.id}").status_code == 404
+
+
+def test_a_project_with_no_owner_is_visible_to_nobody(app_context, monkeypatch):
+    from projects_service.core.config import settings
+
+    monkeypatch.setattr(settings, "auth_required", True, raising=False)
     _, client, repository, _, as_user = app_context
     # Pre-migration shape: no owner, no members.
     orphan = FakeProjectDoc(name="Legacy", owner_id=None, members=[])

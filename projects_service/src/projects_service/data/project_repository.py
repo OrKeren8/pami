@@ -42,17 +42,32 @@ class ProjectRepository:
                 )
             return None
 
-    async def list_for_member(self, user_id: str, session=None) -> List[Project]:
+    async def list_for_member(
+        self, user_id: str, session=None, include_unowned: bool = False
+    ) -> List[Project]:
         """Projects this user owns or has been added to.
 
         There is deliberately no list_all: it existed, GET /projects/ called it, and every
         caller therefore saw every project in the database. Leaving an unscoped lister in
         place is an invitation to reach for it in the next endpoint.
+
+        `include_unowned` also returns projects with no members at all. It exists for exactly
+        one situation: authentication is not switched on yet, so every request is the same
+        local user, and the projects that predate ownership have nobody to belong to. Without
+        it, deploying this would empty the app of its existing projects until the backfill
+        ran. The route only passes it when AUTH_REQUIRED is off.
         """
         try:
-            return await Project.find(
-                {"members.user_id": user_id}, session=session
-            ).to_list()
+            query: dict = {"members.user_id": user_id}
+            if include_unowned:
+                query = {
+                    "$or": [
+                        {"members.user_id": user_id},
+                        {"members": {"$size": 0}},
+                        {"members": {"$exists": False}},
+                    ]
+                }
+            return await Project.find(query, session=session).to_list()
         except Exception as e:
             self._logger.error(f"Error listing projects for {user_id}: {e}")
             return []

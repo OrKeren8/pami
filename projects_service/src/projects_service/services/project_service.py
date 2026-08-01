@@ -77,9 +77,13 @@ class ProjectService:
             updated_at=project.updated_at,
         )
 
-    async def list_projects(self, user_id: str) -> List[ProjectResponse]:
+    async def list_projects(
+        self, user_id: str, include_unowned: bool = False
+    ) -> List[ProjectResponse]:
         """The projects this user owns or was added to."""
-        projects = await self._project_repository.list_for_member(user_id)
+        projects = await self._project_repository.list_for_member(
+            user_id, include_unowned=include_unowned
+        )
         return [
             ProjectResponse(
                 id=str(p.id),

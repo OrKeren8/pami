@@ -21,6 +21,7 @@ from projects_service.dependencies import (
     get_task_repository,
 )
 from projects_service.data.project_repository import ProjectRepository
+from projects_service.core.config import settings
 from projects_service.models.project import Project, ProjectRole
 
 _logger = logger.bind(component="access")
@@ -30,12 +31,32 @@ NOT_FOUND = HTTPException(
 )
 
 
+def pre_migration_caller(user: AuthenticatedUser) -> bool:
+    """Whether this is the stand-in identity used while authentication is switched off.
+
+    Narrow on purpose: it is only the built-in fallback user, and only while AUTH_REQUIRED is
+    off. With authentication on, this is never true, so an unowned project is visible to
+    nobody - which is the behaviour that matters.
+    """
+    return (
+        not settings.auth_required and user.user_id == settings.unauthenticated_user_id
+    )
+
+
+_pre_migration_caller = pre_migration_caller
+
+
 async def _load_visible_project(
     project_id: str, user: AuthenticatedUser, repository: ProjectRepository
 ) -> Project:
     project = await repository.get_by_id(project_id)
     if not project:
         raise NOT_FOUND
+
+    if not project.members and _pre_migration_caller(user):
+        # Authentication is not on yet and this project predates ownership, so there is nobody
+        # it could belong to. Opening it has to keep working until the backfill runs.
+        return project
 
     if user.user_id not in project.member_ids():
         # Includes the un-migrated case: a project with no members belongs to nobody and is
