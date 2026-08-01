@@ -526,7 +526,7 @@ def create_load_balancer(
         # was running and healthy, and the URL answered nothing.
         response = elbv2.create_load_balancer(
             Name=lb_name,
-            Subnets=_one_subnet_per_zone(subnet_ids)
+            Subnets=_one_subnet_per_zone(subnet_ids),
             SecurityGroups=[security_group_id],
             Scheme="internet-facing",
             Type="application",
