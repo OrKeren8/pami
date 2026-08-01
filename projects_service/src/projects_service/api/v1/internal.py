@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from projects_service.core.auth import ServiceCallerDep
 from projects_service.data.project_repository import ProjectRepository
+from projects_service.core.access import pre_migration_caller_id
 from projects_service.dependencies import get_project_repository
 
 router = APIRouter(prefix="/internal", tags=["internal"])
@@ -38,4 +39,14 @@ async def check_project_access(
     project = await projects.get_by_id(request.project_id)
     if not project:
         return AccessCheckResponse(allowed=False)
-    return AccessCheckResponse(allowed=request.user_id in project.member_ids())
+    if request.user_id in project.member_ids():
+        return AccessCheckResponse(allowed=True)
+
+    # The same allowance GET /projects/ makes, and it has to be the same or the two
+    # disagree: that service showed the stand-in user its un-migrated projects while
+    # this one refused them, so the graph listed a project whose conversations could
+    # not be opened.
+    if not project.members and pre_migration_caller_id(request.user_id):
+        return AccessCheckResponse(allowed=True)
+
+    return AccessCheckResponse(allowed=False)

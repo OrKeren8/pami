@@ -427,3 +427,33 @@ def test_the_configured_admin_address_grants_access():
         )
 
     assert not AuthenticatedUser("sub", "someone-else@example.com", []).is_admin
+
+
+async def test_the_internal_check_makes_the_same_allowance_as_the_project_list():
+    """The two must agree, or the graph shows a project whose chat cannot be opened.
+
+    The AI service asks this endpoint whether a caller may see a project. It answered no for an
+    un-migrated project while GET /projects/ answered yes, so the dashboard listed the project
+    and every conversation in it returned "not found".
+    """
+    from projects_service.api.v1.internal import (
+        AccessCheckRequest,
+        check_project_access,
+    )
+    from projects_service.core.config import settings
+
+    repository = InMemoryProjectRepository()
+    unowned = FakeProjectDoc(name="Legacy", owner_id=None, members=[])
+    repository.projects[str(unowned.id)] = unowned
+
+    async def check(user_id: str):
+        return await check_project_access(
+            AccessCheckRequest(user_id=user_id, project_id=str(unowned.id)),
+            "service",
+            repository,
+        )
+
+    assert (await check(settings.unauthenticated_user_id)).allowed is True
+    assert (await check("some-real-user")).allowed is False, (
+        "the allowance is only for the stand-in identity"
+    )

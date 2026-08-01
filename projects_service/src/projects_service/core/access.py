@@ -43,6 +43,11 @@ def pre_migration_caller(user: AuthenticatedUser) -> bool:
     )
 
 
+def pre_migration_caller_id(user_id: str) -> bool:
+    """The same test, for callers that only have the subject - the internal check."""
+    return not settings.auth_required and user_id == settings.unauthenticated_user_id
+
+
 _pre_migration_caller = pre_migration_caller
 
 
