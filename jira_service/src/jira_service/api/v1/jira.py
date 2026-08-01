@@ -3,7 +3,6 @@ from fastapi import APIRouter
 from jira_service.schemas.jira_schemas import CreateIssueRequest
 from jira_service.services.jira_api_service import jira_api_service
 
-
 router = APIRouter(prefix="/jira", tags=["jira"])
 
 

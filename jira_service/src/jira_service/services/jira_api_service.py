@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 import requests
 from fastapi import HTTPException
@@ -7,7 +9,6 @@ from requests.auth import HTTPBasicAuth
 
 from jira_service.core.config import settings
 from jira_service.schemas.jira_schemas import CreateIssueRequest
-
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class JiraApiService:
     def _auth(self) -> HTTPBasicAuth:
         return HTTPBasicAuth(self.username, self.api_token)
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         return {
             "Accept": "application/json",
             "Content-Type": "application/json",
@@ -50,9 +51,9 @@ class JiraApiService:
         method: str,
         path: str,
         *,
-        params: Optional[Dict[str, Any]] = None,
-        json: Optional[Dict[str, Any]] = None,
-        expected_status: Optional[int] = None,
+        params: dict[str, Any] | None = None,
+        json: dict[str, Any] | None = None,
+        expected_status: int | None = None,
     ) -> Any:
         self._ensure_configured()
 
@@ -90,7 +91,7 @@ class JiraApiService:
 
         return response.json()
 
-    def _description_to_adf(self, description: str) -> Dict[str, Any]:
+    def _description_to_adf(self, description: str) -> dict[str, Any]:
         return {
             "type": "doc",
             "version": 1,
@@ -107,7 +108,7 @@ class JiraApiService:
             ],
         }
 
-    def test_connection(self) -> Dict[str, Any]:
+    def test_connection(self) -> dict[str, Any]:
         data = self._request(
             "GET",
             "/project/search",
@@ -120,7 +121,7 @@ class JiraApiService:
             "total_projects": data.get("total", 0) if isinstance(data, dict) else 0,
         }
 
-    def list_projects(self) -> Dict[str, Any]:
+    def list_projects(self) -> dict[str, Any]:
         data = self._request(
             "GET",
             "/project/search",
@@ -145,8 +146,8 @@ class JiraApiService:
             "projects": projects,
         }
 
-    def create_issue(self, request: CreateIssueRequest) -> Dict[str, Any]:
-        fields: Dict[str, Any] = {
+    def create_issue(self, request: CreateIssueRequest) -> dict[str, Any]:
+        fields: dict[str, Any] = {
             "project": {"key": request.project_key},
             "issuetype": {"name": request.issue_type},
             "summary": request.summary,

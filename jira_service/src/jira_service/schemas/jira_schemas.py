@@ -1,4 +1,4 @@
-from typing import List, Optional
+from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
@@ -6,16 +6,16 @@ from pydantic import BaseModel, Field
 class CreateIssueRequest(BaseModel):
     project_key: str
     summary: str
-    description: Optional[str] = None
+    description: str | None = None
     issue_type: str = "Task"
-    priority: Optional[str] = None
-    due_date: Optional[str] = None
-    labels: List[str] = Field(default_factory=lambda: ["pami"])
+    priority: str | None = None
+    due_date: str | None = None
+    labels: list[str] = Field(default_factory=lambda: ["pami"])
 
 
 class JiraProjectResponse(BaseModel):
     id: str
     key: str
     name: str
-    project_type_key: Optional[str] = None
-    simplified: Optional[bool] = None
+    project_type_key: str | None = None
+    simplified: bool | None = None
