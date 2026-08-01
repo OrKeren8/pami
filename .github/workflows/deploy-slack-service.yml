@@ -130,9 +130,12 @@ jobs:
           VPC_ID=$(aws ec2 describe-vpcs \
             --filters Name=is-default,Values=true \
             --query 'Vpcs[0].VpcId' --output text --region us-east-1)
-          SUBNETS=$(aws ec2 describe-subnets \
-            --filters Name=vpc-id,Values=$VPC_ID \
-            --query 'Subnets[].SubnetId' --output text --region us-east-1 | tr '\t' ',')
+          # The load balancer's own subnets - see the note in deploy-backend.yml. A task in a
+          # zone the load balancer does not cover never receives any traffic.
+          SUBNETS=$(aws elbv2 describe-load-balancers --names pami-alb \
+            --region us-east-1 \
+            --query 'LoadBalancers[0].AvailabilityZones[].SubnetId' \
+            --output text | tr '\t' ',')
           SG_ID=$(aws ec2 describe-security-groups \
             --filters Name=group-name,Values=pami-ecs-services-sg Name=vpc-id,Values=$VPC_ID \
             --query 'SecurityGroups[0].GroupId' --output text --region us-east-1)

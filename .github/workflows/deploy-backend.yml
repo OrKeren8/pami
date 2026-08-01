@@ -170,9 +170,14 @@ jobs:
           VPC_ID=$(aws ec2 describe-vpcs \
             --filters Name=is-default,Values=true \
             --query 'Vpcs[0].VpcId' --output text --region us-east-1)
-          SUBNETS=$(aws ec2 describe-subnets \
-            --filters Name=vpc-id,Values=$VPC_ID \
-            --query 'Subnets[].SubnetId' --output text --region us-east-1 | tr '\t' ',')
+          # The load balancer's own subnets, not every subnet in the VPC. A task placed in a
+          # zone the load balancer is not attached to gets registered and then never sent any
+          # traffic: it reports Target.NotInUse, so the service looks broken while being
+          # perfectly healthy. Reading them from the load balancer stops the two drifting.
+          SUBNETS=$(aws elbv2 describe-load-balancers --names pami-alb \
+            --region us-east-1 \
+            --query 'LoadBalancers[0].AvailabilityZones[].SubnetId' \
+            --output text | tr '\t' ',')
           SG_ID=$(aws ec2 describe-security-groups \
             --filters Name=group-name,Values=pami-ecs-services-sg Name=vpc-id,Values=$VPC_ID \
             --query 'SecurityGroups[0].GroupId' --output text --region us-east-1)
@@ -363,6 +368,10 @@ jobs:
                     "value": "$PROJECTS_API_URL"
                   },
                   {
+                    "name": "AWS_S3_BUCKET_NAME",
+                    "value": "pami-ai-conversations-${ACCOUNT_ID}-us-east-1"
+                  },
+                  {
                     "name": "EMBEDDING_CACHE_DIR",
                     "value": "/app/.model_cache"
                   }
@@ -400,9 +409,14 @@ jobs:
           VPC_ID=$(aws ec2 describe-vpcs \
             --filters Name=is-default,Values=true \
             --query 'Vpcs[0].VpcId' --output text --region us-east-1)
-          SUBNETS=$(aws ec2 describe-subnets \
-            --filters Name=vpc-id,Values=$VPC_ID \
-            --query 'Subnets[].SubnetId' --output text --region us-east-1 | tr '\t' ',')
+          # The load balancer's own subnets, not every subnet in the VPC. A task placed in a
+          # zone the load balancer is not attached to gets registered and then never sent any
+          # traffic: it reports Target.NotInUse, so the service looks broken while being
+          # perfectly healthy. Reading them from the load balancer stops the two drifting.
+          SUBNETS=$(aws elbv2 describe-load-balancers --names pami-alb \
+            --region us-east-1 \
+            --query 'LoadBalancers[0].AvailabilityZones[].SubnetId' \
+            --output text | tr '\t' ',')
           SG_ID=$(aws ec2 describe-security-groups \
             --filters Name=group-name,Values=pami-ecs-services-sg Name=vpc-id,Values=$VPC_ID \
             --query 'SecurityGroups[0].GroupId' --output text --region us-east-1)

@@ -218,6 +218,22 @@ PUBLIC_PORTS = [80, 443]
 SERVICE_PORTS = [8000, 8001, 8002, 8003]
 
 
+def _one_subnet_per_zone(subnet_ids: List[str]) -> List[str]:
+    """One subnet per availability zone, which is what a load balancer accepts."""
+    try:
+        described = ec2.describe_subnets(SubnetIds=subnet_ids)["Subnets"]
+    except Exception as error:
+        print_error(f"Could not describe subnets ({type(error).__name__}); using the first two")
+        return subnet_ids[:2]
+
+    by_zone: Dict[str, str] = {}
+    for subnet in described:
+        by_zone.setdefault(subnet["AvailabilityZone"], subnet["SubnetId"])
+    chosen = list(by_zone.values())
+    print_info(f"Load balancer will cover {len(chosen)} zone(s): {sorted(by_zone)}")
+    return chosen
+
+
 def create_or_get_security_group(vpc_id: str) -> Optional[str]:
     """Create or get the security group for ECS services."""
     sg_name = "pami-ecs-services-sg"
@@ -503,9 +519,14 @@ def create_load_balancer(
             )
             return None
 
+        # Every availability zone, not the first two. A load balancer only reaches targets in
+        # the zones it is attached to, while the ECS services place tasks across all of them -
+        # so a task landing in an unattached zone was registered and then never sent any
+        # traffic, reporting Target.NotInUse. It looked like a broken container: the service
+        # was running and healthy, and the URL answered nothing.
         response = elbv2.create_load_balancer(
             Name=lb_name,
-            Subnets=subnet_ids[:2],  # Use first 2 subnets
+            Subnets=_one_subnet_per_zone(subnet_ids)
             SecurityGroups=[security_group_id],
             Scheme="internet-facing",
             Type="application",

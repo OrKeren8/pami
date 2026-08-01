@@ -71,6 +71,10 @@ class AIConversationService:
 
         # Initialize S3 client
         self.s3_client = None
+        # S3 bucket names are globally unique, so a name derived from the region alone is
+        # already taken the moment this is deployed to a second AWS account - the service then
+        # cannot create it or read it, and every conversation fails to save. The deploy passes
+        # an account-scoped name; the fallback keeps local development working.
         self.bucket_name = (
             settings.aws_s3_bucket_name
             or f"pami-ai-conversations-{settings.aws_region}"
