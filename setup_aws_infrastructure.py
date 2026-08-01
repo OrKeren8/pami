@@ -147,19 +147,34 @@ def print_header(text: str):
     print(f"{'=' * 60}\n")
 
 
+def _write(line: str, stream=None) -> None:
+    """Print without letting the console's encoding break the caller.
+
+    On a Windows console using a legacy code page, printing a tick raises
+    UnicodeEncodeError. Every one of these helpers is called from inside a try block that
+    reports "could not create X" - so a failure to *print* was being reported as a failure
+    to create, and a Cognito user pool that had in fact been created came back as None.
+    """
+    target = stream or sys.stdout
+    try:
+        print(line, file=target)
+    except UnicodeEncodeError:
+        print(line.encode("ascii", "replace").decode("ascii"), file=target)
+
+
 def print_success(text: str):
     """Print success message."""
-    print(f"✓ {text}")
+    _write(f"✓ {text}")
 
 
 def print_info(text: str):
     """Print info message."""
-    print(f"  {text}")
+    _write(f"  {text}")
 
 
 def print_error(text: str):
     """Print error message."""
-    print(f"✗ ERROR: {text}", file=sys.stderr)
+    _write(f"✗ ERROR: {text}", sys.stderr)
 
 
 def get_default_vpc() -> Optional[str]:

@@ -8,11 +8,11 @@ from ai_conversation_service.schemas.ai_conversation_schemas import (
     ConversationHistoryResponse,
 )
 from ai_conversation_service.core.access import (
+    CallerDep,
     ConversationForMemberDep,
     ProjectIdForMemberDep,
     assert_project_access,
 )
-from ai_conversation_service.core.auth import CurrentUserDep
 from ai_conversation_service.core.config import settings
 from ai_conversation_service.dependencies import AIConversationServiceDep
 from ai_conversation_service.schemas.retrieval_schemas import (
@@ -37,7 +37,7 @@ async def health_check():
 async def create_conversation(
     request: CreateConversationRequest,
     http_request: Request,
-    user: CurrentUserDep,
+    user: CallerDep,
     ai_conversation_service: AIConversationServiceDep,
 ):
     """Create a new AI conversation for a context node."""
@@ -113,7 +113,7 @@ async def get_conversation(
 async def list_conversations_for_node(
     context_node_id: str,
     http_request: Request,
-    user: CurrentUserDep,
+    user: CallerDep,
     ai_conversation_service: AIConversationServiceDep,
 ):
     """List all conversations for a context node.
@@ -125,6 +125,10 @@ async def list_conversations_for_node(
         conversations = await ai_conversation_service.list_conversations_for_node(
             context_node_id
         )
+        if user is None:
+            # A peer service asking; it has done its own authorization.
+            return [ConversationResponse(**conv) for conv in conversations]
+
         allowed = []
         for conv in conversations:
             client = getattr(ai_conversation_service, "projects_service_client", None)
@@ -164,7 +168,7 @@ async def list_conversations_for_project(
 async def search_context(
     request: SearchContextRequest,
     http_request: Request,
-    user: CurrentUserDep,
+    user: CallerDep,
     ai_conversation_service: AIConversationServiceDep,
 ):
     """Run the same retrieval the agent tool runs. Debug only, disabled by default."""

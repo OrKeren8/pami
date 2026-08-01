@@ -9,16 +9,40 @@ Fails closed: if the answer cannot be obtained the request is refused, because a
 turned into "everyone can read everything" would be worse than an outage.
 """
 
+import hmac
 from typing import Annotated, Optional
 
 from fastapi import Depends, HTTPException, Request, status
 from loguru import logger
 
 from ai_conversation_service.core.auth import AuthenticatedUser, current_user
+from ai_conversation_service.core.config import settings
 
 _logger = logger.bind(component="access")
 
 NOT_FOUND = HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not found")
+
+
+def _is_service_call(request: Request) -> bool:
+    """Whether this is a peer service rather than a person.
+
+    projects-service creates a node's conversation and purges it on delete, both from
+    background work with no user request in flight - there is no token to forward even in
+    principle. It has already checked that the user owns the project, so a valid service key
+    is sufficient here.
+    """
+    expected = settings.service_key
+    if not expected:
+        return False
+    presented = request.headers.get("x-service-key") or ""
+    return hmac.compare_digest(presented, expected)
+
+
+async def caller_identity(request: Request) -> Optional[AuthenticatedUser]:
+    """The authenticated user, or None when the caller is a trusted peer service."""
+    if _is_service_call(request):
+        return None
+    return await current_user(request)
 
 
 def _projects_client(request: Request):
@@ -27,11 +51,18 @@ def _projects_client(request: Request):
 
 
 async def assert_project_access(
-    request: Request, user: AuthenticatedUser, project_id: Optional[str]
+    request: Request, user: Optional[AuthenticatedUser], project_id: Optional[str]
 ) -> str:
-    """Confirm the caller may see this project, or 404."""
+    """Confirm the caller may see this project, or 404.
+
+    A None user means an authenticated peer service, which has already done its own
+    authorization - see _is_service_call.
+    """
     if not project_id:
         raise NOT_FOUND
+
+    if user is None:
+        return project_id
 
     client = _projects_client(request)
     if client is None:
@@ -47,16 +78,16 @@ async def assert_project_access(
 async def project_id_for_member(
     project_id: str,
     request: Request,
-    user: Annotated[AuthenticatedUser, Depends(current_user)],
+    caller: Annotated[Optional[AuthenticatedUser], Depends(caller_identity)],
 ) -> str:
     """A project id from the path, once membership is confirmed."""
-    return await assert_project_access(request, user, project_id)
+    return await assert_project_access(request, caller, project_id)
 
 
 async def conversation_for_member(
     conversation_id: str,
     request: Request,
-    user: Annotated[AuthenticatedUser, Depends(current_user)],
+    caller: Annotated[Optional[AuthenticatedUser], Depends(caller_identity)],
 ):
     """A conversation, once the caller is shown to be a member of its project.
 
@@ -71,10 +102,11 @@ async def conversation_for_member(
         raise NOT_FOUND
 
     await assert_project_access(
-        request, user, getattr(conversation, "project_id", None)
+        request, caller, getattr(conversation, "project_id", None)
     )
     return conversation
 
 
+CallerDep = Annotated[Optional[AuthenticatedUser], Depends(caller_identity)]
 ProjectIdForMemberDep = Annotated[str, Depends(project_id_for_member)]
 ConversationForMemberDep = Annotated[object, Depends(conversation_for_member)]

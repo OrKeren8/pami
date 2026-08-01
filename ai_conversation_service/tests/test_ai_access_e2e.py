@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from ai_conversation_service.api.v1.ai_conversations import (
     router as ai_conversations_router,
 )
+from ai_conversation_service.core.config import settings
 from ai_conversation_service.dependencies import get_ai_conversation_service
 from ai_conversation_service.models.ai_conversation import Conversation
 
@@ -177,3 +178,50 @@ def test_every_project_scoped_request_asks_projects_service(project_id):
     client.get(f"/ai/ai-conversations/project/{project_id}")
 
     assert membership.calls, "no membership check was performed at all"
+
+
+def test_a_peer_service_with_the_right_key_may_purge_any_conversation(monkeypatch):
+    """projects-service deletes a node's conversation from a background task.
+
+    There is no user token to forward - the work happens after the request that triggered it -
+    and projects-service has already checked the caller owns the project. Without this, turning
+    on the service key would make every node deletion fail: the purge would 401, and the node
+    is deliberately kept when its conversation survives.
+    """
+    monkeypatch.setattr(settings, "service_key", "s3cret", raising=False)
+    client, service, _ = _client()
+    conversation_id = service.add_conversation(THEIRS)
+
+    response = client.delete(
+        f"/ai/ai-conversations/{conversation_id}", headers={"X-Service-Key": "s3cret"}
+    )
+
+    assert response.status_code == 200
+    assert conversation_id not in service.conversations
+
+
+def test_a_wrong_service_key_is_not_a_way_in(monkeypatch):
+    """The key must be compared, not merely present."""
+    monkeypatch.setattr(settings, "service_key", "s3cret", raising=False)
+    client, service, _ = _client()
+    conversation_id = service.add_conversation(THEIRS)
+
+    response = client.delete(
+        f"/ai/ai-conversations/{conversation_id}", headers={"X-Service-Key": "guess"}
+    )
+
+    assert response.status_code == 404, "a bad key must fall back to the user check"
+    assert conversation_id in service.conversations
+
+
+def test_a_service_key_header_means_nothing_when_none_is_configured(monkeypatch):
+    """Otherwise sending the header would be a bypass before the key is distributed."""
+    monkeypatch.setattr(settings, "service_key", "", raising=False)
+    client, service, _ = _client()
+    conversation_id = service.add_conversation(THEIRS)
+
+    response = client.delete(
+        f"/ai/ai-conversations/{conversation_id}", headers={"X-Service-Key": "anything"}
+    )
+
+    assert response.status_code == 404
