@@ -1,9 +1,30 @@
+import asyncio
 from contextlib import asynccontextmanager
+from beanie import init_beanie
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
+from pymongo import AsyncMongoClient
 
 from ai_conversation_service.core.config import settings
+from ai_conversation_service.data.vector_index import ensure_vector_index
+from ai_conversation_service.models.conversation_chunk import ConversationChunk
+from ai_conversation_service.models.conversation_index_state import (
+    ConversationIndexState,
+)
+from ai_conversation_service.agents.conversation_agent import build_conversation_agent
+from ai_conversation_service.services.chunk_index_service import ChunkIndexService
+from ai_conversation_service.services.context_retrieval_service import (
+    ContextRetrievalService,
+)
+from ai_conversation_service.services.embedder_factory import build_embedder
+from ai_conversation_service.services.projects_service_client import (
+    ProjectsServiceClient,
+)
+from ai_conversation_service.services.reindex_backfill import (
+    reindex_stale_conversations,
+)
+from ai_conversation_service.services.reindex_trigger import ReindexTrigger
 from ai_conversation_service.services.ai_conversation_service.service import (
     AIConversationService,
 )
@@ -18,23 +39,81 @@ from ai_conversation_service.api.v1.tree_analysis import (
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Assemble services bottom-up; an unavailable embedder degrades retrieval."""
     logger.info("Setting up AI Conversation Service...")
 
-    # Initialize AI conversation service
-    ai_conversation_service = AIConversationService()
-    app.state.ai_conversation_service = ai_conversation_service
+    projects_service_client = ProjectsServiceClient(settings.projects_api_url)
 
-    # Initialize tree analysis service
+    embedder = await build_embedder()
+
+    mongo_client = AsyncMongoClient(settings.mongodb_url)
+    database = mongo_client[settings.database_name]
+    await init_beanie(
+        database=database,
+        document_models=[ConversationChunk, ConversationIndexState],
+    )
+
+    chunk_index_service = ChunkIndexService(embedder, database) if embedder else None
+    context_retrieval_service = (
+        ContextRetrievalService(embedder, chunk_index_service, projects_service_client)
+        if embedder
+        else None
+    )
+    reindex_trigger = (
+        ReindexTrigger(chunk_index_service, projects_service_client)
+        if embedder
+        else None
+    )
+
+    ai_conversation_service = AIConversationService(
+        projects_service_client=projects_service_client,
+        chunk_index_service=chunk_index_service,
+        context_retrieval_service=context_retrieval_service,
+        reindex_trigger=reindex_trigger,
+        conversation_agent=build_conversation_agent() if embedder else None,
+    )
     tree_analysis_service = TreeAnalysisService(
         ai_conversation_service,
         ai_conversation_service.openai_client,
+        chunk_index_service,
     )
-    app.state.tree_analysis_service = tree_analysis_service
 
+    app.state.embedder = embedder
+    app.state.mongo_client = mongo_client
+    app.state.chunk_index_service = chunk_index_service
+    app.state.context_retrieval_service = context_retrieval_service
+    app.state.reindex_trigger = reindex_trigger
+    app.state.ai_conversation_service = ai_conversation_service
+    app.state.tree_analysis_service = tree_analysis_service
+    app.state.vector_index_ready = (
+        await ensure_vector_index(database, embedder.dimensions) if embedder else False
+    )
+
+    # Backgrounded, not awaited: a model change makes every previously indexed
+    # conversation unsearchable, and the fix must not hold up the port the load balancer
+    # is health-checking. The reference is kept so the task is not garbage-collected
+    # mid-flight.
+    backfill_task = None
+    if embedder and chunk_index_service:
+        backfill_task = asyncio.create_task(
+            reindex_stale_conversations(
+                database,
+                chunk_index_service,
+                ai_conversation_service,
+                settings.startup_reindex_limit,
+            )
+        )
+        app.state.backfill_task = backfill_task
+
+    if embedder:
+        logger.info("Cross-conversation retrieval enabled")
     logger.info("AI Conversation Service initialized")
 
     yield
 
+    if backfill_task and not backfill_task.done():
+        backfill_task.cancel()
+    await mongo_client.close()
     logger.info("AI Conversation Service shutting down")
 
 
@@ -53,7 +132,7 @@ if settings.api_root:
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -67,12 +146,22 @@ app.include_router(ai_conversations_router, prefix="/ai")
 app.include_router(tree_analysis_router, prefix="/ai")
 
 
+# Both paths: the ALB forwards /ai/* here without stripping the prefix, so a bare /health is
+# only reachable from inside the VPC (which is how the target-group check sees it) while
+# anything outside — a deploy smoke check, a monitor — can only reach /ai/health.
+@app.get("/ai/health")
 @app.get("/health")
 async def health_check():
+    embedder = getattr(app.state, "embedder", None)
+    retrieval_ready = bool(embedder) and bool(
+        getattr(app.state, "vector_index_ready", False)
+    )
     return {
         "status": "healthy",
         "service": "ai-conversation-service",
         "version": "0.1.0",
+        "retrieval": "ready" if retrieval_ready else "degraded",
+        "embedder": embedder.model_id if embedder else None,
     }
 
 

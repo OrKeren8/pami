@@ -9,11 +9,14 @@ from ai_conversation_service.api.v1.ai_conversations import (
 )
 from ai_conversation_service.dependencies import get_ai_conversation_service
 from ai_conversation_service.models.ai_conversation import Conversation
+from ai_conversation_service.schemas.retrieval_schemas import SendMessageResult
 
 
 class InMemoryAIConversationService:
     def __init__(self):
         self.conversations = {}
+        self.chunk_index_service = None
+        self.context_retrieval_service = None
 
     async def create_conversation(
         self, context_node_id: str, project_id: str, title: str | None = None
@@ -23,6 +26,10 @@ class InMemoryAIConversationService:
             conversation.title = title
         self.conversations[conversation.conversation_id] = conversation
         return conversation
+
+    async def get_conversation(self, conversation_id: str):
+        """The access check resolves a conversation to the project that owns it."""
+        return self.conversations.get(conversation_id)
 
     async def send_message(
         self, conversation_id: str, user_message: str, context_snapshot=None
@@ -49,6 +56,19 @@ class InMemoryAIConversationService:
         )
         conversation.updated_at = datetime.utcnow().isoformat()
         return ai_text
+
+    async def purge_conversation(self, conversation_id: str) -> bool:
+        if self.chunk_index_service:
+            await self.chunk_index_service.delete_conversation(conversation_id)
+        return await self.delete_conversation(conversation_id)
+
+    async def send_message_with_context(
+        self, conversation_id: str, user_message: str, context_snapshot=None
+    ):
+        answer = await self.send_message(
+            conversation_id, user_message, context_snapshot
+        )
+        return SendMessageResult(response=answer)
 
     async def get_conversation_history(self, conversation_id: str, limit=None):
         conversation = self.conversations.get(conversation_id)
@@ -84,7 +104,18 @@ def _make_test_client():
     fake_service = InMemoryAIConversationService()
     app.dependency_overrides[get_ai_conversation_service] = lambda: fake_service
 
+    # The routes now confirm with projects-service that the caller may see the project a
+    # conversation belongs to. This suite covers the conversation behaviour, so membership is
+    # granted here; the check itself is covered in test_ai_access_e2e.py.
+    fake_service.projects_service_client = AlwaysAllowsAccess()
+    app.state.ai_conversation_service = fake_service
+
     return TestClient(app)
+
+
+class AlwaysAllowsAccess:
+    async def can_access_project(self, user_id: str, project_id: str) -> bool:
+        return True
 
 
 def test_ai_conversation_end_to_end_flow():

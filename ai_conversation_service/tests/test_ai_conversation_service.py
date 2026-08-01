@@ -1,9 +1,9 @@
+import json
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 from datetime import datetime
 from ai_conversation_service.services.ai_conversation_service.service import (
     AIConversationService,
-    Conversation,
 )
 
 
@@ -152,44 +152,114 @@ class TestAIConversationService:
 
     @pytest.mark.asyncio
     async def test_list_conversations_for_node(self, service, mock_s3_client):
-        # Arrange
+        """Transcripts are stored flat, so the node has to be matched on the payload.
+
+        The keys here are the layout the service actually writes -
+        conversations/<conversation_id>.json - not a conversations/<node>/ prefix, which
+        nothing produces. Selecting on the key meant every object was skipped and this
+        always returned an empty list.
+        """
         context_node_id = "node123"
 
-        # Mock S3 list_objects_v2 to return conversation keys
         mock_s3_client.list_objects_v2.return_value = {
             "Contents": [
-                {"Key": f"conversations/{context_node_id}/conv1.json"},
-                {"Key": f"conversations/{context_node_id}/conv2.json"},
-                {
-                    "Key": f"conversations/other_node/conv3.json"
-                },  # Should be filtered out
+                {"Key": "conversations/conv1.json"},
+                {"Key": "conversations/conv2.json"},
+                {"Key": "conversations/conv3.json"},
             ]
         }
 
-        # Mock get_object for individual conversations
-        conversation_data = {
-            "conversation_id": "conv1",
-            "context_node_id": context_node_id,
-            "project_id": "proj123",
-            "title": "Conversation 1",
-            "messages": [],
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
-            "status": "active",
+        def conversation_for(node_id: str, conversation_id: str) -> dict:
+            return {
+                "conversation_id": conversation_id,
+                "context_node_id": node_id,
+                "project_id": "proj123",
+                "title": f"Conversation {conversation_id}",
+                "messages": [],
+                "created_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.utcnow().isoformat(),
+                "status": "active",
+            }
+
+        payloads = {
+            "conversations/conv1.json": conversation_for(context_node_id, "conv1"),
+            "conversations/conv2.json": conversation_for(context_node_id, "conv2"),
+            "conversations/conv3.json": conversation_for("other_node", "conv3"),
         }
 
-        mock_s3_client.get_object.return_value = {
-            "Body": MagicMock(
-                read=MagicMock(return_value=str(conversation_data).encode())
-            )
-        }
+        def get_object(Bucket, Key):
+            return {
+                "Body": MagicMock(
+                    read=MagicMock(return_value=json.dumps(payloads[Key]).encode())
+                )
+            }
+
+        mock_s3_client.get_object.side_effect = get_object
 
         # Act
         conversations = await service.list_conversations_for_node(context_node_id)
 
-        # Assert
-        assert len(conversations) == 2  # Only conversations for the specified node
-        assert all(conv.context_node_id == context_node_id for conv in conversations)
+        # Assert: the third belongs to another node and must be excluded
+        assert len(conversations) == 2
+        assert all(conv["context_node_id"] == context_node_id for conv in conversations)
+        assert {conv["conversation_id"] for conv in conversations} == {"conv1", "conv2"}
+
+    @pytest.mark.asyncio
+    async def test_list_conversations_for_project_is_scoped_and_ordered(
+        self, service, mock_s3_client
+    ):
+        """Backs the chat list: every conversation in one project, newest first.
+
+        Scoping matters because transcripts are stored in one flat prefix - without the
+        project filter the list would show another project's conversations.
+        """
+        mock_s3_client.list_objects_v2.return_value = {
+            "Contents": [
+                {"Key": "conversations/old.json"},
+                {"Key": "conversations/new.json"},
+                {"Key": "conversations/other.json"},
+            ]
+        }
+
+        def conversation_for(conversation_id, project_id, updated_at, first_user_text):
+            return {
+                "conversation_id": conversation_id,
+                "context_node_id": f"node-{conversation_id}",
+                "project_id": project_id,
+                "title": f"AI Discussion - node-{conversation_id}",
+                "messages": [
+                    {"role": "assistant", "content": "How can I help?"},
+                    {"role": "user", "content": first_user_text},
+                ],
+                "created_at": "2026-07-01T00:00:00",
+                "updated_at": updated_at,
+                "status": "active",
+            }
+
+        payloads = {
+            "conversations/old.json": conversation_for(
+                "old", "proj123", "2026-07-02T00:00:00", "the older question"
+            ),
+            "conversations/new.json": conversation_for(
+                "new", "proj123", "2026-07-20T00:00:00", "  the newer   question  "
+            ),
+            "conversations/other.json": conversation_for(
+                "other", "proj999", "2026-07-30T00:00:00", "someone else's project"
+            ),
+        }
+
+        mock_s3_client.get_object.side_effect = lambda Bucket, Key: {
+            "Body": MagicMock(
+                read=MagicMock(return_value=json.dumps(payloads[Key]).encode())
+            )
+        }
+
+        conversations = await service.list_conversations_for_project("proj123")
+
+        assert [conv["conversation_id"] for conv in conversations] == ["new", "old"]
+        # The preview is the first *user* message with its whitespace collapsed, not the
+        # assistant's greeting and not the generated title.
+        assert conversations[0]["preview"] == "the newer question"
 
     @pytest.mark.asyncio
     async def test_delete_conversation(self, service, mock_s3_client):

@@ -1,0 +1,379 @@
+/* Same shell and palette as the dashboard so the sidebar keeps its context; only the
+   right-hand pane differs. */
+.chat-view-page {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.chat-view-main {
+    flex: 1;
+    min-width: 0;
+    /* The sidebar is position: fixed, so it takes no space in the flex row and the content
+       ran underneath it. The dashboard's own main pane offsets by the same variable. */
+    margin-left: var(--sidebar-width);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 26px 30px;
+    overflow: hidden;
+    background: linear-gradient(180deg, #fdf7fb 0%, #ffffff 45%);
+}
+
+.chat-view-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #f3e3ee;
+}
+
+.chat-view-kicker {
+    display: inline-block;
+    margin-bottom: 6px;
+    color: #be185d;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.chat-view-heading h1 {
+    margin: 0 0 6px;
+    color: #18181b;
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.chat-view-heading p {
+    margin: 0;
+    max-width: 56ch;
+    color: #71717a;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.chat-view-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.chat-view-control {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.chat-view-control > span {
+    color: #a1a1aa;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.chat-view-control select,
+.chat-view-control input {
+    min-width: 150px;
+    padding: 8px 10px;
+    border: 1px solid #f0d8e6;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #3f3f46;
+    font-family: inherit;
+    font-size: 0.84rem;
+}
+
+.chat-view-search input {
+    min-width: 210px;
+}
+
+.chat-view-control select:focus-visible,
+.chat-view-control input:focus-visible {
+    outline: 2px solid #f06292;
+    outline-offset: 1px;
+}
+
+.chat-view-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 6px;
+}
+
+.chat-view-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.chat-view-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    padding: 16px 18px;
+    /* Raised off the page rather than outlined: a pink-tinted panel over a soft pink
+       shadow, so the list reads as a stack of cards at a glance. */
+    border: 1px solid #f7d6e7;
+    border-radius: 16px;
+    background: linear-gradient(150deg, #ffffff 0%, #fff6fb 58%, #ffeef7 100%);
+    box-shadow:
+        0 1px 2px rgba(190, 24, 93, 0.06),
+        0 10px 22px -12px rgba(190, 24, 93, 0.28);
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease,
+        background 140ms ease;
+}
+
+.chat-view-card:hover,
+.chat-view-card-previewing {
+    border-color: #f4a9cb;
+    background: linear-gradient(150deg, #ffffff 0%, #fff1f8 55%, #ffe3f1 100%);
+    box-shadow:
+        0 2px 4px rgba(190, 24, 93, 0.08),
+        0 22px 40px -16px rgba(190, 24, 93, 0.42);
+    transform: translateY(-3px);
+}
+
+.chat-view-card:active {
+    transform: translateY(-1px);
+}
+
+.chat-view-card:focus-visible {
+    outline: 2px solid #f06292;
+    outline-offset: 2px;
+}
+
+.chat-view-card-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.chat-view-card-title {
+    overflow: hidden;
+    color: #1f1a1d;
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.35;
+    /* Two lines then clipped: node headers are a few words, but a conversation with no node
+       falls back to its opening question, and one long question must not set the row height
+       for the whole list. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.chat-view-card-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    color: #a1a1aa;
+    font-size: 0.76rem;
+}
+
+.chat-view-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: currentColor;
+}
+
+.chat-view-card-open {
+    flex-shrink: 0;
+    color: #d4a0bd;
+    font-size: 1.3rem;
+    line-height: 1;
+}
+
+.chat-view-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    height: 100%;
+    min-height: 240px;
+    color: #71717a;
+    font-size: 0.88rem;
+    text-align: center;
+}
+
+.chat-view-retry {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #f06292, #ec4899);
+    color: #ffffff;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.chat-view-spinner {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 3px solid #f6e3ee;
+    border-top-color: #f06292;
+    animation: chat-view-spin 0.8s linear infinite;
+}
+
+@keyframes chat-view-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chat-view-spinner {
+        animation-duration: 2s;
+    }
+
+    .chat-view-card:hover {
+        transform: none;
+    }
+}
+
+/* The summary sits in the meta row beside the time and the message count, so a card is one
+   glance: what it was called, when, how long, what it was about. */
+.chat-view-card-summary {
+    flex: 1 1 260px;
+    min-width: 0;
+    overflow: hidden;
+    color: #9b6e86;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---------- Hover preview ---------- */
+
+.chat-preview {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: min(620px, calc(100vw - 80px));
+    max-height: min(62vh, 560px);
+    padding: 20px 22px;
+    border: 1px solid rgba(240, 98, 146, 0.4);
+    border-radius: 20px;
+    /* Deliberately see-through: the preview is a peek at the conversation, not a dialog, so
+       the list stays visible behind it. Not lower than this - at 0.74 the card text behind
+       showed through the preview text and neither could be read. The blur does most of the
+       work; it is not relied on alone because it is ignored in some rendering paths. */
+    background: rgba(255, 246, 251, 0.93);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 30px 70px -20px rgba(190, 24, 93, 0.45);
+    cursor: pointer;
+    animation: chat-preview-in 130ms ease-out;
+}
+
+.chat-preview-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(240, 98, 146, 0.22);
+}
+
+.chat-preview-title {
+    color: #18181b;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.chat-preview-count {
+    flex-shrink: 0;
+    color: #b06489;
+    font-size: 0.74rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.chat-preview-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chat-preview-line {
+    margin: 0;
+    color: #3f3f46;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    /* Four lines per message: enough to recognise the exchange without one long answer
+       filling the whole preview. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    overflow: hidden;
+}
+
+.chat-preview-role {
+    display: inline-block;
+    margin-right: 7px;
+    color: #be185d;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.chat-preview-user .chat-preview-role {
+    color: #7c3aed;
+}
+
+.chat-preview-note {
+    margin: 0;
+    color: #71717a;
+    font-size: 0.84rem;
+}
+
+.chat-preview-hint {
+    color: #b06489;
+    font-size: 0.74rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+@keyframes chat-preview-in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -48%);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chat-preview {
+        animation: none;
+    }
+}

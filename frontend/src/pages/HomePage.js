@@ -1,11 +1,29 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import "./HomePage.css";
-import pamiLogo from "../assets/pami-logo.png";
-import api, { projectsApi, slackApi, aiApi, jiraApi } from "../api/axios";
+import api, { projectsApi, aiApi } from "../api/axios";
+import AppSidebar from "../components/layout/AppSidebar";
+import GraphCanvas from "../components/graph/GraphCanvas";
+import { deriveGraph } from "../lib/graph/deriveGraph";
+import { useToast } from "../components/feedback/ToastProvider";
+import useChatScroll from "../hooks/useChatScroll";
+import useRevealedText from "../hooks/useRevealedText";
 
-const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoading, closeModal, fetchProjects, drawConnections, onNodeColorChange, onOpenConversation }) => {
+const MODAL_LABELS = {
+    createProject: "Create project",
+    viewNodeDetails: "Node details",
+    slack: "Connect Slack",
+    slackActions: "Slack actions",
+    slackCreateChannel: "Create Slack channel",
+    slackSendMessage: "Send Slack message",
+    jira: "Connect Jira",
+    shareProject: "Share project",
+};
+
+const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, nearPeers = [], isModalDataLoading, closeModal, fetchProjects, onNodeColorChange, onOpenConversation }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSavingColor, setIsSavingColor] = useState(false);
+    const toast = useToast();
     if (!selectedNode) return null;
 
     const nodeColor = selectedNode.color || "#2196f3";
@@ -31,7 +49,16 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
     };
 
     const handleDelete = async () => {
-        const ok = window.confirm(`Delete node "${selectedNode.name}"? This will reparent its children.`);
+        // The old text promised to "reparent its children". The context tree is a sibling
+        // graph with no parents or children: deleting a node removes its conversation and
+        // strips the reciprocal links from its peers. Nothing is reparented, and the links
+        // are destroyed rather than preserved.
+        const linkCount = (selectedNode.sibling_links || []).length;
+        const ok = window.confirm(
+            `Delete "${selectedNode.name}"?\n\n` +
+            `Its conversation and ${linkCount} connection${linkCount === 1 ? "" : "s"} to other ` +
+            `nodes will be removed. This cannot be undone.`
+        );
         if (!ok) return;
         setIsDeleting(true);
         try {
@@ -46,20 +73,19 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
             }
 
             await projectsApi.delete(deletePath);
-            alert(`${selectedNode.name} deleted.`);
+            toast.success(`${selectedNode.name} deleted.`);
             closeModal();
             await fetchProjects();
-            setTimeout(() => {
-                try { drawConnections(); } catch (e) { console.error('drawConnections error', e); }
-            }, 150);
         } catch (err) {
-            if (err && err.response) {
-                console.error('Delete failed, status=', err.response.status, err.response.data);
-                alert(`Delete failed: ${err.response.status} ${JSON.stringify(err.response.data)}`);
-            } else {
-                console.error('Failed to delete node:', err);
-                alert(`Failed to delete node: ${err && err.message ? err.message : err}`);
-            }
+            // The raw payload used to go straight into the alert: users got a dialog full of
+            // FastAPI validation JSON, which also leaks server internals.
+            console.error('Failed to delete node:', err);
+            const status = err && err.response ? err.response.status : null;
+            toast.error(
+                status === 503
+                    ? "The node's conversation could not be removed, so nothing was deleted. Please try again."
+                    : "Could not delete this node. Please try again."
+            );
         } finally {
             setIsDeleting(false);
         }
@@ -146,7 +172,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
 
                         <div className="node-details-metric">
                             <strong>{nodeTasks.length}</strong>
-                            <span>Tasks</span>
+                            <span>Project tasks</span>
                         </div>
 
                         <div className="node-details-metric">
@@ -185,13 +211,39 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                             ) : (
                                 <p className="node-details-empty">No sibling links are attached to this context node yet.</p>
                             )}
+
+                            {/* Named, not linked. Nothing cleared the similarity floor, and
+                                drawing an edge anyway would assert a relationship the
+                                numbers do not support. */}
+                            {nearPeers.length > 0 && (
+                                <div className="node-details-near-peers">
+                                    <span className="node-details-near-peers-label">
+                                        Closest, but not close enough to link
+                                    </span>
+                                    <div className="node-details-chip-list">
+                                        {nearPeers.map((peer, idx) => (
+                                            <span
+                                                key={idx}
+                                                className="node-details-chip node-details-chip-weak"
+                                                title={`Similarity ${peer.similarity.toFixed(2)}`}
+                                            >
+                                                {peer.header}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </section>
 
                         <section className="node-details-section">
                             <div className="node-details-section-header">
                                 <div>
                                     <span className="node-details-section-kicker">Execution</span>
-                                    <h3>Attached tasks</h3>
+                                    {/* Tasks carry a project_id and nothing else, so these are
+                                        the project's tasks, identical for every node in it.
+                                        Labelling them "attached" implied a per-node link that
+                                        does not exist in the data. */}
+                                    <h3>Tasks in this project</h3>
                                 </div>
                                 <span className="node-details-count">{nodeTasks.length}</span>
                             </div>
@@ -208,7 +260,7 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
                                     ))}
                                 </div>
                             ) : (
-                                <p className="node-details-empty">No direct active operational tasks are configured for this node.</p>
+                                <p className="node-details-empty">This project has no tasks yet.</p>
                             )}
                         </section>
                     </>
@@ -222,27 +274,64 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, isModalDataLoadin
     );
 };
 
+// Each header stat gets an icon that depicts what it counts, replacing decorative CSS shapes
+// that carried no meaning.
+const STAT_ICONS = {
+    conversations: "M2.5 4.2A1.7 1.7 0 0 1 4.2 2.5h9.6a1.7 1.7 0 0 1 1.7 1.7v6a1.7 1.7 0 0 1-1.7 1.7H7l-3.2 2.6a.5.5 0 0 1-.8-.4v-2.2a1.7 1.7 0 0 1-.5-1.2Z",
+    connections: "M5.6 10.4 10.4 5.6M4 12.5a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4ZM12 7.9a2.2 2.2 0 1 0 0-4.4 2.2 2.2 0 0 0 0 4.4Z",
+    connected: "M8 1.8a6.2 6.2 0 1 1 0 12.4A6.2 6.2 0 0 1 8 1.8Zm-2.6 6.4 1.9 1.9 3.4-3.6",
+    projects: "M2 4.4A1.4 1.4 0 0 1 3.4 3h2.7l1.4 1.7h5.1A1.4 1.4 0 0 1 14 6.1v5.5a1.4 1.4 0 0 1-1.4 1.4H3.4A1.4 1.4 0 0 1 2 11.6Z"
+};
+
+const StatIcon = ({ name, className }) => (
+    <span className={className} aria-hidden="true">
+        <svg viewBox="0 0 16 16" focusable="false">
+            <path
+                d={STAT_ICONS[name]}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+            />
+        </svg>
+    </span>
+);
+
 const HomePage = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const toast = useToast();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [activePane, setActivePane] = useState("tree");
-    const [treeZoom, setTreeZoom] = useState(1);
-    const [connectionForce, setConnectionForce] = useState(58);
-    const [repulsionForce, setRepulsionForce] = useState(34);
-    const [forceSimulationNonce, setForceSimulationNonce] = useState(0);
 
     const getTreePanelSizes = () => {
         const viewportHeight = typeof window === "undefined" ? 780 : window.innerHeight;
 
         return {
-            collapsedHeight: Math.max(520, viewportHeight - 172),
+            collapsedHeight: Math.max(520, viewportHeight - 126),
             expandedHeight: viewportHeight
         };
     };
 
     const [treeHeight, setTreeHeight] = useState(() => getTreePanelSizes().collapsedHeight);
-    const [treePan, setTreePan] = useState({ x: 0, y: 0 });
-    const [isTreePanning, setIsTreePanning] = useState(false);
-    const [isBoardDragArmed, setIsBoardDragArmed] = useState(false);
+
+    // Jira lives in a modal owned by this page, so the sidebar links here with a query
+    // parameter when the user is on another route.
+    useEffect(() => {
+        if (searchParams.get("integration") !== "jira") return;
+        openModal("jira");
+        setSearchParams({}, { replace: true });
+    }, [searchParams, setSearchParams]);
+
+    // The panel is bottom-anchored, so its height decides where its top edge lands. Sized
+    // only at mount, it kept a height from the old viewport after any window resize and its
+    // top edge crept up underneath the header.
+    useEffect(() => {
+        const resize = () => setTreeHeight(getTreePanelSizes().collapsedHeight);
+
+        window.addEventListener("resize", resize);
+        return () => window.removeEventListener("resize", resize);
+    }, []);
     const [isLoading, setIsLoading] = useState(true);
     const [activeModal, setActiveModal] = useState(null);
     const [realProjects, setRealProjects] = useState([]);
@@ -253,106 +342,70 @@ const HomePage = () => {
     const [selectedNode, setSelectedNode] = useState(null);
     const [nodeTasks, setNodeTasks] = useState([]);
     const [subNodes, setSubNodes] = useState([]);
+    const [nearPeers, setNearPeers] = useState([]);
     const [isModalDataLoading, setIsModalDataLoading] = useState(false);
 
     const [emailInput, setEmailInput] = useState("");
     const [tokenInput, setTokenInput] = useState("");
 
-    const [slackConnected, setSlackConnected] = useState(false);
-    const [slackChannels, setSlackChannels] = useState([]);
-    const [channelNameInput, setChannelNameInput] = useState("");
-    const [messageChannelInput, setMessageChannelInput] = useState("");
-    const [messageTextInput, setMessageTextInput] = useState("");
-    const [jiraConnected, setJiraConnected] = useState(false);
-    const [jiraProjects, setJiraProjects] = useState([]); 
-
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState("");
     const [conversationId, setConversationId] = useState(null);
-    const [isChatLoading, setIsChatLoading] = useState(false);
-    const [assistantAvatarUrl, setAssistantAvatarUrl] = useState(null);
 
-    const pamiAssistantRecommendations = [
-        {
-            title: "Recommendation 1",
-            summary: "Several project tasks are moving slower than expected. Review blockers and ownership to keep the timeline stable.",
-            bullets: [
-                "12 tasks may miss due dates.",
-                "3 blockers need approval.",
-                "Reassign 2 developers."
-            ]
-        },
-        {
-            title: "Recommendation 2",
-            summary: "Jira sync looks healthy, but some tasks are missing ownership details.",
-            bullets: [
-                "5 tasks have no owner.",
-                "2 tasks miss priority.",
-                "1 task has no context node."
-            ]
-        },
-        {
-            title: "Recommendation 3",
-            summary: "Everything looks stable right now. No critical project changes are required.",
-            bullets: [
-                "No urgent risks detected.",
-                "Velocity looks consistent.",
-                "No action is required."
-            ]
+    // Indexing is debounced server-side, so the last message or two of a conversation stay
+    // unsearchable until the conversation is flushed. Flush whenever the user walks away from
+    // it, which is exactly when they are about to ask about it from somewhere else. The
+    // server also flushes on idle; this makes it immediate.
+    const flushConversationIndex = (id, { onUnload = false } = {}) => {
+        if (!id) return;
+        const url = `${aiApi.defaults.baseURL}/ai-conversations/context-retrieval/reindex/${id}`;
+        if (onUnload) {
+            // keepalive survives the page going away; a normal request would be cancelled.
+            window.fetch(url, { method: "POST", keepalive: true }).catch(() => {});
+            return;
         }
-    ];
-
-    const [pamiAssistantIndex, setPamiAssistantIndex] = useState(0);
-    const currentPamiAssistantRecommendation = pamiAssistantRecommendations[pamiAssistantIndex] || pamiAssistantRecommendations[0];
-    const pamiSidebarAssistantImage = "/pami-assistant.png";
-
-    const goToPreviousPamiRecommendation = () => {
-        setPamiAssistantIndex((currentIndex) => {
-            if (currentIndex <= 0) return pamiAssistantRecommendations.length - 1;
-            return currentIndex - 1;
-        });
+        aiApi.post(`/ai-conversations/context-retrieval/reindex/${id}`).catch(() => {});
     };
 
-    const goToNextPamiRecommendation = () => {
-        setPamiAssistantIndex((currentIndex) => {
-            if (currentIndex >= pamiAssistantRecommendations.length - 1) return 0;
-            return currentIndex + 1;
-        });
-    };
-    const treeContainerRef = useRef(null);
+    const conversationIdRef = useRef(null);
+    useEffect(() => {
+        conversationIdRef.current = conversationId;
+    }, [conversationId]);
+
+    useEffect(() => {
+        const onHidden = () => {
+            if (document.visibilityState === "hidden") {
+                flushConversationIndex(conversationIdRef.current, { onUnload: true });
+            }
+        };
+
+        document.addEventListener("visibilitychange", onHidden);
+        return () => document.removeEventListener("visibilitychange", onHidden);
+    }, []);
+
+    const [isChatLoading, setIsChatLoading] = useState(false);
+    // The service answers in one shot, so the reply is typed out here instead: a wall of
+    // text appearing at once gives no sense of progress and leaves the reader hunting for
+    // where it started.
+    const { revealedChars, reveal: revealReply, stop: stopReveal } = useRevealedText();
+    const [assistantAvatarUrl, setAssistantAvatarUrl] = useState(null);
+    // Node just created from a conversation, highlighted on the graph while its connections
+    // are revealed.
+    const [spotlightNodeId, setSpotlightNodeId] = useState(null);
+    const [shareEmail, setShareEmail] = useState("");
+    const [members, setMembers] = useState({ members: [], pending_invites: [] });
+    const [isSharing, setIsSharing] = useState(false);
+    const {
+        containerRef: chatBodyRef,
+        scrollToBottom: scrollChatToBottom
+    } = useChatScroll([chatMessages, revealedChars, isChatLoading]);
+
     const fileInputRef = useRef(null);
-    const forceStateRef = useRef(new Map());
 
-    const siblingPairScores = useMemo(() => {
-        const pairToWeight = new Map();
-        const projectNodes = selectedProjectId ? (contextNodesMap[selectedProjectId] || []) : [];
-
-        (projectNodes || []).forEach((node) => {
-                const sourceId = String(node.id || node._id || (node._id && node._id.$oid) || node._id || '');
-                if (!sourceId) return;
-
-                (node.sibling_links || []).forEach((link) => {
-                    const targetId = String(link?.sibling_id || '');
-                    const score = Number(link?.correlation_score || 0);
-                    if (!targetId || targetId === sourceId || score < 30) return;
-
-                    const pairKey = [sourceId, targetId].sort().join('::');
-                    const previous = pairToWeight.get(pairKey);
-                    if (!previous || score > previous) {
-                        pairToWeight.set(pairKey, score);
-                    }
-                });
-        });
-
-        return Array.from(pairToWeight.entries()).map(([pairKey, score]) => {
-            const [leftId, rightId] = pairKey.split('::');
-            return { leftId, rightId, score };
-        });
-    }, [contextNodesMap, selectedProjectId]);
-
-    const restartForceSimulation = () => {
-        setForceSimulationNonce((currentNonce) => currentNonce + 1);
-    };
+    const projectGraph = useMemo(
+        () => deriveGraph(selectedProjectId ? contextNodesMap[selectedProjectId] || [] : []),
+        [contextNodesMap, selectedProjectId]
+    );
 
     const resolveProjectId = (proj) => {
         if (!proj) return null;
@@ -367,7 +420,6 @@ const HomePage = () => {
         setIsLoading(true);
         try {
             const response = await projectsApi.get("/projects/");
-            console.log("Projects fetched:", response.data);
             const projects = response.data || [];
             setRealProjects(projects);
 
@@ -397,7 +449,6 @@ const HomePage = () => {
         try {
             const resp = await projectsApi.get(`/context-tree/projects/${projectId}/nodes`);
             if (resp && resp.data) {
-                console.log('Fetched context nodes for', projectId, resp.data);
                 setContextNodesMap((m) => {
                     const next = { ...m, [projectId]: resp.data };
 
@@ -438,16 +489,18 @@ const HomePage = () => {
 
                     return next;
                 });
+                return resp.data;
             }
         } catch (err) {
             console.error('Failed to fetch context nodes for', projectId, err);
         }
+        return null;
     };
 
     const handleCreateProject = async (e) => {
         e.preventDefault();
         if (!emailInput) {
-            alert("Please enter a project name");
+            toast.error("Please enter a project name.");
             return;
         }
         setIsLoading(true);
@@ -457,9 +510,8 @@ const HomePage = () => {
                 goal: tokenInput || "No goal defined",
                 status: "active",
             });
-            console.log("Project created successfully:", response.data);
             const newProjectId = resolveProjectId(response.data);
-            alert(`Project "${emailInput}" created.`);
+            toast.success(`Project "${emailInput}" created.`);
             await fetchProjects();
             if (newProjectId) {
                 await handleProjectSelect(newProjectId);
@@ -468,10 +520,10 @@ const HomePage = () => {
         } catch (error) {
             if (error.response) {
                 console.error("Server Error Data:", error.response.data);
-                alert("Server says: " + JSON.stringify(error.response.data));
+                toast.error("The server rejected the request. See the console for details.");
             } else {
                 console.error("Connection Error:", error.message);
-                alert("Check your frontend .env and backend server.");
+                toast.error("Could not reach the server. Check that the backend is running.");
             }
         } finally {
             setIsLoading(false);
@@ -483,7 +535,7 @@ const HomePage = () => {
 
         const nodeId = node.id || node._id || (node._id && node._id.$oid) || null;
         if (!nodeId) {
-            alert("Could not update color: selected node has no id.");
+            toast.error("Could not update the colour: this node has no id.");
             return;
         }
 
@@ -533,10 +585,6 @@ const HomePage = () => {
                     await fetchProjects();
                 }
 
-                setTimeout(() => {
-                    try { drawConnections(); } catch (e) { console.error("drawConnections error", e); }
-                }, 150);
-
                 return;
             } catch (error) {
                 const status = error && error.response ? error.response.status : "NO_RESPONSE";
@@ -550,7 +598,7 @@ const HomePage = () => {
         }
 
         console.error("Failed to persist node color. Tried paths:", errors);
-        alert("Color changed visually, but failed to save to backend. Open the console to see the tried paths.");
+        toast.error("Colour changed on screen but could not be saved. It will reset on reload.");
     };
 
     useEffect(() => {
@@ -627,6 +675,8 @@ const HomePage = () => {
         const userMessage = chatInput.trim();
         setChatInput("");
         setChatMessages((p) => [...p, { role: "user", content: userMessage }]);
+        // Sending is an explicit action, so follow it down even if the user had scrolled up.
+        scrollChatToBottom();
         setIsChatLoading(true);
         try {
             let convId = conversationId;
@@ -640,7 +690,18 @@ const HomePage = () => {
             });
 
             const aiText = resp.data && (resp.data.response || resp.data.text || resp.data.message);
-            setChatMessages((p) => [...p, { role: "assistant", content: aiText || "(no response)" }]);
+            setChatMessages((p) => [
+                ...p,
+                {
+                    role: "assistant",
+                    content: aiText || "(no response)",
+                    // The service reports which other conversations it drew on. Showing them is
+                    // the whole promise of the feature: without it the user cannot tell that an
+                    // answer came from somewhere else, or check where.
+                    consulted: (resp.data && resp.data.consulted) || []
+                }
+            ]);
+            revealReply((aiText || "(no response)").length);
         } catch (err) {
             console.error("Failed to send message to AI:", err);
             setChatMessages((p) => [...p, { role: "assistant", content: "I'm having trouble connecting right now. Please try again." }]);
@@ -689,27 +750,22 @@ const HomePage = () => {
         setSelectedNode(null);
         setNodeTasks([]);
         setSubNodes([]);
+        setNearPeers([]);
         setEmailInput("");
         setTokenInput("");
-        setChannelNameInput("");
-        setMessageChannelInput("");
-        setMessageTextInput("");
     };
 
-    const goToNodeConversation = async (node) => {
-        if (!node) return;
-        const convId = node.conversation_id || node.conversationId || node.conversation || null;
-        if (!convId) {
-            alert('This node has no associated conversation.');
-            return;
-        }
+    const openConversationById = async (convId) => {
+        if (!convId) return false;
+        flushConversationIndex(conversationId);
+        stopReveal();
 
         try {
             // Fetch conversation history from AI service
             const resp = await aiApi.get(`/ai-conversations/${convId}`);
             if (resp && resp.data && resp.data.messages) {
                 // Map messages into chat format
-                const msgs = resp.data.messages.map((m) => ({ role: m.role || m.role, content: m.content || m.content }));
+                const msgs = resp.data.messages.map((m) => ({ role: m.role, content: m.content }));
                 setChatMessages(msgs);
             }
             setConversationId(convId);
@@ -720,23 +776,52 @@ const HomePage = () => {
                 const input = document.querySelector('textarea, input[type=text]');
                 if (input) input.focus();
             }, 150);
+            return true;
         } catch (err) {
             console.error('Failed to load conversation:', err);
-            alert('Failed to load conversation. Check console for details.');
+            toast.error('Could not load the conversation. Please try again.');
+            return false;
         }
     };
 
-    const openModal = (type) => {
-        if (type === "slack") {
-            setActiveModal(slackConnected ? "slackActions" : "slack");
+    const goToNodeConversation = async (node) => {
+        if (!node) return;
+        const convId = node.conversation_id || node.conversationId || node.conversation || null;
+        if (!convId) {
+            toast.notify('This node has no associated conversation.');
             return;
         }
+        await openConversationById(convId);
+    };
 
-if (type === "jira") {
-    setActiveModal(jiraConnected ? "jiraActions" : "jira");
-    return;
-}
+    // Chat View lists conversations on its own route and links back here, because the chat
+    // pane and everything it needs - the project, the graph, the node modal - live on this
+    // page. The parameter is cleared so a later reload does not reopen it.
+    useEffect(() => {
+        const requested = searchParams.get("conversation");
+        if (!requested) return;
+        setSearchParams({}, { replace: true });
+        openConversationById(requested);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams]);
 
+    const modalRef = useRef(null);
+
+    // Without these the dialog was unreachable and inescapable by keyboard: no role, no
+    // Escape handler, and focus stayed behind it on the page.
+    useEffect(() => {
+        if (!activeModal) return undefined;
+
+        const onKeyDown = (event) => {
+            if (event.key === "Escape") closeModal();
+        };
+
+        window.addEventListener("keydown", onKeyDown);
+        modalRef.current?.focus();
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, [activeModal]);
+
+    const openModal = (type) => {
         setActiveModal(type);
     };
 
@@ -750,7 +835,11 @@ if (type === "jira") {
         if (!contextNodesMap[projectId]) {
             await fetchContextNodes(projectId);
         }
-        restartForceSimulation();
+    };
+
+    const openNodeDetails = (graphNode) => {
+        const legacyNode = getProjectTreeNodes().find((candidate) => candidate.id === graphNode.id);
+        if (legacyNode) handleNodeClick(legacyNode);
     };
 
     const handleNodeClick = async (node) => {
@@ -763,7 +852,6 @@ if (type === "jira") {
                 ? (node.project_id || node.projectId || node.project || node.id)
                 : node.id;
 
-            console.log(`Fetching live connected data for project: ${targetProjectId}`);
             const [tasksRes, nodesRes] = await Promise.all([
                 projectsApi.get(`/tasks/projects/${targetProjectId}/tasks`).catch(() => ({ data: [] })),
                 projectsApi.get(`/context-tree/projects/${targetProjectId}/nodes`).catch(() => ({ data: [] }))
@@ -785,8 +873,23 @@ if (type === "jira") {
                     siblingIds.has(String(n.id || n._id || (n._id && n._id.$oid) || n._id))
                 );
                 setSubNodes(siblingNodes);
+
+                const idOf = (n) => String(n.id || n._id || (n._id && n._id.$oid) || n._id);
+                setNearPeers(
+                    ((selectedServerNode || node).near_peers || [])
+                        .map((peer) => {
+                            const match = allNodes.find(
+                                (candidate) => idOf(candidate) === String(peer.sibling_id)
+                            );
+                            return match
+                                ? { header: match.header || "Untitled node", similarity: peer.similarity }
+                                : null;
+                        })
+                        .filter(Boolean)
+                );
             } else {
                 setSubNodes(allNodes);
+                setNearPeers([]);
             }
         } catch (error) {
             console.error("Failed to fetch node sub-resources:", error);
@@ -795,183 +898,159 @@ if (type === "jira") {
         }
     };
 
-    const fetchSlackChannels = async () => {
-        const response = await slackApi.get("/list-channels");
-        if (!response.data || response.data.ok !== true) {
-            throw new Error(
-                response.data && response.data.error ? response.data.error : "Failed to fetch Slack channels."
-            );
-        }
-        return response.data.channels || [];
-    };
-
-const fetchJiraProjects = async () => {
-    const response = await jiraApi.get("/list-projects");
-
-    if (!response.data || response.data.ok !== true) {
-        throw new Error(
-            response.data && response.data.error
-                ? response.data.error
-                : "Failed to fetch Jira projects."
-        );
-    }
-
-    return response.data.projects || [];
-};
-
     const handleConnect = async (e) => {
         e.preventDefault();
         setIsLoading(true);
         try {
-            if (activeModal === "slack") {
-                const channels = await fetchSlackChannels();
-                setSlackConnected(true);
-                setSlackChannels(channels);
-                alert("Connected successfully to Slack!");
-                setActiveModal("slackActions");
-                return;
-            }
-
-if (activeModal === "jira") {
-    const response = await jiraApi.post("/connection-check");
-
-    if (!response.data || response.data.ok !== true) {
-        throw new Error("Jira connection check failed.");
-    }
-
-    const projects = await fetchJiraProjects();
-
-    setJiraConnected(true);
-    setJiraProjects(projects);
-    alert("Connected successfully to Jira!");
-    setActiveModal("jiraActions");
-    return;
-}
-
             await api.post(`/integrate/${activeModal}`, {
                 email: emailInput,
                 token: tokenInput,
             });
-            alert(`Connected successfully to ${activeModal}!`);
+            toast.success(`Connected successfully to ${activeModal}.`);
             closeModal();
         } catch (error) {
             console.error("Connection failed:", error);
-            alert("Connection failed.");
+            toast.error("Connection failed.");
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleSlackTestConnection = async () => {
-        setIsLoading(true);
-        try {
-            const response = await slackApi.post("/connection-check");
-            if (!response.data || response.data.ok !== true) {
-                throw new Error(response.data && response.data.error ? response.data.error : "Slack connection check failed.");
-            }
-            alert("Slack connection is healthy.");
-        } catch (error) {
-            console.error("Slack test connection failed:", error);
-            alert("Slack test connection failed.");
-        } finally {
-            setIsLoading(false);
+    // Polls briefly for the node the AI organizer is still filling in. Bounded, and stops as
+    // soon as the node has either links or a generated title.
+    const refetchNodesUntilLinked = async (projectId, nodeId) => {
+        let latest = null;
+        for (const delay of [1200, 1800, 2500]) {
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            const nodes = await fetchContextNodes(projectId);
+            const node = (nodes || []).find(
+                (candidate) => String(candidate.id || candidate._id) === String(nodeId)
+            );
+            if (node) latest = node;
+            if (node && (node.sibling_links || []).length > 0) return node;
         }
+        // Returned even without links so the caller can tell the user why there are none.
+        return latest;
     };
 
-    const handleListChannels = async () => {
-        setIsLoading(true);
-        try {
-            const channels = await fetchSlackChannels();
-            setSlackChannels(channels);
-            if (channels.length === 0) alert("No channels found.");
-        } catch (error) {
-            console.error("Failed to fetch channels:", error);
-            alert("Failed to fetch Slack channels.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
+    // useCallback so the canvas effect that owns the reveal timers is not torn down and
+    // restarted on every render of this page.
+    const clearSpotlight = useCallback(() => setSpotlightNodeId(null), []);
 
-const handleJiraTestConnection = async () => {
-    setIsLoading(true);
+    // A node with no links is a legitimate outcome - nothing in the project was close
+    // enough - but silently dropping it on the graph as an island looks like a failure. The
+    // service reports the nearest peers it considered, so say what they were.
+    const announceIfUnlinked = (node, projectId) => {
+        if (!node || (node.sibling_links || []).length > 0) return;
 
-    try {
-        const response = await jiraApi.post("/connection-check");
-
-        if (!response.data || response.data.ok !== true) {
-            throw new Error("Jira connection check failed.");
-        }
-
-        alert("Jira connection is healthy.");
-    } catch (error) {
-        console.error("Jira test connection failed:", error);
-        alert("Jira test connection failed.");
-    } finally {
-        setIsLoading(false);
-    }
-};
-
-const handleListJiraProjects = async () => {
-    setIsLoading(true);
-
-    try {
-        const projects = await fetchJiraProjects();
-        setJiraProjects(projects);
-
-        if (projects.length === 0) {
-            alert("No Jira projects found.");
+        const nearby = node.near_peers || [];
+        if (!nearby.length) {
+            toast.notify('Added to the graph. Nothing in this project was close enough to link to it yet.');
             return;
         }
 
-        alert(`Found ${projects.length} Jira project(s).`);
-    } catch (error) {
-        console.error("Failed to fetch Jira projects:", error);
-        alert("Failed to fetch Jira projects.");
-    } finally {
-        setIsLoading(false);
-    }
-};
+        const others = contextNodesMap[projectId] || [];
+        const names = nearby
+            .map((peer) => {
+                const match = others.find(
+                    (candidate) => String(candidate.id || candidate._id) === String(peer.sibling_id)
+                );
+                return match?.header;
+            })
+            .filter(Boolean)
+            .slice(0, 3);
 
-const handleCreateJiraTestIssue = async () => {
-    setIsLoading(true);
+        toast.notify(
+            names.length
+                ? `Added to the graph, but nothing was close enough to link. Nearest: ${names.join(', ')}.`
+                : 'Added to the graph. Nothing in this project was close enough to link to it yet.',
+            { duration: 9000 }
+        );
+    };
 
-    try {
-        const projects = jiraProjects.length > 0 ? jiraProjects : await fetchJiraProjects();
-        const projectKey = projects[0] && projects[0].key ? projects[0].key : "SCRUM";
+    const openShareProject = async () => {
+        if (!selectedProjectId) return;
+        setShareEmail("");
+        setMembers({ members: [], pending_invites: [] });
+        openModal("shareProject");
+        try {
+            const response = await projectsApi.get(`/projects/${selectedProjectId}/members`);
+            setMembers(response.data || { members: [], pending_invites: [] });
+        } catch (err) {
+            console.error("Failed to load project members:", err);
+            toast.error("Could not load who this project is shared with.");
+        }
+    };
 
-        const response = await jiraApi.post("/issues", {
-            project_key: projectKey,
-            summary: "PAMI frontend Jira integration test",
-            description: "Created from the PAMI frontend through the local Jira service.",
-            issue_type: "Task",
-            labels: ["pami", "frontend", "integration"]
-        });
-
-        if (!response.data || response.data.ok !== true) {
-            throw new Error("Failed to create Jira issue.");
+    const handleShareProject = async (event) => {
+        event.preventDefault();
+        const email = shareEmail.trim().toLowerCase();
+        if (!email) {
+            toast.error("Enter the email address to share with.");
+            return;
         }
 
-        alert(`Jira issue created: ${response.data.issue_key}`);
-    } catch (error) {
-        console.error("Failed to create Jira issue:", error);
-        alert("Failed to create Jira issue.");
-    } finally {
-        setIsLoading(false);
-    }
-};
+        setIsSharing(true);
+        try {
+            const response = await projectsApi.post(
+                `/projects/${selectedProjectId}/members`,
+                { email }
+            );
+            const status = response.data?.status;
+            // "invited" is not a failure: the address has no account yet, and the invite is
+            // claimed the first time they sign in. Saying so is the difference between the
+            // user thinking it worked and the user thinking nothing happened.
+            if (status === "added") {
+                toast.success(`${email} can now see this project.`);
+            } else if (status === "invited") {
+                toast.notify(
+                    `${email} has no PAMI account yet. They will get this project the first time they sign in.`,
+                    { duration: 9000 }
+                );
+            } else if (status === "already_member") {
+                toast.notify(`${email} already has access.`);
+            } else {
+                toast.notify(`${email} has already been invited.`);
+            }
+
+            setShareEmail("");
+            const refreshed = await projectsApi.get(`/projects/${selectedProjectId}/members`);
+            setMembers(refreshed.data || { members: [], pending_invites: [] });
+        } catch (err) {
+            console.error("Failed to share the project:", err);
+            const status = err?.response?.status;
+            toast.error(
+                status === 403
+                    ? "Only the project owner can share it."
+                    : "Could not share this project. Please try again."
+            );
+        } finally {
+            setIsSharing(false);
+        }
+    };
+
+    const handleRemoveMember = async (memberId, label) => {
+        try {
+            await projectsApi.delete(`/projects/${selectedProjectId}/members/${memberId}`);
+            toast.success(`${label} no longer has access.`);
+            const refreshed = await projectsApi.get(`/projects/${selectedProjectId}/members`);
+            setMembers(refreshed.data || { members: [], pending_invites: [] });
+        } catch (err) {
+            console.error("Failed to remove the member:", err);
+            toast.error("Could not remove that person. Please try again.");
+        }
+    };
 
     const handleCreateNodeFromConversation = async () => {
-        console.log('Create node from conversation triggered');
         try {
             if (realProjects.length === 0) {
-                alert('No project available to attach node to.');
+                toast.error('No project is available to attach this node to.');
                 return;
             }
             const projectRaw = realProjects.find((proj) => String(resolveProjectId(proj)) === String(selectedProjectId)) || realProjects[0];
             const projectId = resolveProjectId(projectRaw);
-            console.log('Using project id:', projectId, projectRaw);
             if (!projectId) {
-                alert('Could not determine project id for node creation.');
+                toast.error('Could not determine which project this node belongs to.');
                 return;
             }
 
@@ -989,916 +1068,39 @@ const handleCreateJiraTestIssue = async () => {
                 node_type: 'conversation',
             };
 
-            console.log('POST body for create-node:', body);
             const resp = await projectsApi.post(`/context-tree/projects/${projectId}/nodes`, body);
-            console.log('Create node response:', resp && resp.data ? resp.data : resp);
             if (resp && resp.data && resp.data.id) {
-                alert('Node created from conversation: ' + (resp.data.name || resp.data.id));
+                // Straight to the graph, before the refetch: the point of creating a node is
+                // to see where it lands, and waiting for the links would leave the user on
+                // the chat pane for the several seconds the background task takes.
+                flushConversationIndex(conversationId);
+                setSpotlightNodeId(String(resp.data.id));
+                setActivePane("tree");
                 await fetchProjects();
-                setTimeout(() => {
-                    try {
-                        drawConnections();
-                    } catch (e) { }
-                }, 200);
+                // The title and the sibling links are produced by a background task that
+                // finishes a second or two after this responds, so a single refetch here
+                // stores a stub with no links - which is also what pushes it off-screen.
+                const settled = await refetchNodesUntilLinked(projectId, resp.data.id);
+                announceIfUnlinked(settled, projectId);
             } else if (resp && resp.status && resp.status >= 200 && resp.status < 300) {
-                alert('Node created (no id returned).');
                 await fetchProjects();
             } else {
-                alert('Unexpected response from server. See console.');
+                toast.error('The server did not confirm the new node. Please try again.');
             }
         } catch (err) {
             console.error('Failed to create node from conversation', err);
             if (err && err.response) console.error('Response data:', err.response.data);
-            alert('Failed to create node from conversation. Check console/network for details.');
+            toast.error('Could not create a node from this conversation. Please try again.');
         }
     };
 
-    const handleCreateSlackChannel = async (e) => {
-        e.preventDefault();
-        if (!channelNameInput) {
-            alert("Please enter a channel name.");
-            return;
-        }
-        setIsLoading(true);
-        try {
-            const response = await slackApi.post("/channels", { name: channelNameInput });
-            if (!response.data || response.data.ok !== true) {
-                throw new Error(response.data && response.data.error ? response.data.error : "Failed to create Slack channel.");
-            }
-            const channelName = response.data.channel_name ? response.data.channel_name : channelNameInput;
-            if (response.data.already_exists === true) {
-                alert(`Channel already exists: #${channelName}`);
-            } else {
-                alert(`Channel created successfully: #${channelName}`);
-            }
-            setChannelNameInput("");
-            setActiveModal("slackActions");
-            const channels = await fetchSlackChannels();
-            setSlackChannels(channels);
-        } catch (error) {
-            console.error("Failed to create channel:", error);
-            alert("Failed to create Slack channel.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleSendSlackMessage = async (e) => {
-        e.preventDefault();
-        if (!messageChannelInput || !messageTextInput) {
-            alert("Please enter both channel and message.");
-            return;
-        }
-        setIsLoading(true);
-        try {
-            const response = await slackApi.post("/messages", {
-                channel: messageChannelInput,
-                text: messageTextInput,
-            });
-            if (!response.data || response.data.ok !== true) {
-                throw new Error(response.data && response.data.error ? response.data.error : "Failed to send Slack message.");
-            }
-            alert(`Message sent successfully to ${messageChannelInput}`);
-            setMessageChannelInput("");
-            setMessageTextInput("");
-            setActiveModal("slackActions");
-        } catch (error) {
-            console.error("Failed to send message:", error);
-            alert("Failed to send Slack message.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const renderTree = (node, parentId = null) => {
-        if (!node) return null;
-        return (
-            <div className="tree-branch" key={node.id || node.name}>
-                <div className="tree-node-wrapper" data-node-id={node.id} data-parent-id={parentId || ""}>
-                    <div
-                        className="neural-node-v2"
-                        style={{
-                            borderColor: node.color || "#2196f3",
-                            "--node-color": node.color || "#2196f3",
-                            cursor: node.id === "root" ? "default" : "pointer"
-                        }}
-                        onDoubleClick={() => handleNodeClick(node)}
-                    >
-                        <div className="node-dot" style={{ backgroundColor: node.color || "#2196f3", boxShadow: `0 0 0 3px ${node.color || "#2196f3"}22` }}></div>
-                        <div className="node-content-v2">
-                            <span className="node-name-v2">{node.name}</span>
-                            <span className="node-status-v2">{node.status}</span>
-                        </div>
-                    </div>
-                </div>
-                {node.children && node.children.length > 0 && (
-                    <div className="tree-children">
-                        {node.children.map((child) => renderTree(child, node.id))}
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    const drawConnections = useCallback(() => {
-        const container = treeContainerRef.current;
-        if (!container) return;
-        const svg = container.querySelector('svg.tree-svg-overlay');
-        if (!svg) return;
-        while (svg.firstChild) svg.removeChild(svg.firstChild);
-
-        const nodes = Array.from(container.querySelectorAll('.tree-node-wrapper[data-node-id]'));
-        const idToEl = {};
-        nodes.forEach((el) => {
-            const id = el.getAttribute('data-node-id');
-            idToEl[id] = el;
-        });
-
-        const containerRect = container.getBoundingClientRect();
-
-        const centers = new Map();
-        Object.entries(idToEl).forEach(([id, el]) => {
-            const visual = el.querySelector('.neural-node-v2') || el;
-            const rect = visual.getBoundingClientRect();
-            centers.set(id, {
-                x: rect.left + rect.width / 2 - containerRect.left,
-                y: rect.top + rect.height / 2 - containerRect.top,
-            });
-        });
-
-        const getStrokeWidthForCorrelation = (score) => {
-            const correlation = Number(score || 0);
-            if (correlation < 30) return 0;
-            if (correlation >= 100) return 8.0;
-            const normalized = (correlation - 30) / 70;
-            return Number((1.0 + normalized * 7.0).toFixed(2));
-        };
-
-        const getStrokeOpacityForCorrelation = (score) => {
-            const correlation = Number(score || 0);
-            if (correlation < 30) return 0;
-            if (correlation >= 100) return 1;
-            const normalized = (correlation - 30) / 70;
-            return Number((0.18 + normalized * 0.82).toFixed(2));
-        };
-        const vw = Math.max(1, Math.round(containerRect.width));
-        const vh = Math.max(1, Math.round(containerRect.height));
-        svg.setAttribute('viewBox', `0 0 ${vw} ${vh}`);
-        svg.setAttribute('preserveAspectRatio', 'none');
-        svg.setAttribute('width', `${vw}`);
-        svg.setAttribute('height', `${vh}`);
-
-        siblingPairScores.forEach(({ leftId, rightId, score }) => {
-            const leftCenter = centers.get(leftId);
-            const rightCenter = centers.get(rightId);
-            if (!leftCenter || !rightCenter) return;
-
-            const startX = leftCenter.x;
-            const startY = leftCenter.y;
-            const endX = rightCenter.x;
-            const endY = rightCenter.y;
-            const correlationScore = score;
-
-            const dx = endX - startX;
-            const dy = endY - startY;
-            const distance = Math.hypot(dx, dy) || 1;
-            const normalX = -dy / distance;
-            const normalY = dx / distance;
-            const bow = Math.min(48, Math.max(18, distance * 0.08));
-            const controlX = (startX + endX) / 2 + normalX * bow;
-            const controlY = (startY + endY) / 2 + normalY * bow;
-
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            const d = `M ${startX} ${startY} Q ${controlX} ${controlY} ${endX} ${endY}`;
-            path.setAttribute('d', d);
-            path.setAttribute('stroke', '#9ca3af');
-            path.setAttribute('stroke-width', `${getStrokeWidthForCorrelation(correlationScore)}`);
-            path.setAttribute('fill', 'none');
-            path.setAttribute('stroke-linecap', 'round');
-            path.setAttribute('opacity', `${getStrokeOpacityForCorrelation(correlationScore)}`);
-
-            const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-            title.textContent = `Correlation score: ${Math.round(correlationScore)}/100`;
-            path.appendChild(title);
-
-            svg.appendChild(path);
-        });
-    }, [siblingPairScores]);
-
-    useEffect(() => {
-        if (activePane !== "tree") return;
-
-        const t = setTimeout(drawConnections, 80);
-        window.addEventListener("resize", drawConnections);
-
-        return () => {
-            clearTimeout(t);
-            window.removeEventListener("resize", drawConnections);
-        };
-    }, [realProjects, activePane, isLoading, treeZoom, treeHeight, treePan, drawConnections]);
-
-    useEffect(() => {
-        if (activePane !== "tree") return undefined;
-
-        let animationFrameId = null;
-        let isCancelled = false;
-        let simulationStartTime = null;
-        let calmFrames = 0;
-        let frameCounter = 0;
-
-        const settleDurationMs = 2400;
-        const calmMotionThreshold = 0.11;
-        const calmFramesRequired = 5;
-
-        const runForceStep = (elapsedMs) => {
-            const container = treeContainerRef.current;
-            if (!container) return { maxMotion: 0 };
-
-            const wrappers = Array.from(container.querySelectorAll('.tree-node-wrapper[data-node-id]'));
-            if (wrappers.length === 0) return { maxMotion: 0 };
-
-            const zoom = Math.max(0.1, Number(treeZoom) || 1);
-            const normalizedElapsed = Math.min(1, Math.max(0, elapsedMs / settleDurationMs));
-            const cooling = 1 - normalizedElapsed;
-            const burstMultiplier = 1 + cooling * 0.16;
-            const nodes = [];
-            const idToNode = new Map();
-
-            wrappers.forEach((wrapper) => {
-                const id = String(wrapper.getAttribute('data-node-id') || '');
-                if (!id) return;
-
-                const visual = wrapper.querySelector('.neural-node-v2') || wrapper;
-                const rect = visual.getBoundingClientRect();
-                const centerX = rect.left + rect.width / 2;
-                const centerY = rect.top + rect.height / 2;
-
-                const currentTranslateX = Number(wrapper.dataset.translateX || 0) || 0;
-                const currentTranslateY = Number(wrapper.dataset.translateY || 0) || 0;
-                const locked = wrapper.dataset.dragLocked === '1';
-
-                let state = forceStateRef.current.get(id);
-                if (!state) {
-                    state = { vx: 0, vy: 0 };
-                    forceStateRef.current.set(id, state);
-                }
-
-                const node = {
-                    id,
-                    wrapper,
-                    centerX,
-                    centerY,
-                    halfWidth: rect.width / 2,
-                    halfHeight: rect.height / 2,
-                    radius: Math.max(16, Math.max(rect.width, rect.height) / 2),
-                    translateX: currentTranslateX,
-                    translateY: currentTranslateY,
-                    locked,
-                    fx: 0,
-                    fy: 0,
-                    state,
-                };
-
-                nodes.push(node);
-                idToNode.set(id, node);
-            });
-
-            if (nodes.length === 0) return { maxMotion: 0 };
-
-            const activeIds = new Set(nodes.map((node) => node.id));
-            forceStateRef.current.forEach((_, key) => {
-                if (!activeIds.has(key)) {
-                    forceStateRef.current.delete(key);
-                }
-            });
-
-            const repelStrength = (Number(repulsionForce) || 0) / 100;
-            const attractStrength = (Number(connectionForce) || 0) / 100;
-
-            for (let i = 0; i < nodes.length; i += 1) {
-                for (let j = i + 1; j < nodes.length; j += 1) {
-                    const a = nodes[i];
-                    const b = nodes[j];
-
-                    const dx = b.centerX - a.centerX;
-                    const dy = b.centerY - a.centerY;
-                    const distanceSq = dx * dx + dy * dy + 0.01;
-                    const distance = Math.sqrt(distanceSq);
-                    const ux = dx / distance;
-                    const uy = dy / distance;
-
-                    const repulsion = repelStrength * burstMultiplier * 24000 / (distanceSq + 900);
-                    a.fx -= ux * repulsion;
-                    a.fy -= uy * repulsion;
-                    b.fx += ux * repulsion;
-                    b.fy += uy * repulsion;
-
-                    const collisionGap = a.radius + b.radius + 14;
-                    if (distance < collisionGap) {
-                        const overlap = collisionGap - distance;
-                        const collision = (0.045 + cooling * 0.04) * overlap;
-                        a.fx -= ux * collision;
-                        a.fy -= uy * collision;
-                        b.fx += ux * collision;
-                        b.fy += uy * collision;
-                    }
-                }
-            }
-
-            siblingPairScores.forEach(({ leftId, rightId, score }) => {
-                const left = idToNode.get(leftId);
-                const right = idToNode.get(rightId);
-                if (!left || !right) return;
-
-                const dx = right.centerX - left.centerX;
-                const dy = right.centerY - left.centerY;
-                const distance = Math.max(1, Math.hypot(dx, dy));
-                const ux = dx / distance;
-                const uy = dy / distance;
-
-                const normalized = Math.min(1, Math.max(0, (score - 30) / 70));
-                const normalizedBoost = normalized * normalized;
-                const desiredDistance = 340 - normalizedBoost * 300;
-                const stretch = Math.max(0, distance - desiredDistance);
-                const springZone = Math.min(1, stretch / 42);
-                const attraction = attractStrength * burstMultiplier * (0.001 + normalizedBoost * 0.045) * stretch * springZone;
-
-                // Anti-overshoot brake: when already near/inside target distance,
-                // damp inward relative velocity to prevent bounce.
-                if (distance <= desiredDistance + 10) {
-                    const relVx = (right.state.vx || 0) - (left.state.vx || 0);
-                    const relVy = (right.state.vy || 0) - (left.state.vy || 0);
-                    const inwardSpeed = -(relVx * ux + relVy * uy);
-                    if (inwardSpeed > 0) {
-                        const brake = Math.min(0.24, inwardSpeed * 0.2);
-                        left.fx -= ux * brake;
-                        left.fy -= uy * brake;
-                        right.fx += ux * brake;
-                        right.fy += uy * brake;
-                    }
-                }
-
-                left.fx += ux * attraction;
-                left.fy += uy * attraction;
-                right.fx -= ux * attraction;
-                right.fy -= uy * attraction;
-            });
-
-            const damping = 0.96 + cooling * 0.02;
-            const maxSpeed = 0.42 + cooling * 0.95;
-            const containerRect = container.getBoundingClientRect();
-            let maxMotion = 0;
-
-            nodes.forEach((node) => {
-                if (node.locked) {
-                    node.state.vx = 0;
-                    node.state.vy = 0;
-                    return;
-                }
-
-                const centerBiasX = 0;
-                const centerBiasY = 0;
-
-                const maxForce = 0.32 + cooling * 0.7;
-                if (node.fx > maxForce) node.fx = maxForce;
-                if (node.fx < -maxForce) node.fx = -maxForce;
-                if (node.fy > maxForce) node.fy = maxForce;
-                if (node.fy < -maxForce) node.fy = -maxForce;
-
-                const prevVx = node.state.vx;
-                const prevVy = node.state.vy;
-                node.state.vx = node.state.vx * damping + (node.fx + centerBiasX) * 0.24;
-                node.state.vy = node.state.vy * damping + (node.fy + centerBiasY) * 0.24;
-
-                if (prevVx * node.state.vx < 0) {
-                    node.state.vx *= 0.18;
-                }
-                if (prevVy * node.state.vy < 0) {
-                    node.state.vy *= 0.18;
-                }
-
-                const speed = Math.hypot(node.state.vx, node.state.vy);
-                if (speed > maxSpeed) {
-                    const scale = maxSpeed / speed;
-                    node.state.vx *= scale;
-                    node.state.vy *= scale;
-                }
-
-                const edgePadding = 8;
-                const minCenterX = containerRect.left + node.halfWidth + edgePadding;
-                const maxCenterX = containerRect.right - node.halfWidth - edgePadding;
-                const minCenterY = containerRect.top + node.halfHeight + edgePadding;
-                const maxCenterY = containerRect.bottom - node.halfHeight - edgePadding;
-
-                const projectedCenterX = node.centerX + node.state.vx;
-                const projectedCenterY = node.centerY + node.state.vy;
-
-                let correctedVx = node.state.vx;
-                let correctedVy = node.state.vy;
-
-                if (projectedCenterX < minCenterX) {
-                    correctedVx = minCenterX - node.centerX;
-                    node.state.vx = 0;
-                } else if (projectedCenterX > maxCenterX) {
-                    correctedVx = maxCenterX - node.centerX;
-                    node.state.vx = 0;
-                }
-
-                if (projectedCenterY < minCenterY) {
-                    correctedVy = minCenterY - node.centerY;
-                    node.state.vy = 0;
-                } else if (projectedCenterY > maxCenterY) {
-                    correctedVy = maxCenterY - node.centerY;
-                    node.state.vy = 0;
-                }
-
-                const nextX = node.translateX + correctedVx / zoom;
-                const nextY = node.translateY + correctedVy / zoom;
-
-                const frameMotion = Math.hypot(nextX - node.translateX, nextY - node.translateY);
-                if (frameMotion > maxMotion) maxMotion = frameMotion;
-
-                if (elapsedMs > settleDurationMs * 0.65 && frameMotion < 0.04) {
-                    node.state.vx = 0;
-                    node.state.vy = 0;
-                }
-
-                node.wrapper.style.transform = `translate(${nextX}px, ${nextY}px)`;
-                node.wrapper.dataset.translateX = String(Number(nextX.toFixed(2)));
-                node.wrapper.dataset.translateY = String(Number(nextY.toFixed(2)));
-            });
-
-            frameCounter += 1;
-            if (maxMotion > 0.03 || frameCounter % 3 === 0) {
-                drawConnections();
-            }
-            return { maxMotion };
-        };
-
-        const loop = (timestamp) => {
-            if (isCancelled) return;
-
-            if (simulationStartTime === null) {
-                simulationStartTime = timestamp;
-            }
-
-            const elapsedMs = timestamp - simulationStartTime;
-            const { maxMotion } = runForceStep(elapsedMs);
-
-            if (elapsedMs >= settleDurationMs && maxMotion <= calmMotionThreshold) {
-                calmFrames += 1;
-            } else {
-                calmFrames = 0;
-            }
-
-            if (calmFrames >= calmFramesRequired || elapsedMs >= settleDurationMs + 250) {
-                nodesSettleAndStop();
-                return;
-            }
-
-            animationFrameId = window.requestAnimationFrame(loop);
-        };
-
-        const nodesSettleAndStop = () => {
-            const container = treeContainerRef.current;
-            if (!container) return;
-
-            const wrappers = Array.from(container.querySelectorAll('.tree-node-wrapper[data-node-id]'));
-            wrappers.forEach((wrapper) => {
-                const id = String(wrapper.getAttribute('data-node-id') || '');
-                if (!id) return;
-
-                const state = forceStateRef.current.get(id);
-                if (state) {
-                    state.vx = 0;
-                    state.vy = 0;
-                }
-            });
-
-            drawConnections();
-        };
-
-        animationFrameId = window.requestAnimationFrame(loop);
-
-        return () => {
-            isCancelled = true;
-            if (animationFrameId !== null) {
-                window.cancelAnimationFrame(animationFrameId);
-            }
-        };
-    }, [activePane, treeZoom, connectionForce, repulsionForce, forceSimulationNonce, siblingPairScores, drawConnections]);
-
-    useEffect(() => {
-        const container = treeContainerRef.current;
-        if (!container) return;
-
-        let active = null;
-        let startX = 0;
-        let startY = 0;
-        let origX = 0;
-        let origY = 0;
-        let dragDrawFrameId = null;
-
-        const scheduleDragRedraw = () => {
-            if (dragDrawFrameId !== null) return;
-            dragDrawFrameId = window.requestAnimationFrame(() => {
-                dragDrawFrameId = null;
-                drawConnections();
-            });
-        };
-
-        const onPointerMove = (e) => {
-            if (!active) return;
-
-            const zoom = treeZoom || 1;
-            const dx = (e.clientX - startX) / zoom;
-            const dy = (e.clientY - startY) / zoom;
-
-            const nx = origX + dx;
-            const ny = origY + dy;
-
-            active.style.transform = `translate(${nx}px, ${ny}px)`;
-            active.dataset.translateX = nx;
-            active.dataset.translateY = ny;
-
-            scheduleDragRedraw();
-        };
-
-        const onPointerUp = () => {
-            if (!active) return;
-            delete active.dataset.dragLocked;
-            restartForceSimulation();
-            active = null;
-            window.removeEventListener("pointermove", onPointerMove);
-            window.removeEventListener("pointerup", onPointerUp);
-        };
-
-        const nodeEls = Array.from(container.querySelectorAll(".neural-node-v2"));
-        nodeEls.forEach((nodeEl) => {
-            nodeEl.style.touchAction = "none";
-            const down = (e) => {
-                if (e.button !== 0) return;
-                if (isBoardDragArmed || e.detail >= 2) return;
-
-                const wrapper = nodeEl.closest(".tree-node-wrapper");
-                if (!wrapper) return;
-
-                e.stopPropagation();
-
-                active = wrapper;
-                wrapper.dataset.dragLocked = "1";
-                startX = e.clientX;
-                startY = e.clientY;
-                origX = parseFloat(wrapper.dataset.translateX || 0) || 0;
-                origY = parseFloat(wrapper.dataset.translateY || 0) || 0;
-
-                window.addEventListener("pointermove", onPointerMove);
-                window.addEventListener("pointerup", onPointerUp);
-            };
-
-            nodeEl.addEventListener("pointerdown", down);
-            nodeEl.__pami_down = down;
-        });
-
-        return () => {
-            nodeEls.forEach((nodeEl) => {
-                if (nodeEl.__pami_down) {
-                    nodeEl.removeEventListener("pointerdown", nodeEl.__pami_down);
-                }
-                delete nodeEl.__pami_down;
-            });
-
-            window.removeEventListener("pointermove", onPointerMove);
-            window.removeEventListener("pointerup", onPointerUp);
-
-            if (dragDrawFrameId !== null) {
-                window.cancelAnimationFrame(dragDrawFrameId);
-                dragDrawFrameId = null;
-            }
-        };
-    }, [realProjects, contextNodesMap, activePane, isLoading, treeZoom, drawConnections, isBoardDragArmed]);
-
-    const handleTreeWheel = (e) => {
-        if (activePane !== "tree") return;
-        e.preventDefault();
-        setTreeZoom((prevZoom) => {
-            const direction = e.deltaY < 0 ? 1 : -1;
-            const nextZoom = prevZoom + direction * 0.05;
-            const clampedZoom = Math.min(1, Math.max(0.15, nextZoom));
-            return Number(clampedZoom.toFixed(2));
-        });
-    };
-
-    const toggleTreePanelHeight = () => {
-        const { collapsedHeight, expandedHeight } = getTreePanelSizes();
-
-        setTreeHeight((previousHeight) => {
-            const isExpanded = previousHeight >= expandedHeight - 5;
-            return isExpanded ? collapsedHeight : expandedHeight;
-        });
-
-        setTimeout(drawConnections, 260);
-    };
-
-    const handleTreeResizePointerDown = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-
-        const panelElement = e.currentTarget.closest(".dashboard-grid-anchored");
-        const panelRect = panelElement ? panelElement.getBoundingClientRect() : null;
-
-        const startY = e.clientY;
-        const basePanelHeight = 590;
-        const topScreenLimit = -90;
-        const panelBottom = panelRect ? panelRect.bottom : window.innerHeight - 24;
-        const expandedPanelHeight = Math.max(basePanelHeight, Math.floor(panelBottom - topScreenLimit));
-        const startHeight = Math.min(expandedPanelHeight, Math.max(basePanelHeight, treeHeight));
-        const dragThreshold = 4;
-        let didDrag = false;
-
-        const handlePointerMove = (moveEvent) => {
-            const deltaY = startY - moveEvent.clientY;
-
-            if (Math.abs(deltaY) >= dragThreshold) {
-                didDrag = true;
-            }
-
-            if (!didDrag) return;
-
-            const nextHeight = startHeight + deltaY;
-            const clampedHeight = Math.min(expandedPanelHeight, Math.max(basePanelHeight, nextHeight));
-            setTreeHeight(clampedHeight);
-        };
-
-        const handlePointerUp = () => {
-            window.removeEventListener("pointermove", handlePointerMove);
-            window.removeEventListener("pointerup", handlePointerUp);
-
-            if (!didDrag) {
-                setTreeHeight((previousHeight) => {
-                    const isExpanded = previousHeight >= expandedPanelHeight - 5;
-                    return isExpanded ? basePanelHeight : expandedPanelHeight;
-                });
-            }
-
-            setTimeout(drawConnections, 160);
-        };
-
-        window.addEventListener("pointermove", handlePointerMove);
-        window.addEventListener("pointerup", handlePointerUp);
-    };
-
-    const handleTreePanPointerDown = (e) => {
-        if (activePane !== "tree") return;
-
-        const isDoubleClickLeft = e.button === 0 && e.detail >= 2;
-        const isMiddleMousePan = e.button === 1;
-        const isArmedLeftPan = e.button === 0 && (isBoardDragArmed || isDoubleClickLeft);
-        if (!isMiddleMousePan && !isArmedLeftPan) return;
-        if (isArmedLeftPan) {
-            setIsBoardDragArmed(false);
-        }
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        const startX = e.clientX;
-        const startY = e.clientY;
-        const startPanX = treePan.x;
-        const startPanY = treePan.y;
-
-        let animationFrameId = null;
-
-        const scheduleConnectionRedraw = () => {
-            if (animationFrameId !== null) return;
-
-            animationFrameId = window.requestAnimationFrame(() => {
-                animationFrameId = null;
-                try {
-                    drawConnections();
-                } catch (error) {
-                    console.error("drawConnections during tree pan failed:", error);
-                }
-            });
-        };
-
-        setIsTreePanning(true);
-
-        const handlePointerMove = (moveEvent) => {
-            moveEvent.preventDefault();
-
-            const deltaX = moveEvent.clientX - startX;
-            const deltaY = moveEvent.clientY - startY;
-
-            setTreePan({
-                x: startPanX + deltaX,
-                y: startPanY + deltaY
-            });
-
-            scheduleConnectionRedraw();
-        };
-
-        const handlePointerUp = () => {
-            window.removeEventListener("pointermove", handlePointerMove);
-            window.removeEventListener("pointerup", handlePointerUp);
-
-            if (animationFrameId !== null) {
-                window.cancelAnimationFrame(animationFrameId);
-                animationFrameId = null;
-            }
-
-            setIsTreePanning(false);
-
-            window.requestAnimationFrame(() => {
-                try {
-                    drawConnections();
-                } catch (error) {
-                    console.error("final drawConnections after tree pan failed:", error);
-                }
-
-                setTimeout(drawConnections, 80);
-            });
-        };
-
-        window.addEventListener("pointermove", handlePointerMove);
-        window.addEventListener("pointerup", handlePointerUp);
-    };
-
-    const handleTreeCanvasDoubleClick = (e) => {
-        if (activePane !== "tree") return;
-
-        const targetElement = e.target;
-        if (targetElement && typeof targetElement.closest === "function" && targetElement.closest(".neural-node-v2")) {
-            return;
-        }
-
-        setIsBoardDragArmed(true);
-    };
-
-    // הפונקציות המלאות והתקינות של סלאק שממוקמות בצורה נכונה
-    const renderSlackActionsModal = () => {
-        return (
-            <>
-                <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-                    <img src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" alt="Slack" style={{ height: "50px", marginBottom: "10px" }} />
-                    <h2>Slack Actions</h2>
-                    <p style={{ color: "#666", marginTop: "10px" }}>Choose the Slack action you want to perform.</p>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                    <button type="button" onClick={handleSlackTestConnection} disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#4a154b", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}>
-                        Test Connection
-                    </button>
-                    <button type="button" onClick={handleListChannels} disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#2f6fed", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}>
-                        List Channels
-                    </button>
-                    <button type="button" onClick={() => setActiveModal("slackCreateChannel")} disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#0f9d58", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}>
-                        Create Channel
-                    </button>
-                    <button type="button" onClick={() => setActiveModal("slackSendMessage")} disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#f06292", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}>
-                        Send Message
-                    </button>
-                </div>
-
-                {slackChannels.length > 0 && (
-                    <div style={{ marginTop: "20px" }}>
-                        <h3 style={{ marginBottom: "10px" }}>Channels</h3>
-                        <div style={{ maxHeight: "180px", overflowY: "auto", border: "1px solid #eee", borderRadius: "12px", padding: "12px", background: "#fafafa" }}>
-                            {slackChannels.map((channel) => (
-                                <div key={channel.id} style={{ padding: "8px 0", borderBottom: "1px solid #eee" }}>
-                                    #{channel.name}
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-            </>
-        );
-    };
-
-    const renderSlackCreateChannelModal = () => {
-        return (
-            <>
-                <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-                    <img src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" alt="Slack" style={{ height: "50px", marginBottom: "10px" }} />
-                    <h2>Create Slack Channel</h2>
-                </div>
-                <form className="modal-form" onSubmit={handleCreateSlackChannel}>
-                    <div className="input-group" style={{ marginBottom: "20px" }}>
-                        <label style={{ display: "block", marginBottom: "5px" }}>Channel Name</label>
-                        <input type="text" placeholder="e.g. pami-demo-channel" required value={channelNameInput} onChange={(e) => setChannelNameInput(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
-                    </div>
-                    <button type="submit" className="login-submit-btn" disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#0f9d58", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold", marginBottom: "10px" }}>
-                        {isLoading ? "Processing..." : "Create Channel"}
-                    </button>
-                    <button type="button" onClick={() => setActiveModal("slackActions")} style={{ width: "100%", padding: "12px", background: "#ddd", color: "#333", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}>
-                        Back
-                    </button>
-                </form>
-            </>
-        );
-    };
-
-    const renderSlackSendMessageModal = () => {
-        return (
-            <>
-                <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-                    <img src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" alt="Slack" style={{ height: "50px", marginBottom: "10px" }} />
-                    <h2>Send Slack Message</h2>
-                </div>
-                <form className="modal-form" onSubmit={handleSendSlackMessage}>
-                    <div className="input-group" style={{ marginBottom: "15px" }}>
-                        <label style={{ display: "block", marginBottom: "5px" }}>Channel</label>
-                        <input type="text" placeholder="e.g. social or #social" required value={messageChannelInput} onChange={(e) => setMessageChannelInput(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
-                    </div>
-                    <div className="input-group" style={{ marginBottom: "20px" }}>
-                        <label style={{ display: "block", marginBottom: "5px" }}>Message</label>
-                        <input type="text" placeholder="Write a Slack message..." required value={messageTextInput} onChange={(e) => setMessageTextInput(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
-                    </div>
-                    <button type="submit" className="login-submit-btn" disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#f06292", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold", marginBottom: "10px" }}>
-                        {isLoading ? "Processing..." : "Send Message"}
-                    </button>
-                    <button type="button" onClick={() => setActiveModal("slackActions")} style={{ width: "100%", padding: "12px", background: "#ddd", color: "#333", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}>
-                        Back
-                    </button>
-                </form>
-            </>
-        );
-    };
-
-const renderJiraActionsModal = () => {
-    return (
-        <>
-            <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-                <img
-                    src="https://cdn.worldvectorlogo.com/logos/jira-1.svg"
-                    alt="Jira"
-                    style={{ height: "50px", marginBottom: "10px" }}
-                />
-                <h2>Jira Actions</h2>
-                <p style={{ color: "#666", margin: 0 }}>
-                    Jira is connected. You can test the connection, list projects, or create a test issue.
-                </p>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                <button
-                    type="button"
-                    onClick={handleJiraTestConnection}
-                    disabled={isLoading}
-                    style={{ width: "100%", padding: "12px", background: "#0052cc", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
-                >
-                    Test Jira Connection
-                </button>
-
-                <button
-                    type="button"
-                    onClick={handleListJiraProjects}
-                    disabled={isLoading}
-                    style={{ width: "100%", padding: "12px", background: "#172b4d", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
-                >
-                    List Jira Projects
-                </button>
-
-                <button
-                    type="button"
-                    onClick={handleCreateJiraTestIssue}
-                    disabled={isLoading}
-                    style={{ width: "100%", padding: "12px", background: "#0f9d58", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
-                >
-                    Create Test Issue
-                </button>
-
-                {jiraProjects.length > 0 && (
-                    <div style={{ marginTop: "8px", padding: "12px", background: "#f5f7fb", borderRadius: "12px", border: "1px solid #e5e7eb" }}>
-                        <strong>Projects:</strong>
-                        <ul style={{ margin: "8px 0 0 18px", padding: 0 }}>
-                            {jiraProjects.map((project) => (
-                                <li key={project.id || project.key}>
-                                    {project.name} ({project.key})
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-
-                <button
-                    type="button"
-                    onClick={() => setActiveModal(null)}
-                    style={{ width: "100%", padding: "12px", background: "#ddd", color: "#333", border: "none", borderRadius: "12px", fontWeight: "bold", cursor: "pointer" }}
-                >
-                    Close
-                </button>
-            </div>
-        </>
-    );
-};
 
     const renderDefaultIntegrationModal = () => {
         return (
             <>
                 <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-                    <img src={activeModal === "slack" ? "https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" : "https://cdn.worldvectorlogo.com/logos/jira-1.svg"} alt={activeModal} style={{ height: "50px", marginBottom: "10px" }} />
-                    <h2>Connect to {activeModal === "slack" ? "Slack" : "Jira"}</h2>
+                    <img src="https://cdn.worldvectorlogo.com/logos/jira-1.svg" alt="Jira" style={{ height: "50px", marginBottom: "10px" }} />
+                    <h2>Connect to Jira</h2>
                 </div>
                 <form className="modal-form" onSubmit={handleConnect}>
                     <div className="input-group" style={{ marginBottom: "15px" }}>
@@ -1917,148 +1119,81 @@ const renderJiraActionsModal = () => {
         );
     };
 
-    const renderSlackConnectModal = () => (
-        <>
-            <div
-                className="modal-header"
-                style={{
-                    textAlign: "center",
-                    marginBottom: "24px"
-                }}
-            >
-                <div
-                    style={{
-                        width: "82px",
-                        height: "82px",
-                        borderRadius: "24px",
-                        margin: "0 auto 16px auto",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        background: "linear-gradient(135deg, rgba(74,21,75,0.10), rgba(240,98,146,0.12))",
-                        border: "1px solid rgba(74,21,75,0.10)",
-                        boxShadow: "0 14px 34px rgba(74,21,75,0.12)"
-                    }}
-                >
-                    <img
-                        src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png"
-                        alt="Slack"
-                        style={{
-                            width: "48px",
-                            height: "48px",
-                            objectFit: "contain"
-                        }}
-                    />
-                </div>
-
-                <h2 style={{ margin: "0 0 8px 0", color: "#202124", fontSize: "26px" }}>
-                    Connect Slack Workspace
-                </h2>
-
-                <p
-                    style={{
-                        color: "#6b7280",
-                        margin: "0 auto",
-                        maxWidth: "340px",
-                        fontSize: "14px",
-                        lineHeight: "1.55"
-                    }}
-                >
-                    Connect PAMI to Slack so the dashboard can check channels, create project channels,
-                    and send operational updates directly to your workspace.
-                </p>
-            </div>
-
-            <div
-                style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr",
-                    gap: "10px",
-                    marginBottom: "22px"
-                }}
-            >
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "12px 14px",
-                        borderRadius: "16px",
-                        background: "#faf7ff",
-                        border: "1px solid rgba(139,92,246,0.12)"
-                    }}
-                >
-                    <span style={{ fontSize: "18px" }}>#</span>
-                    <div>
-                        <div style={{ fontWeight: "700", color: "#2d2438", fontSize: "13px" }}>
-                            Channel Management
-                        </div>
-                        <div style={{ color: "#7b7286", fontSize: "12px", marginTop: "2px" }}>
-                            List channels and create new Slack channels from PAMI.
-                        </div>
-                    </div>
-                </div>
-
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "12px 14px",
-                        borderRadius: "16px",
-                        background: "#fff7fb",
-                        border: "1px solid rgba(240,98,146,0.14)"
-                    }}
-                >
-                    <span style={{ fontSize: "18px" }}>↗</span>
-                    <div>
-                        <div style={{ fontWeight: "700", color: "#2d2438", fontSize: "13px" }}>
-                            Team Updates
-                        </div>
-                        <div style={{ color: "#7b7286", fontSize: "12px", marginTop: "2px" }}>
-                            Send messages to selected Slack channels from the dashboard.
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <form className="modal-form" onSubmit={handleConnect}>
-                <button
-                    type="submit"
-                    className="login-submit-btn"
-                    disabled={isLoading}
-                    style={{
-                        width: "100%",
-                        padding: "14px",
-                        background: "linear-gradient(135deg, #4a154b 0%, #8b3f8f 45%, #f06292 100%)",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "16px",
-                        fontWeight: "800",
-                        letterSpacing: "0.2px",
-                        cursor: isLoading ? "not-allowed" : "pointer",
-                        boxShadow: "0 14px 30px rgba(240,98,146,0.24)",
-                        opacity: isLoading ? 0.7 : 1
-                    }}
-                >
-                    {isLoading ? "Connecting..." : "Connect Slack"}
-                </button>
-
-                <p
-                    style={{
-                        margin: "12px 0 0 0",
-                        textAlign: "center",
-                        color: "#9ca3af",
-                        fontSize: "12px"
-                    }}
-                >
-                    Uses the configured Slack backend service. No manual token entry is required here.
-                </p>
-            </form>
-        </>
-    );
-
     const renderModalContent = () => {
+        if (activeModal === "shareProject") {
+            const owner = (members.members || []).find((m) => m.role === "owner");
+            const others = (members.members || []).filter((m) => m.role !== "owner");
+
+            return (
+                <>
+                    <div className="modal-icon" aria-hidden="true">🤝</div>
+                    <h2>Share this project</h2>
+                    <p className="modal-subtitle">
+                        Add someone by email and this project appears in their list too. If they
+                        have no account yet, they will get it when they first sign in.
+                    </p>
+
+                    <form onSubmit={handleShareProject} className="modal-form">
+                        <div className="input-group" style={{ marginBottom: "15px" }}>
+                            <label htmlFor="share-email" style={{ display: "block", marginBottom: "5px" }}>
+                                Their email
+                            </label>
+                            <input
+                                id="share-email"
+                                type="email"
+                                placeholder="teammate@example.com"
+                                value={shareEmail}
+                                onChange={(e) => setShareEmail(e.target.value)}
+                                required
+                                style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
+                            />
+                        </div>
+                        <button
+                            type="submit"
+                            className="login-submit-btn"
+                            disabled={isSharing}
+                            style={{ width: "100%", padding: "12px", background: "#f06292", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
+                        >
+                            {isSharing ? "Sharing..." : "Share project"}
+                        </button>
+                    </form>
+
+                    <div className="share-members">
+                        <span className="share-members-label">Who has access</span>
+                        <ul>
+                            {owner && (
+                                <li>
+                                    <span>{owner.email || owner.user_id}</span>
+                                    <span className="share-role">Owner</span>
+                                </li>
+                            )}
+                            {others.map((member) => (
+                                <li key={member.user_id}>
+                                    <span>{member.email || member.user_id}</span>
+                                    <button
+                                        type="button"
+                                        className="share-remove"
+                                        onClick={() => handleRemoveMember(member.user_id, member.email || "They")}
+                                    >
+                                        Remove
+                                    </button>
+                                </li>
+                            ))}
+                            {(members.pending_invites || []).map((invite) => (
+                                <li key={invite.email}>
+                                    <span>{invite.email}</span>
+                                    <span className="share-role">Invited</span>
+                                </li>
+                            ))}
+                            {!owner && !others.length && !(members.pending_invites || []).length && (
+                                <li className="share-empty">Only you, so far.</li>
+                            )}
+                        </ul>
+                    </div>
+                </>
+            );
+        }
+
         if (activeModal === "createProject") {
             return (
                 <>
@@ -2082,20 +1217,15 @@ const renderJiraActionsModal = () => {
                 </>
             );
         }
-        if (activeModal === "slack") return renderSlackConnectModal();
-        if (activeModal === "slackActions") return renderSlackActionsModal();
-        if (activeModal === "slackCreateChannel") return renderSlackCreateChannelModal();
-        if (activeModal === "slackSendMessage") return renderSlackSendMessageModal();
-        if (activeModal === "jiraActions") return renderJiraActionsModal(); 
         if (activeModal === "viewNodeDetails") return (
             <NodeDetailsModal
                 selectedNode={selectedNode}
                 nodeTasks={nodeTasks}
+                nearPeers={nearPeers}
                 subNodes={subNodes}
                 isModalDataLoading={isModalDataLoading}
                 closeModal={closeModal}
                 fetchProjects={fetchProjects}
-                drawConnections={drawConnections}
                 onNodeColorChange={handleNodeColorChange}
                 onOpenConversation={goToNodeConversation}
             />
@@ -2108,99 +1238,70 @@ const renderJiraActionsModal = () => {
     ) || null;
     const selectedProjectName = selectedProject ? (selectedProject.name || "Untitled Project") : "Select Project";
     const selectedProjectNodeCount = selectedProjectId ? (contextNodesMap[selectedProjectId] || []).length : 0;
-    const selectedProjectConnectionCount = siblingPairScores.length;
+    const selectedProjectConnectionCount = projectGraph.links.length;
 
-    const { expandedHeight: currentTreeExpandedHeight } = getTreePanelSizes();
-    const isTreePanelExpanded = treeHeight >= currentTreeExpandedHeight - 5;
+    // Share of conversations that reached at least one sibling. This is the metric the
+    // product actually lives or dies on, and it replaces two hardcoded numbers that were
+    // presented as live telemetry.
+    const selectedProjectLinkedShare = projectGraph.nodes.length
+        ? `${Math.round(
+              (projectGraph.nodes.filter((node) => node.degree > 0).length /
+                  projectGraph.nodes.length) *
+                  100
+          )}%`
+        : "—";
+
+    // Lives in the graph's floating control bar in tree mode and in the chat header in chat
+    // mode, so the panel needs no header row of its own.
+    const paneToggle = (
+        <div className="pane-toggle" role="tablist" aria-label="Panel">
+            <button
+                type="button"
+                role="tab"
+                aria-selected={activePane === "tree"}
+                className={`pane-toggle-btn ${activePane === "tree" ? "active" : ""}`}
+                onClick={async () => {
+                    if (activePane === "tree") return;
+                    flushConversationIndex(conversationId);
+                    setActivePane("tree");
+                    try {
+                        await fetchProjects();
+                    } catch (e) {
+                        console.error("Failed to refresh projects on tab switch", e);
+                    }
+                }}
+            >
+                Graph
+            </button>
+            <button
+                type="button"
+                role="tab"
+                aria-selected={activePane === "chat"}
+                className={`pane-toggle-btn ${activePane === "chat" ? "active" : ""}`}
+                onClick={() => {
+                    // Switching to Chat starts a fresh conversation; clicking it while
+                    // already there does nothing, so a live chat is never wiped by a
+                    // stray click. Past conversations are reopened from their graph node.
+                    if (activePane === "chat") return;
+                    flushConversationIndex(conversationId);
+                    stopReveal();
+                    setConversationId(null);
+                    setChatMessages([]);
+                    setActivePane("chat");
+                }}
+            >
+                Chat
+            </button>
+        </div>
+    );
 
     return (
         <div className={`dashboard-container ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
-            <aside className="sidebar">
-                <div className="sidebar-logo">
-                    <img src={pamiLogo} alt="Pami Logo" className="logo-img" />
-                </div>
-                <nav className="sidebar-nav">
-                    <ul>
-                        <li className="active">Neural Dashboard</li>
-                        <li>Context Brain</li>
-                        <li>Health Monitor</li>
-                        <li>Workers</li>
-                        <li>Settings</li>
-                        <li className="logout-item" onClick={() => alert("Logging out...")}>
-                            <span>🚪 Log Out</span>
-                        </li>
-                    </ul>
-                </nav>
-            
-                <div className="pami-sidebar-assistant-panel">
-                    <div className="pami-assistant-panel-header">
-                        <div className="pami-assistant-panel-title">
-                            <span className="pami-assistant-spark" aria-hidden="true"></span>
-                            <span>PAMI Assistant</span>
-                        </div>
-                        <div className="pami-assistant-online">
-                            <span></span>
-                            Online
-                        </div>
-                    </div>
-
-                    <div className="pami-assistant-bubble">
-                        <div className="pami-assistant-bubble-top">
-                            <div className="pami-assistant-recommendation-title">
-                                <span className="pami-assistant-mini-spark" aria-hidden="true"></span>
-                                <span>{currentPamiAssistantRecommendation.title}</span>
-                            </div>
-
-                            <div className="pami-assistant-pager">
-                                <button
-                                    type="button"
-                                    className="pami-assistant-page-btn"
-                                    onClick={goToPreviousPamiRecommendation}
-                                    aria-label="Previous PAMI recommendation"
-                                >
-                                    ‹
-                                </button>
-                                <span>{pamiAssistantIndex + 1} / {pamiAssistantRecommendations.length}</span>
-                                <button
-                                    type="button"
-                                    className="pami-assistant-page-btn"
-                                    onClick={goToNextPamiRecommendation}
-                                    aria-label="Next PAMI recommendation"
-                                >
-                                    ›
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="pami-assistant-message">
-                            <p>{currentPamiAssistantRecommendation.summary}</p>
-                            <ul>
-                                {currentPamiAssistantRecommendation.bullets.map((bullet, idx) => (
-                                    <li key={idx}>{bullet}</li>
-                                ))}
-                            </ul>
-                        </div>
-                    </div>
-
-                    <div className="pami-assistant-robot-wrap">
-                        <img
-                            src={assistantAvatarUrl || pamiSidebarAssistantImage}
-                            alt="PAMI assistant avatar"
-                            className="pami-assistant-avatar-image"
-                        />
-                    </div>
-
-                    <div className="pami-assistant-actions">
-                        <button type="button" className="pami-assistant-check-btn">
-                            Check for new
-                        </button>
-                        <button type="button" className="pami-assistant-history-btn">
-                            History
-                        </button>
-                    </div>
-                </div>
-
-</aside>
+            <AppSidebar
+                active="dashboard"
+                avatarUrl={assistantAvatarUrl}
+                onJira={() => openModal("jira")}
+            />
 
             <main className={`main-content ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
                 <header className="top-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", boxSizing: "border-box", flexShrink: 0 }}>
@@ -2223,25 +1324,33 @@ const renderJiraActionsModal = () => {
                         overflowX: "visible"
                     }}>
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-nodes" aria-hidden="true"></span><strong className="header-stat-value">{selectedProjectNodeCount}</strong><span className="header-stat-label">PROJECT NODES</span>
+                            <StatIcon name="conversations" className="header-stat-icon header-stat-icon-nodes" /><strong className="header-stat-value">{selectedProjectNodeCount}</strong><span className="header-stat-label">CONVERSATIONS</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-workers" aria-hidden="true"></span><strong className="header-stat-value">{selectedProjectConnectionCount}</strong><span className="header-stat-label">CONNECTIONS</span>
+                            <StatIcon name="connections" className="header-stat-icon header-stat-icon-workers" /><strong className="header-stat-value">{selectedProjectConnectionCount}</strong><span className="header-stat-label">CONNECTIONS</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-velocity" aria-hidden="true"></span><strong className="header-stat-value">84%</strong><span className="header-stat-label">VELOCITY</span>
+                            <StatIcon name="connected" className="header-stat-icon header-stat-icon-velocity" /><strong className="header-stat-value">{selectedProjectLinkedShare}</strong><span className="header-stat-label">CONNECTED</span>
                         </div>
                         <div className="header-stat-separator" style={{ width: "1px", height: "18px", background: "rgba(143, 109, 242, 0.16)", flexShrink: 0 }} />
                         <div className="header-stat-item" style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                            <span className="header-stat-icon header-stat-icon-uptime" aria-hidden="true"></span><strong className="header-stat-value">99.9%</strong><span className="header-stat-label">UPTIME</span>
+                            <StatIcon name="projects" className="header-stat-icon header-stat-icon-uptime" /><strong className="header-stat-value">{realProjects.length}</strong><span className="header-stat-label">PROJECTS</span>
                         </div>
                     </div>
 
                     <div className="header-right" style={{ display: "flex", alignItems: "center", gap: "15px", flex: "0 0 auto" }}>
-                        <span className="notification">🔔</span>
                         <button className="new-node-btn" onClick={() => openModal("createProject")}>+ New Project</button>
+                        <button
+                            type="button"
+                            className="share-project-btn"
+                            onClick={openShareProject}
+                            disabled={!selectedProjectId}
+                            title="Share this project with someone by email"
+                        >
+                            Share
+                        </button>
                         <div className="project-switcher">
                             <button
                                 type="button"
@@ -2276,96 +1385,28 @@ const renderJiraActionsModal = () => {
                     </div>
                 </header>
 
-                <div className={`dashboard-grid dashboard-grid-anchored ${isTreePanelExpanded ? "tree-panel-expanded" : ""}`} style={{
+                <div className="dashboard-grid dashboard-grid-anchored" style={{
                     height: `${treeHeight}px`,
                     "--tree-panel-height": `${treeHeight}px`
                 }}>
                     <div className="project-tree-container">
-                        <div className="project-tree-header">
-                            <div className="tree-title-group tabs">
-                                <button className={`tab-btn ${activePane === "tree" ? "active" : ""}`} onClick={async () => { setActivePane("tree"); try { await fetchProjects(); } catch (e) { console.error('Failed to refresh projects on tab switch', e); } }}>Project Tree</button>
-                                <button className={`tab-btn ${activePane === "chat" ? "active" : ""}`} onClick={() => { setActivePane("chat"); setConversationId(null); setChatMessages([]); }}>AI Chat</button>
-                            </div>
-                            {activePane === "tree" && (
-                                <div className="tree-force-controls">
-                                    <label className="tree-force-control" title="How strongly linked nodes pull toward each other">
-                                        <span>Connection Force</span>
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="100"
-                                            value={connectionForce}
-                                            onChange={(e) => setConnectionForce(Number(e.target.value))}
-                                        />
-                                        <strong>{connectionForce}</strong>
-                                    </label>
-
-                                    <label className="tree-force-control" title="How strongly all nodes push away from each other">
-                                        <span>Repel Force</span>
-                                        <input
-                                            type="range"
-                                            min="0"
-                                            max="100"
-                                            value={repulsionForce}
-                                            onChange={(e) => setRepulsionForce(Number(e.target.value))}
-                                        />
-                                        <strong>{repulsionForce}</strong>
-                                    </label>
-                                </div>
-                            )}
-                        </div>
-
                         <div
-                            className={`project-tree-canvas tree-resizable-canvas ${isTreePanning ? "tree-panning" : ""}`}
+                            className="project-tree-canvas tree-resizable-canvas"
                             style={{ flex: 1, minHeight: 0 }}
-                            onWheel={handleTreeWheel}
-                            onPointerDown={handleTreePanPointerDown}
-                            onDoubleClick={handleTreeCanvasDoubleClick}
-                            onAuxClick={(e) => {
-                                if (e.button === 1) e.preventDefault();
-                            }}
                         >
-                            <button
-                                type="button"
-                                className="tree-resize-handle"
-                                onClick={(e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    toggleTreePanelHeight();
-                                }}
-                                title="Resize tree / chat area"
-                            />
-
                             {activePane === "tree" ? (
-                                isLoading && realProjects.length === 0 ? (
-                                    <div className="empty-tree-state">
-                                        <div className="loading-spinner"></div>
-                                        <p>Connecting to Neural Cloud...</p>
-                                    </div>
-                                ) : realProjects.length > 0 ? (
-                                    (() => {
-                                        const treeNodes = getProjectTreeNodes();
-
-                                        if (treeNodes.length === 0) {
-                                            return (
-                                                <div className="empty-tree-state">
-                                                    <p>No context nodes in this project yet.</p>
-                                                </div>
-                                            );
-                                        }
-
-                                        return (
-                                            <div ref={treeContainerRef} className="hierarchical-tree-container" style={{ position: "relative" }}>
-                                                <div className="tree-zoom-indicator">{Math.round(treeZoom * 100)}%</div>
-                                                <svg className="tree-svg-overlay" style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", pointerEvents: "none", overflow: "visible", zIndex: 1 }} />
-                                                <div className="tree-zoom-layer" style={{ position: "relative", zIndex: 3, transform: `translate(${treePan.x}px, ${treePan.y}px) scale(${treeZoom})`, transformOrigin: "top center" }}>
-                                                    <div className="tree-forest">
-                                                        {treeNodes.map((node) => renderTree(node, null))}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })()
+                                realProjects.length > 0 || isLoading ? (
+                                    <GraphCanvas
+                                        contextNodes={selectedProjectId ? contextNodesMap[selectedProjectId] || [] : []}
+                                        projectId={selectedProjectId}
+                                        isLoading={isLoading && realProjects.length === 0}
+                                        error={null}
+                                        onRetry={fetchProjects}
+                                        onOpenNode={openNodeDetails}
+                                        spotlightId={spotlightNodeId}
+                                        onSpotlightDone={clearSpotlight}
+                                        toggle={paneToggle}
+                                    />
                                 ) : (
                                     <div className="empty-tree-state">
                                         <p>No active nodes found on server.</p>
@@ -2374,25 +1415,64 @@ const renderJiraActionsModal = () => {
                                 )
                             ) : (
                                 <div className="pami-chat-pane" style={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }}>
-                                    <div className="chat-header" style={{ padding: "12px 16px", borderBottom: "1px solid #eee", justifyContent: "space-between", display: "flex" }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                            <strong>PAMI Conversation</strong>
-                                            <span style={{ marginLeft: 12, color: "#666" }}>AI channel</span>
+                                    <div className="chat-header chat-header-row">
+                                        <div className="chat-header-title">
+                                            {paneToggle}
+                                            <span>{selectedProjectName}</span>
                                         </div>
-                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                            <button title="Upload assistant avatar" onClick={triggerAvatarUpload} style={{ background: "transparent", border: "none", cursor: "pointer" }}>📤</button>
-                                            {assistantAvatarUrl && <button title="Clear avatar" onClick={clearAssistantAvatar} style={{ background: "transparent", border: "none", cursor: "pointer" }}>✖️</button>}
+                                        <div className="chat-header-actions">
+                                            <button
+                                                type="button"
+                                                className="chat-icon-btn"
+                                                title="Upload assistant avatar"
+                                                aria-label="Upload assistant avatar"
+                                                onClick={triggerAvatarUpload}
+                                            >
+                                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                    <path d="M8 10.5V2.8m0 0L5.4 5.4M8 2.8l2.6 2.6M2.8 10v2.2a1 1 0 0 0 1 1h8.4a1 1 0 0 0 1-1V10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                                                </svg>
+                                            </button>
+                                            {assistantAvatarUrl && (
+                                                <button
+                                                    type="button"
+                                                    className="chat-icon-btn"
+                                                    title="Reset assistant avatar"
+                                                    aria-label="Reset assistant avatar"
+                                                    onClick={clearAssistantAvatar}
+                                                >
+                                                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                        <path d="M4.5 4.5l7 7m0-7l-7 7" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                                                    </svg>
+                                                </button>
+                                            )}
                                             <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleAvatarFile(e.target.files && e.target.files[0])} />
-                                            <button type="button" className="create-node-btn" title="Create node from conversation" onClick={handleCreateNodeFromConversation} style={{ marginLeft: 6 }} disabled={realProjects.length === 0 || chatMessages.length === 0}>➕ Create Node</button>
+                                            <button type="button" className="create-node-btn" title="Turn this conversation into a node on the graph" onClick={handleCreateNodeFromConversation} disabled={realProjects.length === 0 || chatMessages.length === 0}>
+                                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                    <path d="M8 3.4v9.2M3.4 8h9.2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                                                </svg>
+                                                Create Node
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="chat-body" style={{ padding: "16px", overflowY: "auto", overflowX: "hidden", flex: 1, minHeight: 0 }}>
+                                    <div ref={chatBodyRef} className="chat-body" style={{ padding: "16px", overflowY: "auto", overflowX: "hidden", flex: 1, minHeight: 0 }}>
                                         {chatMessages.length === 0 ? (
-                                            <div className="chat-empty-state"><p>💬 Start chatting with PAMI AI</p></div>
+                                            <div className="chat-empty-state">
+                                                <p>Ask PAMI about this project</p>
+                                                <span>
+                                                    It can pull in what you discussed in your other
+                                                    conversations, and will tell you which ones it used.
+                                                </span>
+                                            </div>
                                         ) : (
                                             chatMessages.map((msg, idx) => {
                                                 const isUser = (msg.role === "user");
                                                 const roleClass = isUser ? "user" : "assistant";
+                                                const isRevealing = !isUser
+                                                    && revealedChars !== null
+                                                    && idx === chatMessages.length - 1;
+                                                const shownText = isRevealing
+                                                    ? msg.content.slice(0, revealedChars)
+                                                    : msg.content;
                                                 return (
                                                     <div key={idx} className={`chat-message ${roleClass}`}>
                                                         {isUser ? (
@@ -2400,23 +1480,71 @@ const renderJiraActionsModal = () => {
                                                         ) : (
                                                             <div className="message-avatar assistant" style={{ backgroundImage: `url(${assistantAvatarUrl || "/pami_ai_avatar.png"})` }} />
                                                         )}
-                                                        <div className="message-content"><p>{msg.content}</p></div>
+                                                        <div className="message-content">
+                                                            <p>
+                                                                {shownText}
+                                                                {isRevealing && <span className="reveal-caret" aria-hidden="true" />}
+                                                            </p>
+                                                            {/* Held back until the text is fully out: chips appearing beside half a
+                                                                sentence read as part of the answer. */}
+                                                            {!isUser && !isRevealing && (msg.consulted || []).length > 0 && (
+                                                                <div className="message-sources">
+                                                                    <span className="message-sources-label">
+                                                                        Answered using
+                                                                    </span>
+                                                                    {msg.consulted.map((source) => (
+                                                                        <button
+                                                                            key={source.conversation_id}
+                                                                            type="button"
+                                                                            className={`message-source${source.read ? " message-source-read" : ""}`}
+                                                                            title={
+                                                                                source.read
+                                                                                    ? `Read in full: "${source.header || "this conversation"}"`
+                                                                                    : `Matched a passage in "${source.header || "this conversation"}"`
+                                                                            }
+                                                                            onClick={() =>
+                                                                                goToNodeConversation({
+                                                                                    conversation_id: source.conversation_id
+                                                                                })
+                                                                            }
+                                                                        >
+                                                                            {source.header || "Untitled conversation"}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 );
                                             })
                                         )}
                                         {isChatLoading && (
                                             <div className="chat-message assistant">
-                                                <div className="message-avatar">🤖</div>
+                                                <div className="message-avatar assistant" style={{ backgroundImage: `url(${assistantAvatarUrl || "/pami_ai_avatar.png"})` }} />
                                                 <div className="message-content">
                                                     <div className="typing-indicator"><span></span><span></span><span></span></div>
                                                 </div>
                                             </div>
                                         )}
                                     </div>
-                                    <div className="chat-input" style={{ padding: "12px", borderTop: "1px solid #eee", display: "flex", gap: "8px" }}>
-                                        <input type="text" placeholder="Ask PAMI anything..." value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyPress={(e) => e.key === "Enter" && handleSendMessage()} disabled={isChatLoading} style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
-                                        <button onClick={handleSendMessage} disabled={isChatLoading || !chatInput.trim()} style={{ padding: "10px 14px", borderRadius: "8px", background: "#2f6fed", color: "white", border: "none" }}>Send</button>
+                                    <div className="chat-input chat-input-row">
+                                        <input
+                                            type="text"
+                                            className="chat-text-input"
+                                            placeholder="Ask PAMI anything..."
+                                            value={chatInput}
+                                            onChange={(e) => setChatInput(e.target.value)}
+                                            onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                                            disabled={isChatLoading}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="chat-send-btn"
+                                            onClick={handleSendMessage}
+                                            disabled={isChatLoading || !chatInput.trim()}
+                                        >
+                                            {isChatLoading ? "Sending" : "Send"}
+                                        </button>
                                     </div>
                                 </div>
                             )}
@@ -2425,21 +1553,27 @@ const renderJiraActionsModal = () => {
                 </div>
             </main>
 
-            <aside className="integrations-fixed-container" style={{ position: "fixed", right: "30px", top: "200px", zIndex: 9999 }}>
-                <div className="integrations-stack" style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
-                    <button type="button" className="integration-icon-btn slack-btn" onClick={() => openModal("slack")} style={{ cursor: "pointer", background: "white", border: "1px solid #eee", borderRadius: "18px", width: "70px", height: "70px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
-                        <img src="https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png" alt="Slack" style={{ width: "40px" }} />
-                    </button>
-                    <button type="button" className="integration-icon-btn jira-btn" onClick={() => openModal("jira")} style={{ cursor: "pointer", background: "white", border: "1px solid #eee", borderRadius: "18px", width: "70px", height: "70px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
-                        <img src="https://cdn.worldvectorlogo.com/logos/jira-1.svg" alt="Jira" style={{ width: "40px" }} />
-                    </button>
-                </div>
-            </aside>
 
             {activeModal && (
                 <div className="modal-overlay" onClick={closeModal} style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 10000 }}>
-                    <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ background: "white", padding: "40px", borderRadius: "30px", width: "450px", position: "relative" }}>
-                        <button className="close-modal-btn" onClick={closeModal} style={{ position: "absolute", top: "20px", right: "20px", border: "none", background: "none", fontSize: "24px", cursor: "pointer" }}>&times;</button>
+                    <div
+                        className="modal-content"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={MODAL_LABELS[activeModal] || "Dialog"}
+                        ref={modalRef}
+                        tabIndex={-1}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ background: "white", padding: "40px", borderRadius: "30px", width: "min(450px, calc(100vw - 32px))", maxHeight: "calc(100vh - 32px)", overflowY: "auto", boxSizing: "border-box", position: "relative" }}
+                    >
+                        <button
+                            className="close-modal-btn"
+                            onClick={closeModal}
+                            aria-label="Close dialog"
+                            style={{ position: "absolute", top: "20px", right: "20px", border: "none", background: "none", fontSize: "24px", cursor: "pointer" }}
+                        >
+                            &times;
+                        </button>
                         {renderModalContent()}
                     </div>
                 </div>

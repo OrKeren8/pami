@@ -28,8 +28,97 @@ class Settings(BaseSettings):
     # Example: http://localhost:8000 or https://<gateway-host>
     projects_api_url: str = ""
 
+    # MongoDB - conversation chunk / vector index (transcripts stay in S3)
+    mongodb_url: str = "mongodb://localhost:27017"
+    database_name: str = "pami"
+
+    # Embeddings. "openai" is far better at separating conversations inside one project:
+    # measured on this project's data, asking about a fact stated in another conversation
+    # ranked the answer 4th of 41 with the local 384-dimension model - below unrelated
+    # chunks - and 1st of 106 with text-embedding-3-small. "local" keeps everything
+    # in-process and free, and is the automatic fallback when the API is unavailable.
+    embedding_provider: str = "openai"
+    openai_embedding_model: str = "text-embedding-3-small"
+    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    embedding_cache_dir: str = ""
+
+    # Graph refresh
+    reindex_message_threshold: int = 3
+    # A conversation whose tail is below the threshold is flushed once it goes quiet, so the
+    # last thing said is searchable without embedding on every single message.
+    reindex_idle_flush_seconds: int = 25
+    # Each conversation proposes only its closest few peers. Links mirror onto the peer
+    # as well, so real node degree lands a little above this.
+    sibling_top_k: int = 3
+
+    # Debug search endpoint: returns snippets across a whole project from a
+    # client-supplied project_id, so it stays off unless explicitly enabled.
+    enable_retrieval_debug_api: bool = False
+
+    # Retrieval budget
+    # One search plus four reads. Enforced in the agent's tools, which refuse further calls
+    # and let the model answer, rather than by a request limit that aborts the whole run.
+    retrieval_max_tool_calls: int = 5
+    retrieval_max_conversations: int = 5
+    retrieval_max_injected_tokens: int = 4000
+    # Per-hit ceiling so one long window cannot consume the whole token budget. Generous on
+    # purpose: the budget above is what actually limits the total.
+    retrieval_snippet_chars: int = 1200
+    # Floor a search hit must clear before the UI claims the conversation was consulted.
+    # 0.0 drops only genuine noise (stale vector widths score exactly 0.0, and graph
+    # expansion can weight a hit below that). A real relevance cut-off is model-specific,
+    # so raise this from measured data rather than by guessing.
+    retrieval_consulted_min_score: float = 0.0
+    # Conversations re-embedded per start when the embedding model has changed. Bounded so
+    # one boot cannot spend an unlimited amount on embeddings; the remainder is picked up on
+    # the next start, and the whole thing is a no-op once nothing is stale.
+    startup_reindex_limit: int = 200
+
+    # --- Authentication (AWS Cognito) ---
+    # Same pool as projects-service: one identity across the whole app.
+    cognito_region: str = "us-east-1"
+    cognito_user_pool_id: str = ""
+    cognito_client_id: str = ""
+    auth_required: bool = False
+    unauthenticated_user_id: str = "local-dev-user"
+    unauthenticated_user_email: str = "local@pami.dev"
+    # Presented to projects-service on calls that have no user behind them - the idle
+    # reindex, the startup backfill, the sibling scoring - and required of anything calling
+    # this service's own internal endpoints.
+    service_key: str = ""
+    # Membership answers are cached briefly: the chat endpoint would otherwise ask
+    # projects-service on every single message. The cost of the cache is that revoking
+    # someone's access can lag by this long.
+    authz_cache_seconds: int = 60
+
     # API root path (useful for tests and deployments). Leave empty string for no prefix.
     api_root: str = ""
+
+    # Comma-separated browser origins allowed to call this service. An explicit list is
+    # required rather than "*": with allow_credentials the wildcard is rejected by the
+    # browser, so cookie/authorization requests would fail once auth exists.
+    cors_allowed_origins: str = (
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000,"
+        "https://main.d3f2b6kjsfplgr.amplifyapp.com"
+    )
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
+
+    @field_validator("auth_required", mode="before")
+    @classmethod
+    def normalize_auth_required(cls, value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            return False
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
     @field_validator("debug", mode="before")
     @classmethod

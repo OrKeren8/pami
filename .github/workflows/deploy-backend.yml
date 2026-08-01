@@ -1,11 +1,30 @@
 name: Deploy Backend Services
 
 on:
+  # Manual runs can target any branch, so a feature branch can be deployed and
+  # tested before it is merged. Note there is a single environment: a manual run
+  # replaces whatever is currently deployed until main is deployed again.
+  # A manual run can target this branch. Deliberately NOT a push trigger: there is a single
+  # environment, and until scripts/backfill_project_owners.py has given the existing projects
+  # an owner, a deploy of the ownership work would leave them visible to nobody - the app
+  # would look empty even though nothing was lost.
+  workflow_dispatch:
   push:
     branches: [main]
 
+concurrency:
+  # One cluster, one ALB, one Amplify branch: overlapping runs both push images and both
+  # force a rollout, and which commit ends up serving is a race.
+  group: deploy-backend
+  cancel-in-progress: false
+
 jobs:
+  validate:
+    uses: ./.github/workflows/validate.yml
+    secrets: inherit
+
   deploy-projects-service:
+    needs: validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,16 +41,39 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Resolve the AWS account id
+        # The lab account is rebuilt periodically. Writing its id into the registry and
+        # role ARNs meant every one of them had to be found and edited by hand, and one
+        # file was missed for a whole account generation.
+        run: echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
+
+      - name: Resolve the Cognito pool
+        # Looked up by name at deploy time rather than stored as a literal, matching how the
+        # target groups and the account id are resolved. Empty values are fine: the services
+        # then run with authentication idle, which is what AUTH_REQUIRED=false expects.
+        run: |
+          POOL_ID=$(aws cognito-idp list-user-pools --max-results 60 --region us-east-1             --query "UserPools[?Name=='pami-users'].Id | [0]" --output text 2>/dev/null || echo "")
+          if [ "$POOL_ID" = "None" ]; then POOL_ID=""; fi
+          CLIENT_ID=""
+          if [ -n "$POOL_ID" ]; then
+            CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID"               --max-results 60 --region us-east-1               --query "UserPoolClients[?ClientName=='pami-web'].ClientId | [0]" --output text 2>/dev/null || echo "")
+            if [ "$CLIENT_ID" = "None" ]; then CLIENT_ID=""; fi
+          fi
+          echo "COGNITO_USER_POOL_ID=$POOL_ID" >> $GITHUB_ENV
+          echo "COGNITO_CLIENT_ID=$CLIENT_ID" >> $GITHUB_ENV
+          echo "Resolved pool '$POOL_ID' client '$CLIENT_ID'"
+
+
       - name: Build and Push Projects Service Image
         run: |
           cd projects_service
           # Generate a unique tag based on commit SHA
           IMAGE_TAG=${{ github.sha }}
           docker build -t pami-projects-service:$IMAGE_TAG .
-          docker tag pami-projects-service:$IMAGE_TAG 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:$IMAGE_TAG
-          docker tag pami-projects-service:$IMAGE_TAG 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
-          docker push 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:$IMAGE_TAG
-          docker push 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
+          docker tag pami-projects-service:$IMAGE_TAG ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:$IMAGE_TAG
+          docker tag pami-projects-service:$IMAGE_TAG ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
+          docker push ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:$IMAGE_TAG
+          docker push ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest
 
       - name: Register Projects Service Task Definition
         run: |
@@ -50,12 +92,12 @@ jobs:
             "requiresCompatibilities": ["FARGATE"],
             "cpu": "512",
             "memory": "1024",
-            "executionRoleArn": "arn:aws:iam::413410781221:role/LabRole",
-            "taskRoleArn": "arn:aws:iam::413410781221:role/LabRole",
+            "executionRoleArn": "arn:aws:iam::${ACCOUNT_ID}:role/LabRole",
+            "taskRoleArn": "arn:aws:iam::${ACCOUNT_ID}:role/LabRole",
             "containerDefinitions": [
               {
                 "name": "pami-projects-service",
-                "image": "413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:latest",
+                "image": "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/projects-service:${{ github.sha }}",
                 "portMappings": [
                   {
                     "containerPort": 8000,
@@ -65,6 +107,30 @@ jobs:
                 ],
                 "essential": true,
                 "environment": [
+                  {
+                    "name": "ADMIN_EMAILS",
+                    "value": "${{ vars.ADMIN_EMAILS || 'orkeren8@gmail.com' }}"
+                  },
+                  {
+                    "name": "COGNITO_USER_POOL_ID",
+                    "value": "${COGNITO_USER_POOL_ID}"
+                  },
+                  {
+                    "name": "COGNITO_CLIENT_ID",
+                    "value": "${COGNITO_CLIENT_ID}"
+                  },
+                  {
+                    "name": "COGNITO_REGION",
+                    "value": "us-east-1"
+                  },
+                  {
+                    "name": "AUTH_REQUIRED",
+                    "value": "${{ vars.AUTH_REQUIRED || 'false' }}"
+                  },
+                  {
+                    "name": "SERVICE_KEY",
+                    "value": "${{ secrets.SERVICE_KEY }}"
+                  },
                   {
                     "name": "MONGODB_URL",
                     "value": "${{ secrets.MONGODB_URL }}"
@@ -92,14 +158,52 @@ jobs:
 
       - name: Create or Update Projects Service
         run: |
+          # Looked up by name, not hardcoded: AWS appends a random id to every target group
+          # ARN, so a rebuilt lab account recreates the target group under a new ARN and any
+          # hardcoded one becomes a dead reference that fails CreateService.
+          TG_ARN=$(aws elbv2 describe-target-groups \
+            --names projects-service-tg \
+            --query 'TargetGroups[0].TargetGroupArn' \
+            --output text \
+            --region us-east-1)
+
+          if [ -z "$TG_ARN" ] || [ "$TG_ARN" = "None" ]; then
+            echo "::error::Target group projects-service-tg not found. Run setup_aws_infrastructure.py first."
+            exit 1
+          fi
+          echo "Using target group $TG_ARN"
+
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters Name=is-default,Values=true \
+            --query 'Vpcs[0].VpcId' --output text --region us-east-1)
+          SUBNETS=$(aws ec2 describe-subnets \
+            --filters Name=vpc-id,Values=$VPC_ID \
+            --query 'Subnets[].SubnetId' --output text --region us-east-1 | tr '\t' ',')
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters Name=group-name,Values=pami-ecs-services-sg Name=vpc-id,Values=$VPC_ID \
+            --query 'SecurityGroups[0].GroupId' --output text --region us-east-1)
+
+          if [ -z "$SUBNETS" ] || [ "$SG_ID" = "None" ]; then
+            echo "::error::Could not resolve VPC networking. Run setup_aws_infrastructure.py first."
+            exit 1
+          fi
+          echo "Using subnets $SUBNETS and security group $SG_ID"
+
           # Check if service exists
-          if aws ecs describe-services --cluster pami-cluster --services pami-projects-service --region us-east-1 | grep -q "ACTIVE\|DRAINING"; then
+          # Queried as a field, not grepped from the JSON blob: "INACTIVE" contains "ACTIVE",
+          # so a service deleted within the last hour matched and the workflow tried to update
+          # it instead of recreating it.
+          SERVICE_STATUS=$(aws ecs describe-services --cluster pami-cluster --services pami-projects-service --region us-east-1 --query 'services[0].status' --output text 2>/dev/null || echo "NONE")
+          echo "Projects service status: $SERVICE_STATUS"
+
+          if [ "$SERVICE_STATUS" = "ACTIVE" ] || [ "$SERVICE_STATUS" = "DRAINING" ]; then
             echo "Service exists, updating..."
             aws ecs update-service \
               --cluster pami-cluster \
               --service pami-projects-service \
               --task-definition pami-projects-service \
               --force-new-deployment \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" \
               --desired-count 1 \
               --region us-east-1
           else
@@ -110,8 +214,9 @@ jobs:
               --task-definition pami-projects-service \
               --desired-count 1 \
               --launch-type FARGATE \
-              --network-configuration "awsvpcConfiguration={subnets=[subnet-02b60037f031bd077,subnet-00ac61fe81c2383a2],securityGroups=[sg-09b92835d6629a36a],assignPublicIp=ENABLED}" \
-              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:413410781221:targetgroup/projects-service-tg/ef519713cbdd3397,containerName=pami-projects-service,containerPort=8000" \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG_ID],assignPublicIp=ENABLED}" \
+              --load-balancers "targetGroupArn=$TG_ARN,containerName=pami-projects-service,containerPort=8000" \
               --region us-east-1
           fi
           # Ensure desired count is 1 in case the service existed with 0
@@ -125,7 +230,26 @@ jobs:
             --services pami-projects-service \
             --region us-east-1
 
+      - name: Smoke check projects-service through the ALB
+        run: |
+          # `wait services-stable` only asks ECS whether tasks are running; it never checks
+          # that the service answers. A container that boots and then fails its first request
+          # would otherwise be reported as a successful deploy.
+          ALB_DNS=$(aws elbv2 describe-load-balancers --region us-east-1 --query "LoadBalancers[?LoadBalancerName=='pami-alb'].DNSName | [0]" --output text)
+          for attempt in 1 2 3 4 5 6; do
+            CODE=$(curl -s -o /dev/null -m 15 -w "%{http_code}" "http://$ALB_DNS/health" || echo 000)
+            echo "attempt $attempt: /health -> $CODE"
+            if [ "$CODE" = "200" ]; then
+              echo "projects-service is serving"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::projects-service did not answer /health with 200 after the rollout"
+          exit 1
+
   deploy-ai-conversation-service:
+    needs: validate
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -142,32 +266,67 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Resolve the AWS account id
+        # The lab account is rebuilt periodically. Writing its id into the registry and
+        # role ARNs meant every one of them had to be found and edited by hand, and one
+        # file was missed for a whole account generation.
+        run: echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
+
+      - name: Resolve the Cognito pool
+        # Looked up by name at deploy time rather than stored as a literal, matching how the
+        # target groups and the account id are resolved. Empty values are fine: the services
+        # then run with authentication idle, which is what AUTH_REQUIRED=false expects.
+        run: |
+          POOL_ID=$(aws cognito-idp list-user-pools --max-results 60 --region us-east-1             --query "UserPools[?Name=='pami-users'].Id | [0]" --output text 2>/dev/null || echo "")
+          if [ "$POOL_ID" = "None" ]; then POOL_ID=""; fi
+          CLIENT_ID=""
+          if [ -n "$POOL_ID" ]; then
+            CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID"               --max-results 60 --region us-east-1               --query "UserPoolClients[?ClientName=='pami-web'].ClientId | [0]" --output text 2>/dev/null || echo "")
+            if [ "$CLIENT_ID" = "None" ]; then CLIENT_ID=""; fi
+          fi
+          echo "COGNITO_USER_POOL_ID=$POOL_ID" >> $GITHUB_ENV
+          echo "COGNITO_CLIENT_ID=$CLIENT_ID" >> $GITHUB_ENV
+          echo "Resolved pool '$POOL_ID' client '$CLIENT_ID'"
+
+
       - name: Build and Push AI Conversation Service Image
         run: |
           cd ai_conversation_service
           # Generate a unique tag based on commit SHA
           IMAGE_TAG=${{ github.sha }}
           docker build -t pami-ai-conversation-service:$IMAGE_TAG .
-          docker tag pami-ai-conversation-service:$IMAGE_TAG 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:$IMAGE_TAG
-          docker tag pami-ai-conversation-service:$IMAGE_TAG 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest
-          docker push 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:$IMAGE_TAG
-          docker push 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest
+          docker tag pami-ai-conversation-service:$IMAGE_TAG ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:$IMAGE_TAG
+          docker tag pami-ai-conversation-service:$IMAGE_TAG ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest
+          docker push ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:$IMAGE_TAG
+          docker push ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest
 
       - name: Register AI Conversation Service Task Definition
         run: |
+          # Resolve the projects-service URL from the live ALB rather than a static
+          # secret. The lab rebuild changes the ALB DNS, and a stale secret silently
+          # breaks every outbound call from this service while the reverse direction
+          # keeps working.
+          ALB_DNS=$(aws elbv2 describe-load-balancers --region us-east-1 --query "LoadBalancers[?LoadBalancerName=='pami-alb'].DNSName | [0]" --output text)
+          if [ -z "$ALB_DNS" ] || [ "$ALB_DNS" = "None" ]; then
+            echo "Failed to resolve ALB DNS for pami-alb"
+            exit 1
+          fi
+          PROJECTS_API_URL="http://$ALB_DNS"
+          echo "Using PROJECTS_API_URL=$PROJECTS_API_URL"
+
           cat > task-def.json << EOF
           {
             "family": "pami-ai-conversation-service",
             "networkMode": "awsvpc",
             "requiresCompatibilities": ["FARGATE"],
-            "cpu": "512",
-            "memory": "1024",
-            "executionRoleArn": "arn:aws:iam::413410781221:role/LabRole",
-            "taskRoleArn": "arn:aws:iam::413410781221:role/LabRole",
+            "cpu": "1024",
+            "memory": "2048",
+            "executionRoleArn": "arn:aws:iam::${ACCOUNT_ID}:role/LabRole",
+            "taskRoleArn": "arn:aws:iam::${ACCOUNT_ID}:role/LabRole",
             "containerDefinitions": [
               {
                 "name": "ai-conversation-service",
-                "image": "413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:latest",
+                "image": "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/ai-conversation-service:${{ github.sha }}",
                 "portMappings": [
                   {
                     "containerPort": 8001,
@@ -178,6 +337,26 @@ jobs:
                 "essential": true,
                 "environment": [
                   {
+                    "name": "COGNITO_USER_POOL_ID",
+                    "value": "${COGNITO_USER_POOL_ID}"
+                  },
+                  {
+                    "name": "COGNITO_CLIENT_ID",
+                    "value": "${COGNITO_CLIENT_ID}"
+                  },
+                  {
+                    "name": "COGNITO_REGION",
+                    "value": "us-east-1"
+                  },
+                  {
+                    "name": "AUTH_REQUIRED",
+                    "value": "${{ vars.AUTH_REQUIRED || 'false' }}"
+                  },
+                  {
+                    "name": "SERVICE_KEY",
+                    "value": "${{ secrets.SERVICE_KEY }}"
+                  },
+                  {
                     "name": "MONGODB_URL",
                     "value": "${{ secrets.MONGODB_URL }}"
                   },
@@ -187,7 +366,11 @@ jobs:
                   },
                   {
                     "name": "PROJECTS_API_URL",
-                    "value": "${{ secrets.PROJECTS_API_URL }}"
+                    "value": "$PROJECTS_API_URL"
+                  },
+                  {
+                    "name": "EMBEDDING_CACHE_DIR",
+                    "value": "/app/.model_cache"
                   }
                 ],
                 "logConfiguration": {
@@ -208,14 +391,47 @@ jobs:
 
       - name: Create or Update AI Conversation Service
         run: |
+          TG_ARN=$(aws elbv2 describe-target-groups \
+            --names ai-conversation-service-tg \
+            --query 'TargetGroups[0].TargetGroupArn' \
+            --output text \
+            --region us-east-1)
+
+          if [ -z "$TG_ARN" ] || [ "$TG_ARN" = "None" ]; then
+            echo "::error::Target group ai-conversation-service-tg not found. Run setup_aws_infrastructure.py first."
+            exit 1
+          fi
+          echo "Using target group $TG_ARN"
+
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters Name=is-default,Values=true \
+            --query 'Vpcs[0].VpcId' --output text --region us-east-1)
+          SUBNETS=$(aws ec2 describe-subnets \
+            --filters Name=vpc-id,Values=$VPC_ID \
+            --query 'Subnets[].SubnetId' --output text --region us-east-1 | tr '\t' ',')
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters Name=group-name,Values=pami-ecs-services-sg Name=vpc-id,Values=$VPC_ID \
+            --query 'SecurityGroups[0].GroupId' --output text --region us-east-1)
+
+          if [ -z "$SUBNETS" ] || [ "$SG_ID" = "None" ]; then
+            echo "::error::Could not resolve VPC networking. Run setup_aws_infrastructure.py first."
+            exit 1
+          fi
+          echo "Using subnets $SUBNETS and security group $SG_ID"
+
           # Check if service exists
-          if aws ecs describe-services --cluster pami-cluster --services pami-ai-conversation-service --region us-east-1 | grep -q "ACTIVE\|DRAINING"; then
+          SERVICE_STATUS=$(aws ecs describe-services --cluster pami-cluster --services pami-ai-conversation-service --region us-east-1 --query 'services[0].status' --output text 2>/dev/null || echo "NONE")
+          echo "AI conversation service status: $SERVICE_STATUS"
+
+          if [ "$SERVICE_STATUS" = "ACTIVE" ] || [ "$SERVICE_STATUS" = "DRAINING" ]; then
             echo "Service exists, updating..."
             aws ecs update-service \
               --cluster pami-cluster \
               --service pami-ai-conversation-service \
               --task-definition pami-ai-conversation-service \
               --force-new-deployment \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" \
+              --desired-count 1 \
               --region us-east-1
           else
             echo "Service doesn't exist, creating..."
@@ -225,10 +441,15 @@ jobs:
               --task-definition pami-ai-conversation-service \
               --desired-count 1 \
               --launch-type FARGATE \
-              --network-configuration "awsvpcConfiguration={subnets=[subnet-02b60037f031bd077,subnet-00ac61fe81c2383a2],securityGroups=[sg-09b92835d6629a36a],assignPublicIp=ENABLED}" \
-              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:413410781221:targetgroup/ai-conversation-service-tg/8e834a650e5502dd,containerName=ai-conversation-service,containerPort=8001" \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG_ID],assignPublicIp=ENABLED}" \
+              --load-balancers "targetGroupArn=$TG_ARN,containerName=ai-conversation-service,containerPort=8001" \
               --region us-east-1
           fi
+          # shutdown_aws.py scales every service to 0, and `wait services-stable` succeeds
+          # trivially when desired == running == 0 - so without this the service stays dead
+          # after a shutdown while the deploy reports success.
+          aws ecs update-service --cluster pami-cluster --service pami-ai-conversation-service --desired-count 1 --region us-east-1 || true
 
       - name: Wait for AI Conversation Service deployment
         run: |
@@ -237,6 +458,24 @@ jobs:
             --cluster pami-cluster \
             --services pami-ai-conversation-service \
             --region us-east-1
+
+      - name: Smoke check ai-conversation-service through the ALB
+        run: |
+          # `wait services-stable` only asks ECS whether tasks are running; it never checks
+          # that the service answers. A container that boots and then fails its first request
+          # would otherwise be reported as a successful deploy.
+          ALB_DNS=$(aws elbv2 describe-load-balancers --region us-east-1 --query "LoadBalancers[?LoadBalancerName=='pami-alb'].DNSName | [0]" --output text)
+          for attempt in 1 2 3 4 5 6; do
+            CODE=$(curl -s -o /dev/null -m 15 -w "%{http_code}" "http://$ALB_DNS/ai/health" || echo 000)
+            echo "attempt $attempt: /ai/health -> $CODE"
+            if [ "$CODE" = "200" ]; then
+              echo "ai-conversation-service is serving"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::ai-conversation-service did not answer /ai/health with 200 after the rollout"
+          exit 1
 
       - name: Get AI Conversation Service status
         run: |
@@ -247,3 +486,34 @@ jobs:
             --region us-east-1 \
             --query 'services[0].taskDefinition' \
             --output text
+  # Ran as its own push-triggered workflow, which meant setup_aws_infrastructure.py was
+  # reconciling the cluster, ALB and target groups at the same moment this workflow was
+  # registering task definitions and forcing rollouts. Sequencing it after both services
+  # also means the frontend is rebuilt against a backend that is already serving.
+  update-amplify:
+    name: Update Amplify and Redeploy
+    needs: [deploy-projects-service, deploy-ai-conversation-service]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install boto3 python-dotenv requests
+
+      - name: Run infra script to update Amplify env and redeploy
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AMPLIFY_AUTO_WAIT: 'true'
+        run: |
+          python setup_aws_infrastructure.py

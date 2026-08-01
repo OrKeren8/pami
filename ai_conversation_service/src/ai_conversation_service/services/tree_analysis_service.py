@@ -10,6 +10,7 @@ from ai_conversation_service.schemas.tree_analysis_schemas import (
 )
 from ai_conversation_service.core.config import settings
 from ai_conversation_service.core.prompt_loader import load_prompt_file
+from ai_conversation_service.services.similarity import top_k_scores
 
 TREE_ANALYSIS_SYSTEM_PROMPT = load_prompt_file("tree_analysis_system_prompt.txt")
 TREE_ANALYSIS_USER_PROMPT_TEMPLATE = load_prompt_file("tree_analysis_user_prompt.txt")
@@ -22,10 +23,12 @@ class TreeAnalysisService:
         self,
         ai_conversation_service,  # Reference to AIConversationService
         openai_client: AsyncOpenAI,
+        chunk_index_service,
     ):
         self._logger = logger.bind(service="TreeAnalysisService")
         self._ai_conversation_service = ai_conversation_service
         self._openai_client = openai_client
+        self._chunk_index_service = chunk_index_service
 
     async def analyze_and_organize_node(
         self, request: AnalyzeTreeRequest
@@ -120,51 +123,7 @@ class TreeAnalysisService:
             if not isinstance(topics, list) or not topics:
                 raise ValueError("AI organization missing required non-empty topics")
 
-            raw_scored = ai_response.get("sibling_score_suggestions")
-            if not isinstance(raw_scored, list):
-                raise ValueError(
-                    "AI organization missing required array: sibling_score_suggestions"
-                )
-
-            expected_sibling_ids = {str(n.id) for n in request.current_tree}
-            seen_sibling_ids: set[str] = set()
-            scored_suggestions: list[SiblingScoreSuggestion] = []
-            for item in raw_scored:
-                if not isinstance(item, dict):
-                    raise ValueError(
-                        "AI organization sibling score suggestions must be objects"
-                    )
-                sibling_id = str(item.get("sibling_id") or "").strip()
-                if not sibling_id:
-                    raise ValueError(
-                        "AI organization sibling score suggestion missing sibling_id"
-                    )
-                if sibling_id not in expected_sibling_ids:
-                    raise ValueError(
-                        f"AI organization returned unknown sibling_id: {sibling_id}"
-                    )
-                if sibling_id in seen_sibling_ids:
-                    raise ValueError(
-                        f"AI organization returned duplicate sibling_id: {sibling_id}"
-                    )
-                score = item.get("correlation_score")
-                if not isinstance(score, int):
-                    raise ValueError(
-                        "AI organization sibling score must be an integer 0..100"
-                    )
-                seen_sibling_ids.add(sibling_id)
-                scored_suggestions.append(
-                    SiblingScoreSuggestion(
-                        sibling_id=sibling_id,
-                        correlation_score=score,
-                    )
-                )
-
-            missing_siblings = expected_sibling_ids.difference(seen_sibling_ids)
-            if missing_siblings:
-                raise ValueError(
-                    "AI organization must score every existing node in current_tree"
-                )
+            scored_suggestions = await self._score_siblings(request)
 
             return NodeOrganizationResponse(
                 node_id=request.node_id,
@@ -178,6 +137,75 @@ class TreeAnalysisService:
         except Exception as e:
             self._logger.error(f"Failed to analyze tree structure: {e}")
             raise
+
+    async def _score_siblings(
+        self, request: AnalyzeTreeRequest
+    ) -> list[SiblingScoreSuggestion]:
+        """Score siblings by embedding cosine similarity."""
+        if not self._chunk_index_service:
+            self._logger.warning(
+                "Chunk index unavailable; returning no sibling scores for node "
+                f"{request.node_id}"
+            )
+            return []
+
+        # Always re-index, not only when no state exists: promoting a conversation to a node
+        # is the strongest signal that its content matters, and its tail is usually below the
+        # debounce threshold — so the very messages that motivated the node would otherwise
+        # be missing from both the scoring and later retrieval.
+        state = await self._index_now(
+            request
+        ) or await self._chunk_index_service.state_for(request.conversation_id)
+        if not state:
+            return []
+
+        similarities = await self._chunk_index_service.conversation_similarities(
+            state.project_id, request.conversation_id
+        )
+        known_node_ids = {str(node.id) for node in request.current_tree}
+        candidates = {
+            node_id: similarity
+            for node_id, similarity in similarities.items()
+            if node_id in known_node_ids
+        }
+
+        scores = top_k_scores(candidates, state.embedding_model, settings.sibling_top_k)
+        self._logger.info(
+            f"Scored {len(scores)} of {len(known_node_ids)} peers for node "
+            f"{request.node_id} by cosine"
+        )
+        return [
+            SiblingScoreSuggestion(sibling_id=node_id, correlation_score=score)
+            for node_id, score in scores.items()
+        ]
+
+    async def _index_now(self, request: AnalyzeTreeRequest):
+        """Index a conversation's full transcript at node creation.
+
+        Two reasons this runs unconditionally. A brand new node holds only its seed exchange,
+        which sits below the reindex threshold, so without this there is no vector to score
+        against. And a node promoted from an existing chat usually has an unindexed tail for
+        the same reason — the messages that prompted the user to keep it. `request.node_id` is
+        authoritative here, coming from the node being created, so this also seeds the correct
+        owning node id.
+        """
+        conversation = await self._ai_conversation_service.get_conversation(
+            request.conversation_id
+        )
+        if not conversation or not conversation.messages:
+            return None
+
+        self._logger.info(
+            f"Indexing conversation {request.conversation_id} on demand so node "
+            f"{request.node_id} can be linked at creation"
+        )
+        return await self._chunk_index_service.reindex_conversation(
+            conversation_id=request.conversation_id,
+            project_id=conversation.project_id,
+            node_id=request.node_id,
+            messages=conversation.messages,
+            header=conversation.title,
+        )
 
     def _build_tree_context(self, nodes: list[TreeNodeData]) -> str:
         """Build a readable graph context for AI analysis."""

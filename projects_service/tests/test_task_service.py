@@ -2,7 +2,6 @@ import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from projects_service.models.task import Task
 from projects_service.services.task_service import TaskService
 from projects_service.schemas.task_schemas import (
     CreateTaskRequest,

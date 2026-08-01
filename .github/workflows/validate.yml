@@ -1,0 +1,127 @@
+name: Validate
+
+# Nothing verified the code before today: both deploy workflows build an image and roll it
+# into the only live environment straight from a push, while two services ship a test suite
+# that never ran in CI. This job is what the deploy workflows now wait for.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+concurrency:
+  # The ai-conversation tests share one Atlas test database, so two runs must not overlap.
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: ai_conversation_service
+            check_format: true
+          - service: projects_service
+            check_format: true
+          # slack_service is excluded from the format check on purpose: it needs reformatting
+          # and doing it here would collide with in-flight work on that service.
+          - service: slack_service
+            check_format: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Sync dependencies
+        working-directory: ${{ matrix.service }}
+        run: uv sync --all-extras
+
+      # --with ruff rather than a bare `uv run ruff`: slack_service does not declare ruff
+      # as a dependency, so the bare form failed with "Failed to spawn: ruff" and took the
+      # whole gate down with it.
+      - name: Lint
+        working-directory: ${{ matrix.service }}
+        run: uv run --with ruff ruff check src
+
+      - name: Format check
+        if: matrix.check_format
+        working-directory: ${{ matrix.service }}
+        run: uv run --with ruff ruff format --check src
+
+  projects-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # These use in-memory repositories, so they need nothing external.
+      - name: Test
+        working-directory: projects_service
+        run: |
+          uv sync --all-extras
+          uv run python -m pytest -q
+
+  ai-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # These run end to end against a real Atlas database (`pami_test`, separate from the
+      # `pami` one the services use) because that is what the retrieval code needs to be
+      # exercised honestly.
+      - name: Test
+        working-directory: ai_conversation_service
+        env:
+          MONGODB_URL: ${{ secrets.MONGODB_URL }}
+        run: |
+          uv sync --all-extras
+          uv run python -m pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm ci` also fails when package-lock.json has drifted from package.json, which is
+      # exactly what silently broke an Amplify build for 17 hours. The lock is generated with
+      # npm 10 - the version this runner and the Amplify build image both ship - because a
+      # lock built by npm 11 omits postcss-load-config's optional `yaml` peer and npm 10 then
+      # refuses it. A lock built by npm 10 satisfies both.
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: frontend
+        run: npx eslint src --ext .js,.jsx --max-warnings 20
+
+      - name: Build
+        working-directory: frontend
+        env:
+          CI: "false"
+        run: npm run build

@@ -1,11 +1,29 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Literal, Optional
 from datetime import datetime
 
 
 class SiblingLinkPayload(BaseModel):
     sibling_id: str
     correlation_score: int = Field(default=0, ge=0, le=100)
+
+
+class SiblingScorePayload(BaseModel):
+    sibling_id: str
+    correlation_score: int = Field(ge=0, le=100)
+
+
+class NearPeerPayload(BaseModel):
+    sibling_id: str
+    similarity: float = Field(ge=-1.0, le=1.0)
+
+
+class UpdateSiblingScoresRequest(BaseModel):
+    scores: list[SiblingScorePayload] = Field(default_factory=list)
+    # The closest peers that did not clear the similarity floor. Reported rather than linked,
+    # so a node with no links can still say what it was nearest to.
+    near_peers: list[NearPeerPayload] = Field(default_factory=list)
+    source: Literal["embedding", "manual"] = "embedding"
 
 
 class CreateContextTreeNodeRequest(BaseModel):
@@ -38,5 +56,6 @@ class ContextTreeNodeResponse(BaseModel):
     project_id: str
     node_type: str
     conversation_id: Optional[str]
+    near_peers: List[NearPeerPayload] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime

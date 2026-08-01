@@ -8,6 +8,8 @@ from projects_service.models.context_tree import SiblingLink
 from projects_service.schemas.context_tree_schemas import (
     ContextTreeNodeResponse,
     CreateContextTreeNodeRequest,
+    NearPeerPayload,
+    SiblingScorePayload,
     UpdateContextTreeNodeRequest,
 )
 from projects_service.services.context_tree_service import ContextTreeService
@@ -33,6 +35,7 @@ def _build_node(
     node.node_type = "goal"
     node.color = "#2196f3"
     node.conversation_id = conversation_id
+    node.near_peers = []
     node.created_at = datetime.utcnow()
     node.updated_at = datetime.utcnow()
     node.save = AsyncMock(return_value=None)
@@ -271,7 +274,7 @@ class TestContextTreeService:
         assert link_map["n3"] == 72
 
     @pytest.mark.asyncio
-    async def test_recompute_prunes_stale_links_with_low_or_zero_correlation(
+    async def test_recompute_prunes_links_scored_below_threshold(
         self, service, mock_repository
     ):
         project_id = "project-1"
@@ -290,7 +293,7 @@ class TestContextTreeService:
 
         mock_repository.list_by_project = AsyncMock(return_value=[node_a, node_b])
 
-        await service._recompute_weighted_links_for_node(project_id, "a")
+        await service._recompute_weighted_links_for_node(project_id, "a", {"b": 10})
 
         assert service._get_link_map(node_a) == {}
         assert service._get_link_map(node_b) == {}
@@ -313,3 +316,58 @@ class TestContextTreeService:
         deleted = await service.delete_node("missing")
 
         assert deleted is False
+
+    @pytest.mark.asyncio
+    async def test_near_peers_are_recorded_without_becoming_links(
+        self, service, mock_repository
+    ):
+        """A node with nothing close enough stays unlinked, but says what it was nearest to.
+
+        The AI service reports the closest peers that failed the similarity floor. Turning
+        them into links would assert a relationship the numbers do not support, so they are
+        stored separately and only the zero scores reach sibling_links.
+        """
+        node = _build_node(node_id="node-1", project_id="project-1")
+        peer = _build_node(node_id="node-2", project_id="project-1")
+        mock_repository.get_by_id = AsyncMock(return_value=node)
+        mock_repository.list_by_project = AsyncMock(return_value=[node, peer])
+        mock_repository.update = AsyncMock(return_value=None)
+
+        result = await service.apply_sibling_scores(
+            "node-1",
+            [SiblingScorePayload(sibling_id="node-2", correlation_score=0)],
+            "embedding",
+            [NearPeerPayload(sibling_id="node-2", similarity=0.394)],
+        )
+
+        assert result is not None
+        assert result.sibling_links == []
+        written = [call.args[1] for call in mock_repository.update.call_args_list]
+        near = next(
+            fields["near_peers"] for fields in written if "near_peers" in fields
+        )
+        assert near == [{"sibling_id": "node-2", "similarity": 0.394}]
+
+    @pytest.mark.asyncio
+    async def test_near_peers_are_cleared_once_real_links_exist(
+        self, service, mock_repository
+    ):
+        """Written on every push, so a node does not keep advertising stale near peers."""
+        node = _build_node(node_id="node-1", project_id="project-1")
+        peer = _build_node(node_id="node-2", project_id="project-1")
+        mock_repository.get_by_id = AsyncMock(return_value=node)
+        mock_repository.list_by_project = AsyncMock(return_value=[node, peer])
+        mock_repository.update = AsyncMock(return_value=None)
+
+        await service.apply_sibling_scores(
+            "node-1",
+            [SiblingScorePayload(sibling_id="node-2", correlation_score=95)],
+            "embedding",
+            [],
+        )
+
+        written = [call.args[1] for call in mock_repository.update.call_args_list]
+        near = next(
+            fields["near_peers"] for fields in written if "near_peers" in fields
+        )
+        assert near == []

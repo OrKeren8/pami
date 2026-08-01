@@ -1,5 +1,5 @@
-# Use Python 3.9 slim image (matching projects service)
-FROM python:3.9-slim
+# Python 3.12: pydantic-ai and fastembed both require >=3.10
+FROM python:3.12-slim
 
 # Install git (required for git dependencies if any)
 RUN apt-get update && apt-get install -y git curl && rm -rf /var/lib/apt/lists/*
@@ -13,6 +13,11 @@ WORKDIR /app
 
 # Install dependencies
 RUN uv sync --frozen --no-cache
+
+# Bake the embedding model into the image so a cold task never downloads it at
+# startup. Must run before the ownership switch or the cache lands under /root.
+ENV EMBEDDING_CACHE_DIR=/app/.model_cache
+RUN uv run python -c "from fastembed import TextEmbedding; TextEmbedding('BAAI/bge-small-en-v1.5', cache_dir='/app/.model_cache')"
 
 # Create non-root user and set permissions
 RUN useradd --create-home --shell /bin/bash app && \

@@ -1,3 +1,4 @@
+import logging
 import re
 
 from slack_sdk import WebClient
@@ -5,10 +6,13 @@ from slack_sdk.errors import SlackApiError
 
 from slack_service.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 
 class SlackApiService:
     def __init__(self):
         self.client = WebClient(token=settings.slack_bot_token)
+        self._user_name_cache = {}
 
     def test_connection(self):
         try:
@@ -110,6 +114,57 @@ class SlackApiService:
                 "error": self._get_slack_error(error),
             }
 
+    def get_channel_messages(self, channel: str, limit: int = 50):
+        try:
+            result = self.client.conversations_history(channel=channel, limit=limit)
+
+            messages = [
+                self._format_message(raw_message)
+                for raw_message in result.get("messages", [])
+                if raw_message.get("subtype") is None or raw_message.get("subtype") == "bot_message"
+            ]
+            messages.reverse()
+
+            return {
+                "ok": True,
+                "messages": messages,
+            }
+        except SlackApiError as error:
+            return {
+                "ok": False,
+                "error": self._get_slack_error(error),
+                **self._scope_detail(error),
+            }
+
+    def _format_message(self, raw_message: dict):
+        user_id = raw_message.get("user") or raw_message.get("bot_id")
+
+        return {
+            "id": raw_message.get("ts"),
+            "user_id": user_id,
+            "user_name": self._get_user_name(raw_message.get("user")),
+            "text": raw_message.get("text", ""),
+            "ts": raw_message.get("ts"),
+            "is_bot": raw_message.get("user") is None,
+        }
+
+    def _get_user_name(self, user_id: str):
+        if not user_id:
+            return "Slack Bot"
+
+        if user_id in self._user_name_cache:
+            return self._user_name_cache[user_id]
+
+        try:
+            result = self.client.users_info(user=user_id)
+            profile = result["user"].get("profile", {})
+            name = profile.get("display_name") or profile.get("real_name") or result["user"].get("name") or user_id
+        except SlackApiError:
+            name = user_id
+
+        self._user_name_cache[user_id] = name
+        return name
+
     def _find_channel_by_name(self, name: str):
         channels = self._get_all_public_channels()
 
@@ -169,6 +224,29 @@ class SlackApiService:
             return error.response["error"]
 
         return "unknown_slack_error"
+
+    def _scope_detail(self, error: SlackApiError):
+        """The scopes Slack says are needed, which its error alone does not reveal.
+
+        Without these, a missing_scope reads as a generic permission problem and the only way
+        to learn which scope is missing is to call the Slack API by hand.
+        """
+        if error.response is None:
+            return {}
+
+        detail = {
+            key: error.response[key]
+            for key in ("needed", "provided")
+            if key in error.response
+        }
+
+        if detail:
+            logger.warning(
+                f"Slack rejected the call: needed={detail.get('needed')} "
+                f"provided={detail.get('provided')}"
+            )
+
+        return detail
 
 
 slack_api_service = SlackApiService()

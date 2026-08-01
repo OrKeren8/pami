@@ -2,11 +2,24 @@ from beanie import Document, PydanticObjectId
 from typing import List, Optional, Union
 from datetime import datetime
 from pydantic import BaseModel, Field
+from pymongo import ASCENDING, IndexModel
 
 
 class SiblingLink(BaseModel):
     sibling_id: str
     correlation_score: int = Field(default=0, ge=0, le=100)
+
+
+class NearPeer(BaseModel):
+    """A conversation that is this node's closest, but not close enough to link.
+
+    Kept so the UI can say "these are the nearest, and none was near enough" instead of
+    showing an isolated node with no explanation. Deliberately not a link: forcing one would
+    draw a relationship the similarity does not support.
+    """
+
+    sibling_id: str
+    similarity: float = Field(ge=-1.0, le=1.0)
 
 
 class ContextTreeNode(Document):
@@ -23,8 +36,16 @@ class ContextTreeNode(Document):
     node_type: str  # e.g., "goal", "task", "milestone"
     color: Optional[str] = None
     conversation_id: Optional[str] = None  # Link to AI conversation
+    near_peers: List[NearPeer] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     class Settings:
         name = "context_tree"
+        # Listing a project's nodes was a full collection scan, and it runs on every node
+        # fetch, create, update, score push and delete - several of those twice per request.
+        # Cost grew with the total node count across all projects, not with the project's own.
+        indexes = [
+            IndexModel([("project_id", ASCENDING)], name="project"),
+            IndexModel([("conversation_id", ASCENDING)], name="conversation"),
+        ]

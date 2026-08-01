@@ -1,3 +1,4 @@
+import asyncio
 from typing import Dict, Iterable, List, Optional
 from datetime import datetime
 from loguru import logger
@@ -5,18 +6,32 @@ import aiohttp
 import traceback
 
 from projects_service.data.context_tree_repository import ContextTreeRepository
-from projects_service.models.context_tree import ContextTreeNode, SiblingLink
+from projects_service.models.context_tree import (
+    ContextTreeNode,
+    NearPeer,
+    SiblingLink,
+)
 from projects_service.schemas.context_tree_schemas import (
     CreateContextTreeNodeRequest,
     UpdateContextTreeNodeRequest,
     ContextTreeNodeResponse,
+    NearPeerPayload,
     SiblingLinkPayload,
+    SiblingScorePayload,
 )
 from projects_service.core.config import settings
 
 
 class AIOrganizationError(Exception):
     """Raised when the AI organization service fails to provide a usable response."""
+
+
+class UnknownSiblingError(Exception):
+    """Raised when a sibling score references a node outside the project."""
+
+
+class ConversationPurgeError(Exception):
+    """Raised when a node's conversation could not be removed, so the node was kept."""
 
 
 class ContextTreeService:
@@ -27,6 +42,7 @@ class ContextTreeService:
     def __init__(self, context_tree_repository: ContextTreeRepository):
         self._logger = logger.bind(service="ContextTreeService")
         self._context_tree_repository = context_tree_repository
+        self._background_tasks: set[asyncio.Task] = set()
 
     @staticmethod
     def _ai_base_url() -> str:
@@ -82,62 +98,111 @@ class ContextTreeService:
             )
         return serialized
 
+    def _spawn_ai_organize(self, node, project_id: str, conversation_id) -> None:
+        """Run the AI organizer detached, holding a reference until it finishes.
+
+        The event loop only holds a weak reference to a task, so a bare create_task can be
+        garbage-collected while suspended on an await - which is how a node occasionally ended
+        up with no AI title, summary or sibling links and nothing in the log. The done callback
+        also surfaces failures that would otherwise only appear as an unretrieved exception
+        warning at interpreter shutdown.
+        """
+
+        def _finished(task: asyncio.Task) -> None:
+            self._background_tasks.discard(task)
+            if task.cancelled():
+                return
+            error = task.exception()
+            if error:
+                self._logger.error(
+                    f"AI organization failed for node {self._node_id(node)}: "
+                    f"{type(error).__name__}: {error}"
+                )
+
+        task = asyncio.create_task(
+            self._ai_organize_node(node, project_id, conversation_id)
+        )
+        self._background_tasks.add(task)
+        task.add_done_callback(_finished)
+
+    def _service_headers(self) -> Dict[str, str]:
+        """Identify this service to the AI service.
+
+        These calls happen from background tasks reacting to a node being created, so there is
+        no user token to forward even in principle.
+        """
+        if settings.service_key:
+            return {"X-Service-Key": settings.service_key}
+        return {}
+
     async def _persist_node_fields(self, node: ContextTreeNode, fields: dict) -> None:
-        try:
-            for key, val in fields.items():
-                setattr(node, key, val)
-            await node.save()
-        except TypeError:
-            await self._context_tree_repository.update(self._node_id(node), fields)
+        """Write only the named fields.
+
+        This used to mutate the in-memory node and call save(), which replaces the whole
+        document. The AI organizer loads a node, spends seconds in an LLM call, then persists
+        header/summary/topics - and the save silently reverted any sibling_links written by
+        the embedding scorer during that window. That is why links appeared and then
+        disappeared. A field-scoped update cannot clobber a concurrent writer's other fields.
+        """
+        for key, value in fields.items():
+            setattr(node, key, value)
+        await self._context_tree_repository.update(self._node_id(node), fields)
+
+    def _merge_scores(
+        self, existing: Dict[str, int], fresh: Dict[str, int]
+    ) -> Dict[str, int]:
+        """Freshest score wins; peers absent from `fresh` keep their existing score."""
+        merged = dict(existing)
+        for peer_id, score in fresh.items():
+            if score >= self._MIN_CORRELATION_SCORE:
+                merged[peer_id] = score
+            else:
+                merged.pop(peer_id, None)
+        return merged
 
     async def _recompute_weighted_links_for_node(
         self,
         project_id: str,
         node_id: str,
         include_peer_scores: Optional[Dict[str, int]] = None,
+        all_nodes: Optional[List[ContextTreeNode]] = None,
     ) -> None:
-        """Apply AI-provided sibling scores for a node and enforce reciprocal links."""
-        all_nodes = await self._context_tree_repository.list_by_project(project_id)
+        """Apply freshly scored sibling links for a node and mirror them onto peers."""
+        if all_nodes is None:
+            all_nodes = await self._context_tree_repository.list_by_project(project_id)
         node_by_id = {self._node_id(n): n for n in all_nodes}
         source = node_by_id.get(str(node_id))
         if not source:
             return
 
         source_id = self._node_id(source)
-        include_peer_scores = include_peer_scores or {}
 
-        desired_source_map: Dict[str, int] = {}
-        for peer_id, raw_score in include_peer_scores.items():
-            if peer_id == source_id:
+        scored: Dict[str, int] = {}
+        for peer_id, raw_score in (include_peer_scores or {}).items():
+            if peer_id == source_id or peer_id not in node_by_id:
                 continue
-            if peer_id not in node_by_id:
-                continue
-            score = self._clamp_score(raw_score)
-            if score >= self._MIN_CORRELATION_SCORE:
-                desired_source_map[peer_id] = score
+            scored[peer_id] = self._clamp_score(raw_score)
 
         old_source_map = self._get_link_map(source)
-        if old_source_map != desired_source_map:
+        new_source_map = self._merge_scores(old_source_map, scored)
+        if old_source_map != new_source_map:
             await self._persist_node_fields(
                 source,
                 {
-                    "sibling_links": self._serialize_link_map(desired_source_map),
+                    "sibling_links": self._serialize_link_map(new_source_map),
                     "updated_at": datetime.utcnow(),
                 },
             )
 
         for other in all_nodes:
             other_id = self._node_id(other)
-            if other_id == source_id:
+            if other_id == source_id or other_id not in scored:
                 continue
 
             old_other_map = self._get_link_map(other)
-            new_other_map = dict(old_other_map)
-
-            if other_id in desired_source_map:
-                new_other_map[source_id] = desired_source_map[other_id]
-            else:
-                new_other_map.pop(source_id, None)
+            new_other_map = self._merge_scores(
+                old_other_map, {source_id: scored[other_id]}
+            )
 
             if old_other_map != new_other_map:
                 await self._persist_node_fields(
@@ -147,6 +212,30 @@ class ContextTreeService:
                         "updated_at": datetime.utcnow(),
                     },
                 )
+
+    @staticmethod
+    def _serialize_near_peers(raw) -> List[NearPeerPayload]:
+        """Accept models or dicts.
+
+        A node fetched from Mongo carries NearPeer models, but one this service has just
+        written to holds the plain dicts it persisted, and the response mapper runs on both.
+        """
+        peers = []
+        for peer in raw or []:
+            if isinstance(peer, dict):
+                sibling_id = peer.get("sibling_id")
+                similarity = peer.get("similarity")
+            else:
+                sibling_id = getattr(peer, "sibling_id", None)
+                similarity = getattr(peer, "similarity", None)
+            if sibling_id is None or similarity is None:
+                continue
+            peers.append(
+                NearPeerPayload(
+                    sibling_id=str(sibling_id), similarity=float(similarity)
+                )
+            )
+        return peers
 
     def _to_response(self, node: ContextTreeNode) -> ContextTreeNodeResponse:
         color_val = getattr(node, "color", None)
@@ -172,6 +261,7 @@ class ContextTreeService:
             project_id=str(getattr(node, "project_id")),
             node_type=str(getattr(node, "node_type")),
             conversation_id=conv,
+            near_peers=self._serialize_near_peers(getattr(node, "near_peers", [])),
             created_at=getattr(node, "created_at"),
             updated_at=getattr(node, "updated_at"),
         )
@@ -219,16 +309,7 @@ class ContextTreeService:
                     f"Could not persist provided conversation_id for node {created_node_id}: {e}"
                 )
 
-            try:
-                import asyncio
-
-                asyncio.create_task(
-                    self._ai_organize_node(created_node, project_id, req_conv)
-                )
-            except Exception:
-                await self._ai_organize_node(
-                    created_node, project_id, req_conv, raise_on_no_response=True
-                )
+            self._spawn_ai_organize(created_node, project_id, req_conv)
         else:
             conversation_id = await self._create_ai_conversation(
                 created_node_id, project_id
@@ -263,28 +344,16 @@ class ContextTreeService:
                             "message": seed_message,
                             "context_snapshot": {"project_id": project_id},
                         }
-                        async with session.post(seed_url, json=seed_payload):
+                        async with session.post(
+                            seed_url, json=seed_payload, headers=self._service_headers()
+                        ):
                             pass
                 except Exception as e:
                     self._logger.warning(
                         f"Failed to seed AI conversation for node {created_node_id}: {e}"
                     )
 
-                try:
-                    import asyncio
-
-                    asyncio.create_task(
-                        self._ai_organize_node(
-                            created_node, project_id, conversation_id
-                        )
-                    )
-                except Exception:
-                    await self._ai_organize_node(
-                        created_node,
-                        project_id,
-                        conversation_id,
-                        raise_on_no_response=True,
-                    )
+                self._spawn_ai_organize(created_node, project_id, conversation_id)
 
         refreshed = await self._context_tree_repository.get_by_id(created_node_id)
         return self._to_response(refreshed or created_node)
@@ -301,7 +370,9 @@ class ContextTreeService:
                 "title": f"AI Discussion - Node {context_node_id[:8]}",
             }
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload) as response:
+                async with session.post(
+                    url, json=payload, headers=self._service_headers()
+                ) as response:
                     status = response.status
                     body = await response.text()
                     if 200 <= status < 300:
@@ -352,7 +423,9 @@ class ContextTreeService:
                     "conversation_id": conversation_id,
                     "current_tree": tree_context,
                 }
-                async with session.post(url, json=payload) as response:
+                async with session.post(
+                    url, json=payload, headers=self._service_headers()
+                ) as response:
                     status = response.status
                     raw_body = await response.text()
                     if 200 <= status < 300:
@@ -422,12 +495,6 @@ class ContextTreeService:
                                     f"AI tree-analysis sibling score must be integer for node {self._node_id(node)}"
                                 )
                             suggested_scores[candidate] = self._clamp_score(raw_score)
-
-                        missing_ids = sorted(available_ids.difference(suggested_scores))
-                        if missing_ids:
-                            raise AIOrganizationError(
-                                "AI tree-analysis must return sibling_score_suggestions for every existing node"
-                            )
 
                         await self._persist_node_fields(
                             node,
@@ -499,6 +566,58 @@ class ContextTreeService:
         refreshed = await self._context_tree_repository.get_by_id(str(node_id))
         return self._to_response(refreshed or node)
 
+    async def apply_sibling_scores(
+        self,
+        node_id: str,
+        scores: List[SiblingScorePayload],
+        source: str = "embedding",
+        near_peers: Optional[List[NearPeerPayload]] = None,
+    ) -> Optional[ContextTreeNodeResponse]:
+        """Apply externally computed sibling scores and mirror them onto peers."""
+        node = await self._context_tree_repository.get_by_id(node_id)
+        if not node:
+            return None
+
+        near_peers = near_peers or []
+        node_id_str = str(node_id)
+        project_id = str(getattr(node, "project_id"))
+        all_nodes = await self._context_tree_repository.list_by_project(project_id)
+        known_ids = {self._node_id(n) for n in all_nodes}
+
+        unknown_ids = sorted({s.sibling_id for s in scores}.difference(known_ids))
+        if unknown_ids:
+            raise UnknownSiblingError(
+                f"Unknown sibling ids for node {node_id_str}: {unknown_ids[:5]}"
+            )
+
+        self._logger.info(
+            f"Applying {len(scores)} sibling scores to node {node_id_str} from {source}"
+        )
+        await self._recompute_weighted_links_for_node(
+            project_id=project_id,
+            node_id=node_id_str,
+            include_peer_scores={s.sibling_id: s.correlation_score for s in scores},
+            all_nodes=all_nodes,
+        )
+
+        # Recorded on every push, including as an empty list, so a node that used to have
+        # near peers and now has real links does not keep advertising the old ones.
+        await self._persist_node_fields(
+            node,
+            {
+                "near_peers": [
+                    NearPeer(
+                        sibling_id=p.sibling_id, similarity=p.similarity
+                    ).model_dump()
+                    for p in near_peers
+                    if p.sibling_id in known_ids
+                ]
+            },
+        )
+
+        refreshed = await self._context_tree_repository.get_by_id(node_id_str)
+        return self._to_response(refreshed or node)
+
     async def delete_node(self, node_id: str) -> bool:
         """Delete a node and clean reciprocal sibling links from other nodes."""
         self._logger.info(f"Attempting to delete node {node_id}")
@@ -528,12 +647,22 @@ class ContextTreeService:
                 },
             )
 
+        # The node is the only handle on its conversation, so deleting it while the AI service
+        # still holds the transcript and its search chunks strands content the user believes is
+        # gone - and because retrieval filters only by project_id, the assistant keeps quoting
+        # it. Refuse rather than orphan it; the caller can retry.
         conv_id = getattr(node, "conversation_id", None)
         if conv_id:
+            purged = False
             try:
-                await self._delete_ai_conversation(conv_id)
+                purged = await self._delete_ai_conversation(conv_id)
             except Exception as e:
                 self._logger.error(f"Failed to delete AI conversation {conv_id}: {e}")
+            if not purged:
+                raise ConversationPurgeError(
+                    f"Conversation {conv_id} could not be removed, so node {node_id} "
+                    "was left in place"
+                )
 
         deleted = await self._context_tree_repository.delete(node_id)
         if deleted:
@@ -547,7 +676,9 @@ class ContextTreeService:
         try:
             url = f"{self._ai_base_url()}/ai-conversations/{conversation_id}"
             async with aiohttp.ClientSession() as session:
-                async with session.delete(url) as response:
+                async with session.delete(
+                    url, headers=self._service_headers()
+                ) as response:
                     status = response.status
                     body = await response.text()
                     if 200 <= status < 300:

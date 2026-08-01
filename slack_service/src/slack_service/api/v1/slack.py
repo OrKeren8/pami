@@ -4,7 +4,6 @@ from slack_service.schemas.slack_schemas import CreateChannelRequest, SendMessag
 from slack_service.services.slack_api_service import slack_api_service
 from slack_service.services.slack_signature_service import slack_signature_service
 
-
 router = APIRouter(prefix="/slack", tags=["slack"])
 
 
@@ -21,6 +20,11 @@ def create_channel(request: CreateChannelRequest):
 @router.get("/list-channels")
 def list_channels():
     return slack_api_service.list_channels()
+
+
+@router.get("/channels/{channel_id}/messages")
+def get_channel_messages(channel_id: str, limit: int = 50):
+    return slack_api_service.get_channel_messages(channel_id, limit)
 
 
 @router.post("/messages")

@@ -25,7 +25,10 @@ from typing import Dict, Optional, List
 
 # Configuration
 REGION = "us-east-1"
-ACCOUNT_ID = "909189231170"
+# Resolved from the caller's credentials in init_aws_clients. The lab account is
+# rebuilt periodically, so a literal here goes stale and prints registry URIs that
+# belong to an account nobody can push to any more.
+ACCOUNT_ID = None
 CLUSTER_NAME = "pami-cluster"
 
 SERVICES = [
@@ -43,6 +46,7 @@ logs = None
 s3 = None
 amplify = None
 apigateway = None
+cognito = None
 
 
 def load_env_file(env_path: str = None):
@@ -74,7 +78,7 @@ def load_env_file(env_path: str = None):
 
 def init_aws_clients(region: str = None):
     """Initialize global boto3 clients using environment variables if present."""
-    global ecs, ec2, ecr, elbv2, logs, s3, amplify, apigateway
+    global ecs, ec2, ecr, elbv2, logs, s3, amplify, apigateway, cognito, ACCOUNT_ID
     # Prefer explicit parameter, then common env vars, then module default
     region = (
         region
@@ -115,6 +119,7 @@ def init_aws_clients(region: str = None):
         s3 = boto3.client("s3", **session_kwargs)
         amplify = boto3.client("amplify", **session_kwargs)
         apigateway = boto3.client("apigatewayv2", **session_kwargs)
+        cognito = boto3.client("cognito-idp", **session_kwargs)
     else:
         # Let boto3 resolve endpoints using the region_name parameter instead of building endpoint URLs manually.
         ecs = boto3.client("ecs", region_name=region)
@@ -125,6 +130,14 @@ def init_aws_clients(region: str = None):
         s3 = boto3.client("s3", region_name=region)
         amplify = boto3.client("amplify", region_name=region)
         apigateway = boto3.client("apigatewayv2", region_name=region)
+        cognito = boto3.client("cognito-idp", region_name=region)
+
+    try:
+        ACCOUNT_ID = boto3.client(
+            "sts", region_name=region
+        ).get_caller_identity()["Account"]
+    except Exception as error:
+        print_error(f"Could not resolve the AWS account id: {error}")
 
 
 def print_header(text: str):
@@ -134,19 +147,34 @@ def print_header(text: str):
     print(f"{'=' * 60}\n")
 
 
+def _write(line: str, stream=None) -> None:
+    """Print without letting the console's encoding break the caller.
+
+    On a Windows console using a legacy code page, printing a tick raises
+    UnicodeEncodeError. Every one of these helpers is called from inside a try block that
+    reports "could not create X" - so a failure to *print* was being reported as a failure
+    to create, and a Cognito user pool that had in fact been created came back as None.
+    """
+    target = stream or sys.stdout
+    try:
+        print(line, file=target)
+    except UnicodeEncodeError:
+        print(line.encode("ascii", "replace").decode("ascii"), file=target)
+
+
 def print_success(text: str):
     """Print success message."""
-    print(f"✓ {text}")
+    _write(f"✓ {text}")
 
 
 def print_info(text: str):
     """Print info message."""
-    print(f"  {text}")
+    _write(f"  {text}")
 
 
 def print_error(text: str):
     """Print error message."""
-    print(f"✗ ERROR: {text}", file=sys.stderr)
+    _write(f"✗ ERROR: {text}", sys.stderr)
 
 
 def get_default_vpc() -> Optional[str]:
@@ -181,6 +209,14 @@ def get_vpc_subnets(vpc_id: str) -> List[str]:
         return []
 
 
+# Only the load balancer listeners face the internet. The container ports behind it are
+# reachable from inside this security group, which both the ALB and the tasks are members
+# of, so ALB -> task traffic and health checks still work. Opening 8000-8002 to 0.0.0.0/0
+# published every service directly on its task's public IP, bypassing the load balancer.
+PUBLIC_PORTS = [80, 443]
+SERVICE_PORTS = [8000, 8001, 8002]
+
+
 def create_or_get_security_group(vpc_id: str) -> Optional[str]:
     """Create or get the security group for ECS services."""
     sg_name = "pami-ecs-services-sg"
@@ -195,8 +231,11 @@ def create_or_get_security_group(vpc_id: str) -> Optional[str]:
         )
 
         if response["SecurityGroups"]:
-            sg_id = response["SecurityGroups"][0]["GroupId"]
+            group = response["SecurityGroups"][0]
+            sg_id = group["GroupId"]
             print_success(f"Security group already exists: {sg_id}")
+            _close_public_service_ports(group)
+            _allow_service_ports_from_self(sg_id)
             return sg_id
 
         # Create security group
@@ -207,9 +246,7 @@ def create_or_get_security_group(vpc_id: str) -> Optional[str]:
         )
         sg_id = response["GroupId"]
 
-        # Add ingress rules for all service ports
-        ports = [8000, 8001, 8002, 80, 443]
-        for port in ports:
+        for port in PUBLIC_PORTS:
             ec2.authorize_security_group_ingress(
                 GroupId=sg_id,
                 IpPermissions=[
@@ -224,12 +261,73 @@ def create_or_get_security_group(vpc_id: str) -> Optional[str]:
                 ],
             )
 
+        _allow_service_ports_from_self(sg_id)
+
         print_success(f"Created security group: {sg_id}")
         return sg_id
 
     except Exception as e:
         print_error(f"Failed to create/get security group: {e}")
         return None
+
+
+def _allow_service_ports_from_self(sg_id: str) -> None:
+    """Allow the container ports from members of this same group, and only those."""
+    for port in SERVICE_PORTS:
+        try:
+            ec2.authorize_security_group_ingress(
+                GroupId=sg_id,
+                IpPermissions=[
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": port,
+                        "ToPort": port,
+                        "UserIdGroupPairs": [
+                            {
+                                "GroupId": sg_id,
+                                "Description": f"Load balancer to task port {port}",
+                            }
+                        ],
+                    }
+                ],
+            )
+        except Exception as error:
+            # Re-running the setup is normal, and the rule is already what we want.
+            if "InvalidPermission.Duplicate" in str(error):
+                continue
+            print_error(f"Could not allow port {port} from the service group: {error}")
+
+
+def _close_public_service_ports(group: dict) -> None:
+    """Revoke any world-open rule on a container port left by an earlier setup run."""
+    for permission in group.get("IpPermissions", []):
+        port = permission.get("FromPort")
+        if port not in SERVICE_PORTS or permission.get("IpProtocol") != "tcp":
+            continue
+
+        open_ranges = [
+            ip_range
+            for ip_range in permission.get("IpRanges", [])
+            if ip_range.get("CidrIp") == "0.0.0.0/0"
+        ]
+        if not open_ranges:
+            continue
+
+        try:
+            ec2.revoke_security_group_ingress(
+                GroupId=group["GroupId"],
+                IpPermissions=[
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": port,
+                        "ToPort": permission.get("ToPort", port),
+                        "IpRanges": open_ranges,
+                    }
+                ],
+            )
+            print_success(f"Closed public access to container port {port}")
+        except Exception as error:
+            print_error(f"Could not close public access to port {port}: {error}")
 
 
 def create_ecs_cluster():
@@ -545,6 +643,151 @@ def create_alb_listeners(lb_arn: str, target_groups: Dict[str, str]):
         print_error(f"Failed to setup listeners: {e}")
 
 
+USER_POOL_NAME = "pami-users"
+USER_POOL_CLIENT_NAME = "pami-web"
+
+
+def create_or_get_user_pool() -> Optional[Dict[str, str]]:
+    """Create the Cognito user pool and its web client, or find the existing ones.
+
+    Returns None rather than aborting if Cognito is unavailable: this account is an AWS
+    Academy lab with restricted IAM, and the app is designed to run with AUTH_REQUIRED off
+    until a pool exists. A setup run that failed here would take out the ECS and ALB work
+    that follows for a reason unrelated to it.
+
+    Never deletes or recreates a pool. The pool holds the user accounts - recreating it would
+    destroy every login and orphan every project's owner id.
+    """
+    print_header("Setting up Cognito User Pool")
+
+    try:
+        pools = cognito.list_user_pools(MaxResults=60).get("UserPools", [])
+    except Exception as error:
+        print_error(
+            f"Cannot list Cognito user pools ({type(error).__name__}). "
+            f"Authentication stays disabled; run with AUTH_REQUIRED unset."
+        )
+        return None
+
+    pool_id = next(
+        (pool["Id"] for pool in pools if pool.get("Name") == USER_POOL_NAME), None
+    )
+
+    if pool_id:
+        print_success(f"User pool already exists: {pool_id}")
+    else:
+        try:
+            response = cognito.create_user_pool(
+                PoolName=USER_POOL_NAME,
+                # Email is the identity everywhere in the app: it is what a project is shared
+                # with and what the admin gate matches on.
+                UsernameAttributes=["email"],
+                AutoVerifiedAttributes=["email"],
+                Policies={
+                    "PasswordPolicy": {
+                        "MinimumLength": 8,
+                        "RequireUppercase": True,
+                        "RequireLowercase": True,
+                        "RequireNumbers": True,
+                        "RequireSymbols": False,
+                    }
+                },
+                AccountRecoverySetting={
+                    "RecoveryMechanisms": [
+                        {"Priority": 1, "Name": "verified_email"}
+                    ]
+                },
+                Schema=[
+                    {
+                        "Name": "email",
+                        "AttributeDataType": "String",
+                        "Required": True,
+                        "Mutable": True,
+                    }
+                ],
+            )
+            pool_id = response["UserPool"]["Id"]
+            print_success(f"Created user pool: {pool_id}")
+        except Exception as error:
+            print_error(
+                f"Could not create the user pool ({type(error).__name__}: {error}). "
+                f"Authentication stays disabled."
+            )
+            return None
+
+    try:
+        clients = cognito.list_user_pool_clients(
+            UserPoolId=pool_id, MaxResults=60
+        ).get("UserPoolClients", [])
+        client_id = next(
+            (
+                client["ClientId"]
+                for client in clients
+                if client.get("ClientName") == USER_POOL_CLIENT_NAME
+            ),
+            None,
+        )
+
+        if client_id:
+            print_success(f"App client already exists: {client_id}")
+        else:
+            created = cognito.create_user_pool_client(
+                UserPoolId=pool_id,
+                ClientName=USER_POOL_CLIENT_NAME,
+                # No secret: this is a browser app, where a secret could not be kept.
+                GenerateSecret=False,
+                ExplicitAuthFlows=[
+                    "ALLOW_USER_SRP_AUTH",
+                    "ALLOW_REFRESH_TOKEN_AUTH",
+                ],
+                IdTokenValidity=60,
+                AccessTokenValidity=60,
+                RefreshTokenValidity=30,
+                TokenValidityUnits={
+                    "IdToken": "minutes",
+                    "AccessToken": "minutes",
+                    "RefreshToken": "days",
+                },
+                PreventUserExistenceErrors="ENABLED",
+            )
+            client_id = created["UserPoolClient"]["ClientId"]
+            print_success(f"Created app client: {client_id}")
+    except Exception as error:
+        print_error(
+            f"Could not set up the app client ({type(error).__name__}: {error})."
+        )
+        return None
+
+    # Best effort: the admin gate falls back to an email allowlist precisely because
+    # CreateGroup may be denied here.
+    try:
+        cognito.create_group(
+            UserPoolId=pool_id,
+            GroupName="admins",
+            Description="PAMI administrators",
+        )
+        print_success("Created the admins group")
+    except Exception as error:
+        if "GroupExistsException" in type(error).__name__:
+            print_info("admins group already exists")
+        else:
+            print_info(
+                f"Could not create the admins group ({type(error).__name__}); "
+                f"ADMIN_EMAILS still applies"
+            )
+
+    return {"user_pool_id": pool_id, "client_id": client_id}
+
+
+def _cognito_frontend_env(user_pool: Optional[Dict[str, str]]) -> Dict[str, str]:
+    """The two variables the frontend needs, or empty strings when there is no pool."""
+    return {
+        "REACT_APP_COGNITO_USER_POOL_ID": (user_pool or {}).get("user_pool_id", ""),
+        "REACT_APP_COGNITO_CLIENT_ID": (user_pool or {}).get("client_id", ""),
+        "REACT_APP_COGNITO_REGION": REGION,
+    }
+
+
 def create_api_gateway(lb_dns: str) -> Optional[str]:
     """Create API Gateway HTTP API for HTTPS support."""
     print_header("Setting up API Gateway for HTTPS")
@@ -855,7 +1098,9 @@ def refresh_projects_service_ai_url(lb_dns: Optional[str]) -> bool:
 
 
 def create_amplify_app(
-    api_base_url: str, github_token: Optional[str] = None
+    api_base_url: str,
+    github_token: Optional[str] = None,
+    user_pool: Optional[Dict[str, str]] = None,
 ) -> Optional[str]:
     """Create or update AWS Amplify app for frontend."""
     print_header("Setting up AWS Amplify for Frontend")
@@ -903,6 +1148,9 @@ def create_amplify_app(
                         "REACT_APP_SLACK_API_URL": f"{api_base_url}/slack",
                         # Bake the `/ai` prefix into the frontend env so builds use `/ai` as base
                         "REACT_APP_AI_API_URL": f"{api_base_url}/ai",
+                        # Empty when no pool exists, which is how the frontend decides whether
+                        # to show a real sign-in or continue as a local user.
+                        **_cognito_frontend_env(user_pool),
                         "_LIVE_UPDATES": '[{"pkg":"@aws-amplify/cli","type":"npm","version":"latest"}]',
                     },
                 )
@@ -1009,6 +1257,7 @@ def create_amplify_app(
                 "REACT_APP_SLACK_API_URL": f"{api_base_url}/slack",
                 # Bake the `/ai` prefix into the frontend so built app targets /ai
                 "REACT_APP_AI_API_URL": f"{api_base_url}/ai",
+                **_cognito_frontend_env(user_pool),
                 "_LIVE_UPDATES": '[{"pkg":"@aws-amplify/cli","type":"npm","version":"latest"}]',
             },
             "buildSpec": """version: 1
@@ -1206,7 +1455,7 @@ def main():
 
     print_header("PAMI AWS Infrastructure Setup")
     print(f"Region: {resolved_region}")
-    print(f"Account: {ACCOUNT_ID}")
+    print(f"Account: {ACCOUNT_ID or 'could not be resolved'}")
     print()
 
     try:
@@ -1258,6 +1507,10 @@ def main():
 
         # Create API Gateway for HTTPS
         api_gateway_url = None
+        # Before Amplify, because the frontend build needs the pool ids as env vars. Returns
+        # None if Cognito is unavailable, and everything else carries on.
+        user_pool = create_or_get_user_pool()
+
         if lb_dns:
             api_gateway_url = create_api_gateway(lb_dns)
 
@@ -1275,7 +1528,7 @@ def main():
         # Setup Amplify for frontend (optional - will skip if no GitHub token)
         amplify_url = None
         if api_base_url:
-            amplify_url = create_amplify_app(api_base_url)
+            amplify_url = create_amplify_app(api_base_url, user_pool=user_pool)
 
         # Print summary
         print_summary(

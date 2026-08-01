@@ -1,6 +1,10 @@
 name: Deploy Slack Service
 
 on:
+  # A manual run can target this branch. Deliberately NOT a push trigger: there is a single
+  # environment, and until scripts/backfill_project_owners.py has given the existing projects
+  # an owner, a deploy of the ownership work would leave them visible to nobody - the app
+  # would look empty even though nothing was lost.
   workflow_dispatch:
   push:
     branches: [main]
@@ -8,8 +12,17 @@ on:
       - 'slack_service/**'
       - '.github/workflows/deploy-slack-service.yml'
 
+concurrency:
+  group: deploy-slack
+  cancel-in-progress: false
+
 jobs:
+  validate:
+    uses: ./.github/workflows/validate.yml
+    secrets: inherit
+
   deploy:
+    needs: validate
     runs-on: ubuntu-latest
 
     steps:
@@ -27,6 +40,12 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Resolve the AWS account id
+        # The lab account is rebuilt periodically. Writing its id into the registry and
+        # role ARNs meant every one of them had to be found and edited by hand, and one
+        # file was missed for a whole account generation.
+        run: echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
+
       - name: Build and Push Image
         run: |
           cd slack_service
@@ -34,27 +53,31 @@ jobs:
           IMAGE_TAG=${{ github.sha }}
 
           docker build -t pami-slack-service:$IMAGE_TAG .
-          docker tag pami-slack-service:$IMAGE_TAG 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
-          docker tag pami-slack-service:$IMAGE_TAG 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
+          docker tag pami-slack-service:$IMAGE_TAG ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
+          docker tag pami-slack-service:$IMAGE_TAG ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
 
-          docker push 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
-          docker push 413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
+          docker push ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:$IMAGE_TAG
+          docker push ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest
 
       - name: Register Task Definition
         run: |
-          cat > task-def.json << 'EOF'
+          # Unquoted delimiter so ${ACCOUNT_ID} expands. Quoted, the task definition reached
+          # AWS with the literal string "${ACCOUNT_ID}" in the image URI and both role ARNs.
+          # No other $ appears in the body, and the ${{ }} forms are substituted by Actions
+          # before the shell ever sees them.
+          cat > task-def.json << EOF
           {
             "family": "pami-slack-service",
             "networkMode": "awsvpc",
             "requiresCompatibilities": ["FARGATE"],
             "cpu": "512",
             "memory": "1024",
-            "executionRoleArn": "arn:aws:iam::413410781221:role/LabRole",
-            "taskRoleArn": "arn:aws:iam::413410781221:role/LabRole",
+            "executionRoleArn": "arn:aws:iam::${ACCOUNT_ID}:role/LabRole",
+            "taskRoleArn": "arn:aws:iam::${ACCOUNT_ID}:role/LabRole",
             "containerDefinitions": [
               {
                 "name": "slack-service",
-                "image": "413410781221.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:latest",
+                "image": "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/slack-service:${{ github.sha }}",
                 "portMappings": [
                   {
                     "containerPort": 8002,
@@ -95,14 +118,51 @@ jobs:
 
       - name: Create or Update ECS Service
         run: |
+          # Looked up by name, not hardcoded: AWS appends a random id to every target group
+          # ARN, so a rebuilt lab account recreates slack-service-tg under a new ARN and any
+          # hardcoded one becomes a dead reference that fails CreateService.
+          TG_ARN=$(aws elbv2 describe-target-groups \
+            --names slack-service-tg \
+            --query 'TargetGroups[0].TargetGroupArn' \
+            --output text \
+            --region us-east-1)
+
+          if [ -z "$TG_ARN" ] || [ "$TG_ARN" = "None" ]; then
+            echo "::error::Target group slack-service-tg not found. Run setup_aws_infrastructure.py first."
+            exit 1
+          fi
+          echo "Using target group $TG_ARN"
+
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters Name=is-default,Values=true \
+            --query 'Vpcs[0].VpcId' --output text --region us-east-1)
+          SUBNETS=$(aws ec2 describe-subnets \
+            --filters Name=vpc-id,Values=$VPC_ID \
+            --query 'Subnets[].SubnetId' --output text --region us-east-1 | tr '\t' ',')
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters Name=group-name,Values=pami-ecs-services-sg Name=vpc-id,Values=$VPC_ID \
+            --query 'SecurityGroups[0].GroupId' --output text --region us-east-1)
+
+          if [ -z "$SUBNETS" ] || [ "$SG_ID" = "None" ]; then
+            echo "::error::Could not resolve VPC networking. Run setup_aws_infrastructure.py first."
+            exit 1
+          fi
+          echo "Using subnets $SUBNETS and security group $SG_ID"
+
           # Check if service exists
-          if aws ecs describe-services --cluster pami-cluster --services pami-slack-service --region us-east-1 | grep -q "ACTIVE\|DRAINING"; then
+          # Queried as a field, not grepped from the JSON blob: "INACTIVE" contains "ACTIVE",
+          # so a recently deleted service matched and was updated rather than recreated.
+          SERVICE_STATUS=$(aws ecs describe-services --cluster pami-cluster --services pami-slack-service --region us-east-1 --query 'services[0].status' --output text 2>/dev/null || echo "NONE")
+          echo "Slack service status: $SERVICE_STATUS"
+
+          if [ "$SERVICE_STATUS" = "ACTIVE" ] || [ "$SERVICE_STATUS" = "DRAINING" ]; then
             echo "Service exists, updating..."
             aws ecs update-service \
               --cluster pami-cluster \
               --service pami-slack-service \
               --task-definition pami-slack-service \
               --force-new-deployment \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" \
               --desired-count 1 \
               --region us-east-1
           else
@@ -113,8 +173,9 @@ jobs:
               --task-definition pami-slack-service \
               --desired-count 1 \
               --launch-type FARGATE \
-              --network-configuration "awsvpcConfiguration={subnets=[subnet-02b60037f031bd077,subnet-00ac61fe81c2383a2],securityGroups=[sg-09b92835d6629a36a],assignPublicIp=ENABLED}" \
-              --load-balancers "targetGroupArn=arn:aws:elasticloadbalancing:us-east-1:413410781221:targetgroup/slack-service-tg/0272a76f612b8216,containerName=slack-service,containerPort=8002" \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG_ID],assignPublicIp=ENABLED}" \
+              --load-balancers "targetGroupArn=$TG_ARN,containerName=slack-service,containerPort=8002" \
               --region us-east-1
           fi
           # Ensure desired count is 1 in case the service existed with 0
@@ -126,6 +187,24 @@ jobs:
             --cluster pami-cluster \
             --services pami-slack-service \
             --region us-east-1
+
+      - name: Smoke check slack-service through the ALB
+        run: |
+          # `wait services-stable` only asks ECS whether tasks are running; it never checks
+          # that the service answers. A container that boots and then fails its first request
+          # would otherwise be reported as a successful deploy.
+          ALB_DNS=$(aws elbv2 describe-load-balancers --region us-east-1 --query "LoadBalancers[?LoadBalancerName=='pami-alb'].DNSName | [0]" --output text)
+          for attempt in 1 2 3 4 5 6; do
+            CODE=$(curl -s -o /dev/null -m 15 -w "%{http_code}" "http://$ALB_DNS/slack/health" || echo 000)
+            echo "attempt $attempt: /slack/health -> $CODE"
+            if [ "$CODE" = "200" ]; then
+              echo "slack-service is serving"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::slack-service did not answer /slack/health with 200 after the rollout"
+          exit 1
 
       - name: Get service status
         run: |
