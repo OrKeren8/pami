@@ -1,0 +1,217 @@
+name: Deploy Jira Service
+
+on:
+  # A manual run can target this branch. Deliberately NOT a push trigger: there is a single
+  # environment, and until scripts/backfill_project_owners.py has given the existing projects
+  # an owner, a deploy of the ownership work would leave them visible to nobody - the app
+  # would look empty even though nothing was lost.
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'jira_service/**'
+      - '.github/workflows/deploy-jira-service.yml'
+
+concurrency:
+  group: deploy-jira
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    uses: ./.github/workflows/validate.yml
+    secrets: inherit
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve the AWS account id
+        # The lab account is rebuilt periodically. Writing its id into the registry and
+        # role ARNs meant every one of them had to be found and edited by hand, and one
+        # file was missed for a whole account generation.
+        run: echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
+
+      - name: Build and Push Image
+        run: |
+          cd jira_service
+
+          IMAGE_TAG=${{ github.sha }}
+
+          docker build -t pami-jira-service:$IMAGE_TAG .
+          docker tag pami-jira-service:$IMAGE_TAG ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/jira-service:$IMAGE_TAG
+          docker tag pami-jira-service:$IMAGE_TAG ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/jira-service:latest
+
+          docker push ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/jira-service:$IMAGE_TAG
+          docker push ${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/jira-service:latest
+
+      - name: Register Task Definition
+        run: |
+          # Unquoted delimiter so ${ACCOUNT_ID} expands. Quoted, the task definition reached
+          # AWS with the literal string "${ACCOUNT_ID}" in the image URI and both role ARNs.
+          # No other $ appears in the body, and the ${{ }} forms are substituted by Actions
+          # before the shell ever sees them.
+          cat > task-def.json << EOF
+          {
+            "family": "pami-jira-service",
+            "networkMode": "awsvpc",
+            "requiresCompatibilities": ["FARGATE"],
+            "cpu": "512",
+            "memory": "1024",
+            "executionRoleArn": "arn:aws:iam::${ACCOUNT_ID}:role/LabRole",
+            "taskRoleArn": "arn:aws:iam::${ACCOUNT_ID}:role/LabRole",
+            "containerDefinitions": [
+              {
+                "name": "jira-service",
+                "image": "${ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/pami/jira-service:${{ github.sha }}",
+                "portMappings": [
+                  {
+                    "containerPort": 8003,
+                    "protocol": "tcp",
+                    "appProtocol": "http"
+                  }
+                ],
+                "essential": true,
+                "environment": [
+                  {
+                    "name": "JIRA_BASE_URL",
+                    "value": "${{ secrets.JIRA_BASE_URL }}"
+                  },
+                  {
+                    "name": "JIRA_USERNAME",
+                    "value": "${{ secrets.JIRA_USERNAME }}"
+                  },
+                  {
+                    "name": "JIRA_API_TOKEN",
+                    "value": "${{ secrets.JIRA_API_TOKEN }}"
+                  }
+                ],
+                "logConfiguration": {
+                  "logDriver": "awslogs",
+                  "options": {
+                    "awslogs-group": "/ecs/pami-jira-service",
+                    "awslogs-create-group": "true",
+                    "awslogs-region": "us-east-1",
+                    "awslogs-stream-prefix": "ecs"
+                  }
+                }
+              }
+            ]
+          }
+          EOF
+
+          aws ecs register-task-definition --cli-input-json file://task-def.json
+
+      - name: Create or Update ECS Service
+        run: |
+          # Looked up by name, not hardcoded: AWS appends a random id to every target group
+          # ARN, so a rebuilt lab account recreates jira-service-tg under a new ARN and any
+          # hardcoded one becomes a dead reference that fails CreateService.
+          TG_ARN=$(aws elbv2 describe-target-groups \
+            --names jira-service-tg \
+            --query 'TargetGroups[0].TargetGroupArn' \
+            --output text \
+            --region us-east-1)
+
+          if [ -z "$TG_ARN" ] || [ "$TG_ARN" = "None" ]; then
+            echo "::error::Target group jira-service-tg not found. Run setup_aws_infrastructure.py first."
+            exit 1
+          fi
+          echo "Using target group $TG_ARN"
+
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters Name=is-default,Values=true \
+            --query 'Vpcs[0].VpcId' --output text --region us-east-1)
+          SUBNETS=$(aws ec2 describe-subnets \
+            --filters Name=vpc-id,Values=$VPC_ID \
+            --query 'Subnets[].SubnetId' --output text --region us-east-1 | tr '\t' ',')
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters Name=group-name,Values=pami-ecs-services-sg Name=vpc-id,Values=$VPC_ID \
+            --query 'SecurityGroups[0].GroupId' --output text --region us-east-1)
+
+          if [ -z "$SUBNETS" ] || [ "$SG_ID" = "None" ]; then
+            echo "::error::Could not resolve VPC networking. Run setup_aws_infrastructure.py first."
+            exit 1
+          fi
+          echo "Using subnets $SUBNETS and security group $SG_ID"
+
+          # Check if service exists
+          # Queried as a field, not grepped from the JSON blob: "INACTIVE" contains "ACTIVE",
+          # so a recently deleted service matched and was updated rather than recreated.
+          SERVICE_STATUS=$(aws ecs describe-services --cluster pami-cluster --services pami-jira-service --region us-east-1 --query 'services[0].status' --output text 2>/dev/null || echo "NONE")
+          echo "Jira service status: $SERVICE_STATUS"
+
+          if [ "$SERVICE_STATUS" = "ACTIVE" ] || [ "$SERVICE_STATUS" = "DRAINING" ]; then
+            echo "Service exists, updating..."
+            aws ecs update-service \
+              --cluster pami-cluster \
+              --service pami-jira-service \
+              --task-definition pami-jira-service \
+              --force-new-deployment \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" \
+              --desired-count 1 \
+              --region us-east-1
+          else
+            echo "Service doesn't exist, creating..."
+            aws ecs create-service \
+              --cluster pami-cluster \
+              --service-name pami-jira-service \
+              --task-definition pami-jira-service \
+              --desired-count 1 \
+              --launch-type FARGATE \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true}" \
+              --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG_ID],assignPublicIp=ENABLED}" \
+              --load-balancers "targetGroupArn=$TG_ARN,containerName=jira-service,containerPort=8003" \
+              --region us-east-1
+          fi
+          # Ensure desired count is 1 in case the service existed with 0
+          aws ecs update-service --cluster pami-cluster --service pami-jira-service --desired-count 1 --region us-east-1 || true
+
+      - name: Wait for deployment to complete
+        run: |
+          aws ecs wait services-stable \
+            --cluster pami-cluster \
+            --services pami-jira-service \
+            --region us-east-1
+
+      - name: Smoke check jira-service through the ALB
+        run: |
+          # `wait services-stable` only asks ECS whether tasks are running; it never checks
+          # that the service answers. A container that boots and then fails its first request
+          # would otherwise be reported as a successful deploy.
+          ALB_DNS=$(aws elbv2 describe-load-balancers --region us-east-1 --query "LoadBalancers[?LoadBalancerName=='pami-alb'].DNSName | [0]" --output text)
+          for attempt in 1 2 3 4 5 6; do
+            CODE=$(curl -s -o /dev/null -m 15 -w "%{http_code}" -X POST "http://$ALB_DNS/jira/connection-check" || echo 000)
+            echo "attempt $attempt: POST /jira/connection-check -> $CODE"
+            if [ "$CODE" = "200" ]; then
+              echo "jira-service is serving"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::jira-service did not answer /jira/connection-check with 200 after the rollout"
+          exit 1
+
+      - name: Get service status
+        run: |
+          echo "Deployment completed successfully!"
+          aws ecs describe-services \
+            --cluster pami-cluster \
+            --services pami-jira-service \
+            --region us-east-1 \
+            --query 'services[0].taskDefinition' \
+            --output text

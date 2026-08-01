@@ -29,6 +29,8 @@ jobs:
           # and doing it here would collide with in-flight work on that service.
           - service: slack_service
             check_format: false
+          - service: jira_service
+            check_format: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
