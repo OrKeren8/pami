@@ -9,6 +9,15 @@ const ensureAiPrefix = (baseUrl) => {
     return `${trimmed}/ai`;
 };
 
+// slack_service registers every route under /slack (an ALB forwards /slack/* here without
+// stripping the prefix in production), so the base URL needs it too or every call 404s.
+const ensureSlackPrefix = (baseUrl) => {
+    if (!baseUrl) return baseUrl;
+    const trimmed = String(baseUrl).replace(/\/+$/, '');
+    if (trimmed.endsWith('/slack')) return trimmed;
+    return `${trimmed}/slack`;
+};
+
 // ����� ��� ����� ����� (Gateway) ���������, ������ ��� �������
 export const projectsApi = axios.create({
     baseURL: process.env.REACT_APP_PROJECTS_API_URL,
@@ -23,7 +32,7 @@ export const aiApi = axios.create({
 
 // ����� ������ ������� ����� �� ������
 export const slackApi = axios.create({
-    baseURL: process.env.REACT_APP_SLACK_API_URL,
+    baseURL: ensureSlackPrefix(process.env.REACT_APP_SLACK_API_URL),
     timeout: 8000,
 });
 
