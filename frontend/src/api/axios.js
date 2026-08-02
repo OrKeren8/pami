@@ -47,6 +47,6 @@ const attachIdToken = async (config) => {
     return config;
 };
 
-[projectsApi, aiApi, slackApi].forEach((client) => {
+[projectsApi, aiApi, slackApi, jiraApi].forEach((client) => {
     client.interceptors.request.use(attachIdToken);
 });

@@ -39,6 +39,20 @@ jobs:
         # file was missed for a whole account generation.
         run: echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_ENV
 
+      - name: Resolve the frontend origin
+        # The browser origin is per-account: a new Amplify app means a new domain. Hardcoding it
+        # is what left every write silently failing CORS twice before, so it is read from the
+        # Amplify app at deploy time instead.
+        run: |
+          APP_ID=$(aws amplify list-apps --region us-east-1 \
+            --query "apps[?name=='pami'].appId | [0]" --output text 2>/dev/null || echo "")
+          ORIGINS="http://localhost:3000,http://127.0.0.1:3000"
+          if [ -n "$APP_ID" ] && [ "$APP_ID" != "None" ]; then
+            ORIGINS="$ORIGINS,https://main.$APP_ID.amplifyapp.com"
+          fi
+          echo "CORS_ALLOWED_ORIGINS=$ORIGINS" >> $GITHUB_ENV
+          echo "Allowing origins: $ORIGINS"
+
       - name: Build and Push Image
         run: |
           cd jira_service
@@ -83,6 +97,10 @@ jobs:
                   {
                     "name": "JIRA_BASE_URL",
                     "value": "${{ secrets.JIRA_BASE_URL }}"
+                  },
+                  {
+                    "name": "CORS_ALLOWED_ORIGINS",
+                    "value": "${CORS_ALLOWED_ORIGINS}"
                   },
                   {
                     "name": "JIRA_USERNAME",
