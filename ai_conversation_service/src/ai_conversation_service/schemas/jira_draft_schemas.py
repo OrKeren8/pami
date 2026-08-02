@@ -42,3 +42,25 @@ class JiraDraftRequest(BaseModel):
 class JiraDraftResponse(BaseModel):
     reply: str
     draft: TicketDraft
+
+
+class ThreadComment(BaseModel):
+    """One comment already on the issue."""
+
+    author: Optional[str] = None
+    body: str
+
+
+class JiraCommentRequest(BaseModel):
+    project_id: Optional[str] = None
+    message: str
+    issue_key: str
+    issue_summary: str = ""
+    # The thread as the browser already has it. Passed in rather than fetched here so this
+    # service needs no route to Jira at all - the same reason the drafting agent has no tools.
+    thread: list[ThreadComment] = Field(default_factory=list)
+
+
+class JiraCommentResponse(BaseModel):
+    reply: str
+    comment: str

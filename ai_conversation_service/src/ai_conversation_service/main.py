@@ -13,7 +13,10 @@ from ai_conversation_service.models.conversation_index_state import (
     ConversationIndexState,
 )
 from ai_conversation_service.agents.conversation_agent import build_conversation_agent
-from ai_conversation_service.agents.jira_draft_agent import build_jira_draft_agent
+from ai_conversation_service.agents.jira_draft_agent import (
+    build_jira_comment_agent,
+    build_jira_draft_agent,
+)
 from ai_conversation_service.services.chunk_index_service import ChunkIndexService
 from ai_conversation_service.services.context_retrieval_service import (
     ContextRetrievalService,
@@ -91,6 +94,9 @@ async def lifespan(app: FastAPI):
     # even when cross-conversation search is degraded.
     app.state.jira_draft_agent = (
         build_jira_draft_agent() if settings.openai_api_key else None
+    )
+    app.state.jira_comment_agent = (
+        build_jira_comment_agent() if settings.openai_api_key else None
     )
     app.state.vector_index_ready = (
         await ensure_vector_index(database, embedder.dimensions) if embedder else False

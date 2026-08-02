@@ -6,12 +6,15 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from ai_conversation_service.core.config import settings
 from ai_conversation_service.core.prompt_loader import load_prompt_file
 from ai_conversation_service.schemas.jira_draft_schemas import (
+    JiraCommentRequest,
+    JiraCommentResponse,
     JiraDraftRequest,
     JiraDraftResponse,
     TicketDraft,
 )
 
 JIRA_DRAFT_SYSTEM_PROMPT = load_prompt_file("jira_draft_system_prompt.txt")
+JIRA_COMMENT_SYSTEM_PROMPT = load_prompt_file("jira_comment_system_prompt.txt")
 
 _logger = logger.bind(service="JiraDraftAgent")
 
@@ -103,3 +106,44 @@ def merge_draft(original: TicketDraft, proposed: TicketDraft) -> TicketDraft:
     merged.labels = labels
 
     return merged
+
+
+class CommentOutput(JiraCommentResponse):
+    """Structured output for a drafted comment."""
+
+
+def build_jira_comment_agent() -> Agent:
+    """Build the comment-drafting agent. No tools, for the same reason as the draft agent:
+    posting is the user's action, so the model is given no way to perform it."""
+    model = OpenAIChatModel(
+        settings.openai_model,
+        provider=OpenAIProvider(api_key=settings.openai_api_key),
+    )
+    return Agent(
+        model,
+        output_type=CommentOutput,
+        system_prompt=JIRA_COMMENT_SYSTEM_PROMPT,
+    )
+
+
+def build_comment_prompt(request: JiraCommentRequest) -> str:
+    """The issue, the thread so far, and what the user wants said."""
+    summary = request.issue_summary or "(no summary)"
+    lines = ["## Issue", f"{request.issue_key} - {summary}"]
+
+    if request.thread:
+        lines.append("")
+        lines.append("## Comment thread, oldest first")
+        for comment in request.thread:
+            author = comment.author or "Someone"
+            lines.append(f"{author}: {comment.body}")
+    else:
+        lines.append("")
+        lines.append("## Comment thread")
+        lines.append("Empty - this would be the first comment.")
+
+    lines.append("")
+    lines.append("## What the user wants to say")
+    lines.append(request.message)
+
+    return "\n".join(lines)

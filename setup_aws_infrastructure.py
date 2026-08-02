@@ -50,6 +50,23 @@ apigateway = None
 cognito = None
 
 
+def _force_utf8_output() -> None:
+    """Print UTF-8 regardless of the console's code page.
+
+    The summary prints bullets and ticks. On a Windows console using a legacy code page those
+    raise UnicodeEncodeError, which the top-level handler reports as "Unexpected error" - so a
+    run that had already created everything looked like it had failed. The print helpers guard
+    themselves, but the summary uses plain print, and the real fix is at the stream.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            # Not a real stream, or an older Python without reconfigure. The per-line guards
+            # in the print helpers still apply.
+            pass
+
+
 def load_env_file(env_path: str = None):
     """Load environment variables from a .env file into os.environ.
     Minimal loader to allow running the script without manual aws configure.
@@ -1455,6 +1472,7 @@ def print_summary(
 
 def main():
     """Main setup function."""
+    _force_utf8_output()
     # Ensure we can write back the resolved region to module-level constant
     global REGION
     # Load .env (if present) and initialize AWS clients so temporary credentials are used

@@ -58,7 +58,7 @@ class Output:
         self.draft = draft
 
 
-def test_the_draft_agent_has_no_tools():
+def test_the_draft_agent_has_no_tools(monkeypatch):
     """It must have no way to reach Jira, rather than being asked not to.
 
     This is the guarantee behind "the chat cannot send the ticket". A tool appearing here
@@ -68,6 +68,13 @@ def test_the_draft_agent_has_no_tools():
     from ai_conversation_service.agents.conversation_agent import (
         build_conversation_agent,
     )
+    from ai_conversation_service.core.config import settings
+
+    # Building an agent instantiates the OpenAI provider, which insists on a key even though
+    # nothing here calls the API - this test only inspects the assembled object. A placeholder
+    # keeps it hermetic; without it the test passed locally and failed in CI, where the AI job
+    # has no key.
+    monkeypatch.setattr(settings, "openai_api_key", "test-key-not-used", raising=False)
 
     def tools_of(agent):
         toolset = getattr(agent, "_function_toolset", None)
