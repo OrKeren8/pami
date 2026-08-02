@@ -156,10 +156,26 @@ async def draft_jira_ticket(
     ticket, an issue, or a bug report - phrased any way at all, including "open a ticket for
     this", "write this up as a story", or "turn this into a Jira".
 
-    Write the description in sections with `##` headings. For a bug use Screen, Steps to
-    Reproduce, Actual Behavior, Expected Behavior, Impact. For a story use the "As a ... I want
-    ... so that ..." line, then User Flow, AC, DOD. Use only what the conversation actually
-    says - do not invent services, dates or people.
+    The description must use `##` headings, and which headings is decided by issue_type - do
+    not mix the two shapes. Asked for a bug and given a story skeleton, a reader cannot
+    reproduce the problem, which is the only thing a bug report is for.
+
+    issue_type "Bug" - use exactly these headings, in this order:
+        ## Screen
+        ## Steps to Reproduce      (numbered, enough to reproduce it from nothing)
+        ## Actual Behavior
+        ## Expected Behavior
+        ## Impact
+        ## DOD                     (checkboxes, `- [ ]`)
+
+    any other issue_type - use exactly these:
+        As a [role], I want [goal], so that [reason].
+        ## User Flow               (numbered)
+        ## AC                      (at most five, each testable)
+        ## DOD                     (checkboxes, `- [ ]`)
+
+    Use only what the conversation actually says. Do not invent services, dates or people, and
+    leave a section with a short "not discussed" line rather than filling it with guesses.
 
     The draft opens in the user's Jira workspace for them to review. It is not published, so
     say that you have drafted it and that they can publish it from there.
