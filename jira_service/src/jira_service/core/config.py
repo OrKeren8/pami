@@ -9,6 +9,23 @@ class Settings(BaseSettings):
     jira_username: str = ""
     jira_api_token: str = ""
 
+    # Comma-separated. Writes from the browser preflight, so an origin missing here fails
+    # with OPTIONS 400 and the request is never sent - which is how a stale Amplify URL left
+    # every "create issue" silently broken while reads kept working.
+    cors_allowed_origins: str = (
+        "http://localhost:3000,"
+        "http://127.0.0.1:3000,"
+        "https://main.d1cs950rhsdp99.amplifyapp.com"
+    )
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.cors_allowed_origins.split(",")
+            if origin.strip()
+        ]
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
