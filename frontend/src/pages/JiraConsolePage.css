@@ -531,3 +531,140 @@
         max-height: 340px;
     }
 }
+
+/* ---------- Mode tabs and the issue view ---------- */
+
+.jira-mode-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 3px;
+    border: 1px solid #f0d8e6;
+    border-radius: 999px;
+    background: #fff;
+}
+
+.jira-mode-tab {
+    padding: 6px 14px;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: #8b7ba8;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.jira-mode-tab.active {
+    background: linear-gradient(135deg, #f06292, #ec4899);
+    color: #fff;
+}
+
+.jira-issue-open {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    padding-bottom: 14px;
+    border-bottom: 1px dashed #f3d9e8;
+}
+
+.jira-issue-open .jira-field {
+    max-width: 220px;
+}
+
+.jira-issue-error {
+    margin: 0;
+    color: #b91c1c;
+    font-size: 0.84rem;
+}
+
+.jira-issue-head a {
+    color: #be185d;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+}
+
+.jira-issue-head h2 {
+    margin: 4px 0 6px;
+    color: #18181b;
+    font-size: 1.1rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.jira-issue-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.jira-issue-meta span {
+    padding: 3px 10px;
+    border: 1px solid #f0d8e6;
+    border-radius: 999px;
+    background: #fff;
+    color: #8b7ba8;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.jira-thread {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 0;
+}
+
+.jira-thread-label {
+    color: #a1a1aa;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.jira-comment {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 12px;
+    border: 1px solid #f3e3ee;
+    border-radius: 12px;
+    background: #fff;
+}
+
+.jira-comment-who {
+    color: #be185d;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.jira-comment p {
+    margin: 0;
+    color: #3f3f46;
+    font-size: 0.85rem;
+    line-height: 1.55;
+    /* Comments arrive as flattened rich text, so keep the author's line breaks. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.jira-comment-composer {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed #f3d9e8;
+}
+
+.jira-comment-composer textarea {
+    min-height: 110px;
+    resize: vertical;
+    line-height: 1.55;
+}

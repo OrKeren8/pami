@@ -20,6 +20,12 @@ app.add_middleware(
 app.include_router(jira_router)
 
 
+# Both paths. The load balancer forwards /jira/* here without stripping the prefix, so a bare
+# /health is only reachable from inside the VPC - which is how the target-group check sees it -
+# while a deploy smoke check or a monitor coming through the load balancer can only reach
+# /jira/health. Without this, /jira/health returned 404 and nothing outside the VPC could tell
+# whether the service was up.
+@app.get("/jira/health")
 @app.get("/health")
 def health_check():
-    return {"status": "healthy"}
+    return {"status": "healthy", "service": "jira-service"}
