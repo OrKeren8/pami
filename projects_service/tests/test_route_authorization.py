@@ -47,13 +47,44 @@ def _dependency_callables(route) -> set:
     return found
 
 
+def _all_routes():
+    """Every route, flattened.
+
+    FastAPI 0.141 wraps an included router in a single `_IncludedRouter` entry instead of
+    splicing its routes into app.routes. Iterating app.routes alone on that version yields
+    nothing to check, and a test that finds nothing passes - so this walks into wrappers
+    rather than trusting the shape of the version currently installed.
+    """
+    seen = []
+    stack = list(app.routes)
+    while stack:
+        route = stack.pop()
+        nested = getattr(route, "routes", None)
+        if nested:
+            stack.extend(nested)
+            continue
+        seen.append(route)
+    return seen
+
+
 def _project_scoped_routes():
-    for route in app.routes:
+    for route in _all_routes():
         path = getattr(route, "path", "")
         if path in UNAUTHENTICATED_PATHS or not hasattr(route, "dependant"):
             continue
         if "{project_id}" in path:
             yield route
+
+
+def test_the_route_inventory_is_not_empty():
+    """The other tests here pass by finding no offenders, so finding nothing at all passes too.
+
+    This is the guard against that: if a FastAPI upgrade changes how routes are exposed, this
+    fails loudly instead of the whole file turning into a no-op that reports success.
+    """
+    assert len(list(_project_scoped_routes())) >= 5, (
+        "expected several project-scoped routes; the inventory is not seeing them"
+    )
 
 
 def test_every_project_scoped_route_checks_membership():
@@ -72,7 +103,7 @@ def test_every_project_scoped_route_checks_membership():
 
 def test_every_non_public_route_is_authenticated():
     offenders = []
-    for route in app.routes:
+    for route in _all_routes():
         path = getattr(route, "path", "")
         if path in UNAUTHENTICATED_PATHS or not hasattr(route, "dependant"):
             continue
@@ -96,7 +127,9 @@ def test_every_non_public_route_is_authenticated():
 def test_admin_routes_require_admin_specifically():
     """current_user is not enough on /admin: any signed-in user would pass it."""
     admin_routes = [
-        route for route in app.routes if getattr(route, "path", "").startswith("/admin")
+        route
+        for route in _all_routes()
+        if getattr(route, "path", "").startswith("/admin")
     ]
     assert admin_routes, "expected at least one admin route"
 

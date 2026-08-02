@@ -74,7 +74,7 @@ function AppSidebar({ active, avatarUrl, onJira }) {
         { id: 'dashboard', label: 'Neural Dashboard', onClick: () => navigate('/dashboard') },
         { id: 'chats', label: 'Chat View', onClick: () => navigate('/chats') },
         { id: 'slack', label: 'Slack', icon: SLACK_LOGO, onClick: () => navigate('/slack') },
-        { id: 'jira', label: 'Jira', icon: JIRA_LOGO, onClick: openJira },
+        { id: 'jira', label: 'Jira', icon: JIRA_LOGO, onClick: () => navigate('/jira') },
         { id: 'settings', label: 'Settings', disabled: true }
     ];
 

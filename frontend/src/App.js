@@ -9,6 +9,7 @@ import ToastProvider from './components/feedback/ToastProvider';
 import SessionProvider from './auth/SessionProvider';
 import RequireAuth, { RequireAdmin } from './auth/RequireAuth';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import JiraConsolePage from './pages/JiraConsolePage';
 
 function App() {
     return (
@@ -35,6 +36,15 @@ function App() {
                     element={
                         <RequireAuth>
                             <SlackConsolePage />
+                        </RequireAuth>
+                    }
+                />
+
+                <Route
+                    path="/jira"
+                    element={
+                        <RequireAuth>
+                            <JiraConsolePage />
                         </RequireAuth>
                     }
                 />

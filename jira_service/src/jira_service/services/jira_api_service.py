@@ -108,6 +108,44 @@ class JiraApiService:
             ],
         }
 
+    def _adf_to_text(self, document: Any) -> str:
+        """Flatten Atlassian Document Format back to plain text.
+
+        Jira returns rich documents, while the editor and the chat both work in plain text.
+        Walks the tree rather than assuming the shape this service writes, because a
+        description or comment edited inside Jira can contain lists, links and panels.
+        """
+        if not document:
+            return ""
+        if isinstance(document, str):
+            return document
+
+        pieces: list[str] = []
+        block_types = {"paragraph", "heading", "listItem", "blockquote", "codeBlock"}
+
+        def walk(node: Any) -> None:
+            if isinstance(node, list):
+                for item in node:
+                    walk(item)
+                return
+            if not isinstance(node, dict):
+                return
+
+            node_type = node.get("type")
+            if node_type == "text":
+                pieces.append(node.get("text") or "")
+            elif node_type == "hardBreak":
+                pieces.append("\n")
+
+            walk(node.get("content"))
+
+            # Block nodes end a line, so paragraphs and list items do not run together.
+            if node_type in block_types:
+                pieces.append("\n")
+
+        walk(document.get("content"))
+        return "".join(pieces).strip()
+
     def test_connection(self) -> dict[str, Any]:
         data = self._request(
             "GET",
@@ -165,6 +203,9 @@ class JiraApiService:
         if request.labels:
             fields["labels"] = request.labels
 
+        if request.assignee_account_id:
+            fields["assignee"] = {"id": request.assignee_account_id}
+
         data = self._request(
             "POST",
             "/issue",
@@ -179,6 +220,116 @@ class JiraApiService:
             "issue_key": issue_key,
             "issue_id": data.get("id") if isinstance(data, dict) else None,
             "issue_url": f"{self.base_url}/browse/{issue_key}" if issue_key else None,
+        }
+
+    def list_assignable_users(self, project_key: str) -> dict[str, Any]:
+        """People who can be assigned work on this project.
+
+        Scoped to the project rather than the whole site: /user/search returns every account
+        including app users, and assigning someone who lacks permission on the project is
+        rejected at create time with an error that does not explain why.
+        """
+        data = self._request(
+            "GET",
+            "/user/assignable/search",
+            params={"project": project_key, "maxResults": 50},
+        )
+
+        users = [
+            {
+                "account_id": user.get("accountId"),
+                "display_name": user.get("displayName") or "Unknown",
+                # Usually absent: Jira hides it unless the account chooses to share it.
+                "email": user.get("emailAddress"),
+                "active": bool(user.get("active", True)),
+            }
+            for user in (data or [])
+            if user.get("accountType", "atlassian") == "atlassian"
+        ]
+
+        return {"ok": True, "users": users}
+
+    def list_issue_types(self, project_key: str) -> dict[str, Any]:
+        """The issue types this project actually offers.
+
+        A fixed Story/Bug/Task list would be a guess: a team-managed project can rename or
+        remove any of them, and creating an issue with a type the project does not have fails.
+        Sub-task types are excluded because they need a parent this editor does not collect.
+        """
+        data = self._request("GET", f"/project/{project_key}")
+
+        types = [
+            {
+                "id": issue_type.get("id"),
+                "name": issue_type.get("name"),
+            }
+            for issue_type in (data or {}).get("issueTypes", [])
+            if not issue_type.get("subtask")
+        ]
+        return {"ok": True, "issue_types": types}
+
+    def get_issue(self, issue_key: str) -> dict[str, Any]:
+        """One issue, flattened to the fields the UI shows."""
+        data = self._request(
+            "GET",
+            f"/issue/{issue_key}",
+            params={
+                "fields": (
+                    "summary,description,status,assignee,issuetype,priority,duedate,labels"
+                )
+            },
+        )
+        fields = (data or {}).get("fields", {})
+        key = (data or {}).get("key")
+
+        return {
+            "ok": True,
+            "issue_key": key,
+            "issue_url": f"{self.base_url}/browse/{key}" if key else None,
+            "summary": fields.get("summary"),
+            "description": self._adf_to_text(fields.get("description")),
+            "status": (fields.get("status") or {}).get("name"),
+            "issue_type": (fields.get("issuetype") or {}).get("name"),
+            "priority": (fields.get("priority") or {}).get("name"),
+            "due_date": fields.get("duedate"),
+            "labels": fields.get("labels") or [],
+            "assignee": (fields.get("assignee") or {}).get("displayName"),
+        }
+
+    def list_comments(self, issue_key: str) -> dict[str, Any]:
+        """The comment thread on an issue, oldest first."""
+        data = self._request(
+            "GET",
+            f"/issue/{issue_key}/comment",
+            params={"maxResults": 50, "orderBy": "created"},
+        )
+
+        comments = [
+            {
+                "id": comment.get("id"),
+                "author": (comment.get("author") or {}).get("displayName"),
+                "created": comment.get("created"),
+                "body": self._adf_to_text(comment.get("body")),
+            }
+            for comment in (data or {}).get("comments", [])
+        ]
+        return {"ok": True, "issue_key": issue_key, "comments": comments}
+
+    def add_comment(self, issue_key: str, body: str) -> dict[str, Any]:
+        """Post a comment. Plain text in, Atlassian Document Format out."""
+        if not body.strip():
+            raise HTTPException(status_code=422, detail="A comment cannot be empty")
+
+        data = self._request(
+            "POST",
+            f"/issue/{issue_key}/comment",
+            json={"body": self._description_to_adf(body)},
+            expected_status=201,
+        )
+        return {
+            "ok": True,
+            "issue_key": issue_key,
+            "comment_id": (data or {}).get("id"),
         }
 
 
