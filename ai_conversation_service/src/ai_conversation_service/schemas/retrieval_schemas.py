@@ -38,3 +38,6 @@ class SendMessageResult(BaseModel):
     response: str
     consulted: list[ConsultedConversation] = Field(default_factory=list)
     tool_calls_used: int = 0
+    # Present when the model drafted a Jira ticket during this turn. The browser hands it to
+    # the Jira workspace; nothing on the server publishes it.
+    jira_draft: dict | None = None

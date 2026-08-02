@@ -7005,3 +7005,22 @@ button[aria-label*="Slack"] {
 .share-empty {
   color: #a1a1aa;
 }
+
+/* The chat drafted a Jira ticket. A link rather than a redirect: being yanked out of the
+   conversation mid-thought is worse than choosing to go. */
+.pami-chat-pane .jira-draft-chip {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 5px 12px;
+  border: 1px solid #f4a9cb;
+  border-radius: 999px;
+  background: #fff;
+  color: #be185d;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.pami-chat-pane .jira-draft-chip:hover {
+  background: #fff1f8;
+}

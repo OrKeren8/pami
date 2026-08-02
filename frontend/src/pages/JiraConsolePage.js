@@ -60,9 +60,10 @@ function JiraConsolePage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [lastCreated, setLastCreated] = useState(null);
     const summaryRef = useRef(null);
-    // Formatted by default: the templates are full of ## headings and - [ ] boxes, which
-    // read as punctuation in a textarea. Editing is one click away.
-    const [showPreview, setShowPreview] = useState(true);
+    // Editing first, formatting on demand. The other way round meant Enter and clicks in
+    // the description did something other than type, which is the last thing an editor should
+    // do. The Formatted button is right beside the label.
+    const [showPreview, setShowPreview] = useState(false);
     // Set when the chat handed this draft over, so there is a way back to the exact
     // conversation that produced it.
     const [origin] = useState(() => readDraftOrigin());
@@ -574,7 +575,18 @@ function JiraConsolePage() {
                     </>
                   ) : (
                     <>
-                    <form className="jira-canvas" onSubmit={submit}>
+                    <form
+                        className="jira-canvas"
+                        onSubmit={submit}
+                        onKeyDown={(event) => {
+                            // Enter in any single-line field submits a form by default, which
+                            // here would publish the ticket to Jira mid-sentence. Publishing is
+                            // the button's job only.
+                            if (event.key === 'Enter' && event.target.tagName !== 'TEXTAREA') {
+                                event.preventDefault();
+                            }
+                        }}
+                    >
                         <div className="jira-canvas-head">
                             <div className="jira-template-tabs" role="tablist" aria-label="Ticket type">
                                 {TICKET_TEMPLATES.map((option) => (
@@ -622,18 +634,7 @@ function JiraConsolePage() {
                             </div>
 
                             {showPreview ? (
-                                // Clicking the rendered ticket drops straight into editing it,
-                                // so the formatted view is not a dead end.
-                                <div
-                                    className="jira-description-preview"
-                                    role="button"
-                                    tabIndex={0}
-                                    title="Click to edit"
-                                    onClick={() => setShowPreview(false)}
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Enter') setShowPreview(false);
-                                    }}
-                                >
+                                <div className="jira-description-preview">
                                     <TicketPreview text={ticket.description} />
                                 </div>
                             ) : (

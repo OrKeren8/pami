@@ -419,7 +419,10 @@ class AIConversationService:
             f"of {len(deps.consulted)} surfaced"
         )
         return SendMessageResult(
-            response=answer, consulted=consulted, tool_calls_used=deps.tool_calls
+            response=answer,
+            consulted=consulted,
+            tool_calls_used=deps.tool_calls,
+            jira_draft=deps.jira_draft,
         )
 
     async def purge_conversation(self, conversation_id: str) -> bool:

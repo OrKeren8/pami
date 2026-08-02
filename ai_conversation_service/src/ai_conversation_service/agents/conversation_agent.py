@@ -42,6 +42,9 @@ class AgentDeps:
     transcripts: TranscriptReader | None = None
     consulted: dict[str, ConsultedConversation] = field(default_factory=dict)
     tool_calls: int = 0
+    # Set when the model calls draft_jira_ticket. Carried out on the reply so the browser can
+    # hand it to the Jira window; nothing here publishes it.
+    jira_draft: dict | None = None
 
 
 BUDGET_SPENT_NOTE = (
@@ -141,6 +144,43 @@ async def read_conversation(
     return windows
 
 
+async def draft_jira_ticket(
+    ctx: RunContext[AgentDeps],
+    summary: str,
+    description: str,
+    issue_type: str = "Task",
+    priority: str | None = None,
+    labels: list[str] | None = None,
+) -> str:
+    """Draft a Jira ticket from what has been discussed. Call this when the user asks for a
+    ticket, an issue, or a bug report - phrased any way at all, including "open a ticket for
+    this", "write this up as a story", or "turn this into a Jira".
+
+    Write the description in sections with `##` headings. For a bug use Screen, Steps to
+    Reproduce, Actual Behavior, Expected Behavior, Impact. For a story use the "As a ... I want
+    ... so that ..." line, then User Flow, AC, DOD. Use only what the conversation actually
+    says - do not invent services, dates or people.
+
+    The draft opens in the user's Jira workspace for them to review. It is not published, so
+    say that you have drafted it and that they can publish it from there.
+    """
+    ctx.deps.jira_draft = {
+        "summary": summary.strip()[:250],
+        "description": description.strip(),
+        "issue_type": (issue_type or "Task").strip(),
+        "priority": (priority or None),
+        "labels": [label for label in (labels or ["pami"]) if label and label.strip()]
+        or ["pami"],
+    }
+    _logger.info(
+        f"Drafted a Jira ticket from chat: {ctx.deps.jira_draft['issue_type']} "
+        f"({len(description)} chars)"
+    )
+    # Does not count against the retrieval budget: it produces no context to read, and
+    # refusing it after a few searches would be refusing the thing the user asked for.
+    return "Ticket drafted and shown in the Jira workspace. Not published."
+
+
 def build_conversation_agent() -> Agent:
     """Build the chat agent. Called from lifespan, never at import time."""
     model = OpenAIChatModel(
@@ -155,6 +195,7 @@ def build_conversation_agent() -> Agent:
     )
     agent.tool(search_context)
     agent.tool(read_conversation)
+    agent.tool(draft_jira_ticket)
     return agent
 
 

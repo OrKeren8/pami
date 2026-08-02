@@ -411,7 +411,6 @@ const HomePage = () => {
     // every message needed a fresh click on the box. It stays enabled and keeps focus;
     // only the send button is gated, and handleSendMessage ignores a repeat submit.
     const chatInputRef = useRef(null);
-    const [isDraftingTicket, setIsDraftingTicket] = useState(false);
 
     const projectGraph = useMemo(
         () => deriveGraph(selectedProjectId ? contextNodesMap[selectedProjectId] || [] : []),
@@ -709,9 +708,21 @@ const HomePage = () => {
                     // The service reports which other conversations it drew on. Showing them is
                     // the whole promise of the feature: without it the user cannot tell that an
                     // answer came from somewhere else, or check where.
-                    consulted: (resp.data && resp.data.consulted) || []
+                    consulted: (resp.data && resp.data.consulted) || [],
+                    jiraDraft: (resp.data && resp.data.jira_draft) || null
                 }
             ]);
+
+            // The model decided to draft a ticket, so hand it to the Jira workspace and record
+            // which conversation it came from. Stored rather than navigated: yanking the user
+            // out of the chat mid-thought would be worse than offering the link.
+            const drafted = resp.data && resp.data.jira_draft;
+            if (drafted) {
+                stashDraft(draftFromApi(drafted), {
+                    conversationId: convId,
+                    projectId: selectedProjectId || null
+                });
+            }
             revealReply((aiText || "(no response)").length);
         } catch (err) {
             console.error("Failed to send message to AI:", err);
@@ -1126,48 +1137,6 @@ const HomePage = () => {
         } catch (err) {
             console.error("Failed to remove the member:", err);
             toast.error("Could not remove that person. Please try again.");
-        }
-    };
-
-    // The chat is where the work gets described, so this is where a ticket should start. PAMI
-    // drafts it from the conversation, the draft is handed to the Jira window through local
-    // storage - same origin, no new collection, no polling - and the origin is recorded so the
-    // Jira window can offer a way back to this exact conversation.
-    const handleDraftJiraTicket = async () => {
-        if (isDraftingTicket || chatMessages.length === 0) return;
-
-        setIsDraftingTicket(true);
-        try {
-            const transcript = chatMessages
-                .slice(-12)
-                .map((message) => `${message.role === "user" ? "User" : "PAMI"}: ${message.content}`)
-                .join("\n");
-
-            const response = await aiApi.post("/jira-drafts/assist", {
-                project_id: selectedProjectId || null,
-                message:
-                    "Draft a Jira ticket from this conversation. Choose the ticket type that " +
-                    "fits what was discussed.\n\n" + transcript,
-                draft: { template_id: "story", summary: "", description: "", issue_type: "Story", labels: ["pami"] }
-            });
-
-            stashDraft(draftFromApi(response.data?.draft), {
-                conversationId,
-                projectId: selectedProjectId || null
-            });
-
-            toast.success("PAMI drafted a ticket. Opening the Jira workspace.");
-            setSearchParams({}, { replace: true });
-            navigate("/jira");
-        } catch (error) {
-            console.error("Could not draft a Jira ticket:", error);
-            toast.error(
-                error?.response?.status === 503
-                    ? "Ticket drafting is not available right now."
-                    : "PAMI could not draft a ticket from this conversation."
-            );
-        } finally {
-            setIsDraftingTicket(false);
         }
     };
 
@@ -1639,18 +1608,6 @@ const HomePage = () => {
                                                 </svg>
                                                 Create Node
                                             </button>
-                                            <button
-                                                type="button"
-                                                className="create-node-btn"
-                                                title="Have PAMI draft a Jira ticket from this conversation"
-                                                onClick={handleDraftJiraTicket}
-                                                disabled={isDraftingTicket || chatMessages.length === 0}
-                                            >
-                                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                    <path d="M3 3h10v10H3zM6 6h4M6 9h4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                                                </svg>
-                                                {isDraftingTicket ? "Drafting..." : "To Jira"}
-                                            </button>
                                         </div>
                                     </div>
                                     <div ref={chatBodyRef} className="chat-body" style={{ padding: "16px", overflowY: "auto", overflowX: "hidden", flex: 1, minHeight: 0 }}>
@@ -1684,6 +1641,15 @@ const HomePage = () => {
                                                                 {shownText}
                                                                 {isRevealing && <span className="reveal-caret" aria-hidden="true" />}
                                                             </p>
+                                                            {!isUser && !isRevealing && msg.jiraDraft && (
+                                                                <a
+                                                                    className="jira-draft-chip"
+                                                                    href="/jira"
+                                                                    title={msg.jiraDraft.summary}
+                                                                >
+                                                                    Open the drafted ticket in Jira &rarr;
+                                                                </a>
+                                                            )}
                                                             {/* Held back until the text is fully out: chips appearing beside half a
                                                                 sentence read as part of the answer. */}
                                                             {!isUser && !isRevealing && (msg.consulted || []).length > 0 && (
