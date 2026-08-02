@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     cors_allowed_origins: str = (
         "http://localhost:3000,"
         "http://127.0.0.1:3000,"
-        "https://main.d3f2b6kjsfplgr.amplifyapp.com"
+        "https://main.d1cs950rhsdp99.amplifyapp.com"
     )
 
     @property
