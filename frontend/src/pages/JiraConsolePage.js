@@ -3,7 +3,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { aiApi, jiraApi } from '../api/axios';
 import AppSidebar from '../components/layout/AppSidebar';
 import { useToast } from '../components/feedback/ToastProvider';
-import useChatScroll from '../hooks/useChatScroll';
+import TicketPreview from '../components/jira/TicketPreview';
+import { clearDraftOrigin, readDraftOrigin } from '../lib/jira/jiraHandoff';
 import {
     PRIORITIES,
     TICKET_TEMPLATES,
@@ -59,6 +60,12 @@ function JiraConsolePage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [lastCreated, setLastCreated] = useState(null);
     const summaryRef = useRef(null);
+    // Formatted by default: the templates are full of ## headings and - [ ] boxes, which
+    // read as punctuation in a textarea. Editing is one click away.
+    const [showPreview, setShowPreview] = useState(true);
+    // Set when the chat handed this draft over, so there is a way back to the exact
+    // conversation that produced it.
+    const [origin] = useState(() => readDraftOrigin());
 
     // Two modes in one window: writing a new ticket, or replying on an existing one. A second
     // page would have duplicated the sidebar, the connection check and the project picker.
@@ -73,12 +80,6 @@ function JiraConsolePage() {
     const [isDraftingComment, setIsDraftingComment] = useState(false);
     const [commentAsk, setCommentAsk] = useState('');
 
-    // The drafting conversation. Kept beside the canvas rather than on the dashboard, because
-    // the whole point is watching the ticket change as PAMI answers.
-    const [messages, setMessages] = useState([]);
-    const [chatInput, setChatInput] = useState('');
-    const [isAsking, setIsAsking] = useState(false);
-    const { containerRef: chatRef } = useChatScroll([messages, isAsking]);
 
     useEffect(() => {
         writeStored(DRAFT_KEY, JSON.stringify(ticket));
@@ -201,73 +202,6 @@ function JiraConsolePage() {
         return (task || nonEpic || issueTypes[0]).name;
     }, [issueTypes, ticket.issueType]);
 
-    // --- Asking PAMI to fill it in -----------------------------------------------------
-
-    const askPami = async (event) => {
-        event.preventDefault();
-        const question = chatInput.trim();
-        if (!question || isAsking) return;
-
-        setChatInput('');
-        const asked = [...messages, { role: 'user', content: question }];
-        setMessages(asked);
-        setIsAsking(true);
-
-        try {
-            const response = await aiApi.post('/jira-drafts/assist', {
-                message: question,
-                draft: {
-                    template_id: ticket.templateId,
-                    summary: ticket.summary,
-                    description: ticket.description,
-                    issue_type: resolvedIssueType,
-                    priority: ticket.priority || null,
-                    due_date: ticket.dueDate || null,
-                    labels: ticket.labels
-                },
-                // Sent so "now tighten the AC" refers to something; the service bounds it.
-                history: messages.map((message) => ({
-                    role: message.role,
-                    content: message.content
-                })),
-                available_issue_types: issueTypes.map((type) => type.name)
-            });
-
-            const { reply, draft } = response.data || {};
-            if (draft) {
-                // The assignee and the project are the user's, and the service never returns
-                // them - so they are carried over rather than read back.
-                patch({
-                    summary: draft.summary ?? ticket.summary,
-                    description: draft.description ?? ticket.description,
-                    issueType: draft.issue_type || ticket.issueType,
-                    priority: draft.priority || '',
-                    dueDate: draft.due_date || '',
-                    labels: draft.labels?.length ? draft.labels : ticket.labels
-                });
-            }
-            setMessages([
-                ...asked,
-                { role: 'assistant', content: reply || 'Updated the ticket.' }
-            ]);
-        } catch (error) {
-            console.error('PAMI could not revise the ticket:', error);
-            const status = error?.response?.status;
-            setMessages([
-                ...asked,
-                {
-                    role: 'assistant',
-                    content:
-                        status === 503
-                            ? 'Ticket drafting is not available right now.'
-                            : 'I could not revise the ticket just then. Try asking again.'
-                }
-            ]);
-        } finally {
-            setIsAsking(false);
-        }
-    };
-
     // --- Replying on an existing issue -------------------------------------------------
 
     const openIssue = async (event) => {
@@ -372,7 +306,6 @@ function JiraConsolePage() {
             return;
         }
         setTicket(blankTicket(ticket.templateId, projectKey));
-        setMessages([]);
         setLastCreated(null);
         summaryRef.current?.focus();
     };
@@ -410,8 +343,7 @@ function JiraConsolePage() {
             // A submitted ticket is done, so the canvas clears - which is the whole "new
             // canvas appears" behaviour, just reached by succeeding instead of discarding.
             setTicket(blankTicket(ticket.templateId, projectKey));
-            setMessages([]);
-        } catch (error) {
+            } catch (error) {
             console.error('Failed to create the Jira issue:', error);
             const detail = error?.response?.data?.detail;
             toast.error(
@@ -442,10 +374,17 @@ function JiraConsolePage() {
                     <div className="jira-heading">
                         <span className="jira-kicker">Jira</span>
                         <h1>Ticket workspace</h1>
-                        <p>
-                            Draft a ticket here or ask PAMI to fill it in, then publish it to
-                            Jira when it reads right.
-                        </p>
+                        {origin?.conversationId && (
+                            <a
+                                className="jira-back-to-chat"
+                                href={`/dashboard?conversation=${encodeURIComponent(
+                                    origin.conversationId
+                                )}`}
+                                onClick={clearDraftOrigin}
+                            >
+                                &larr; Back to the chat this came from
+                            </a>
+                        )}
                     </div>
 
                     <div className="jira-header-side">
@@ -568,6 +507,32 @@ function JiraConsolePage() {
                                 </div>
 
                                 <form className="jira-comment-composer" onSubmit={postComment}>
+                                    {/* One row, not a chat: no history, no transcript. It asks
+                                        PAMI to write into the box below, which the user then
+                                        edits and posts. */}
+                                    <div className="jira-assist-row">
+                                        <input
+                                            type="text"
+                                            value={commentAsk}
+                                            placeholder="Ask PAMI to draft the reply..."
+                                            onChange={(event) => setCommentAsk(event.target.value)}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter') {
+                                                    event.preventDefault();
+                                                    askPamiForComment();
+                                                }
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            className="jira-btn jira-btn-ghost"
+                                            onClick={askPamiForComment}
+                                            disabled={isDraftingComment || !commentAsk.trim()}
+                                        >
+                                            {isDraftingComment ? 'Drafting...' : 'Draft with PAMI'}
+                                        </button>
+                                    </div>
+
                                     <div className="jira-field">
                                         <label htmlFor="jira-comment">Your reply</label>
                                         <textarea
@@ -606,60 +571,6 @@ function JiraConsolePage() {
                         )}
                     </div>
 
-                    <aside className="jira-chat" aria-label="Ask PAMI to draft a reply">
-                        <div className="jira-chat-head">
-                            <span className="jira-chat-title">
-                                <span className="jira-chat-spark" aria-hidden="true" />
-                                Ask PAMI
-                            </span>
-                            <span className="jira-chat-note">
-                                Reads the thread. Drafts into the box, never posts.
-                            </span>
-                        </div>
-
-                        <div className="jira-chat-body">
-                            {issue ? (
-                                <div className="jira-chat-empty">
-                                    <p>
-                                        PAMI can see {thread.length} comment(s) on{' '}
-                                        {issue.issue_key}.
-                                    </p>
-                                    <ul>
-                                        <li>Answer the last question.</li>
-                                        <li>Say it is deployed and ask them to retest.</li>
-                                        <li>Explain why we are not doing this.</li>
-                                    </ul>
-                                </div>
-                            ) : (
-                                <div className="jira-chat-empty">
-                                    <p>Open an issue and PAMI can help you reply to it.</p>
-                                </div>
-                            )}
-                        </div>
-
-                        <form
-                            className="jira-chat-input"
-                            onSubmit={(event) => {
-                                event.preventDefault();
-                                askPamiForComment();
-                            }}
-                        >
-                            <input
-                                type="text"
-                                value={commentAsk}
-                                placeholder="What should the reply say?"
-                                onChange={(event) => setCommentAsk(event.target.value)}
-                                disabled={!issue || isDraftingComment}
-                            />
-                            <button
-                                type="submit"
-                                className="jira-btn jira-btn-primary"
-                                disabled={!issue || isDraftingComment || !commentAsk.trim()}
-                            >
-                                {isDraftingComment ? '...' : 'Draft'}
-                            </button>
-                        </form>
-                    </aside>
                     </>
                   ) : (
                     <>
@@ -699,13 +610,43 @@ function JiraConsolePage() {
                         </div>
 
                         <div className="jira-field jira-field-grow">
-                            <label htmlFor="jira-description">Description</label>
-                            <textarea
-                                id="jira-description"
-                                value={ticket.description}
-                                onChange={(event) => patch({ description: event.target.value })}
-                                spellCheck="true"
-                            />
+                            <div className="jira-description-head">
+                                <label htmlFor="jira-description">Description</label>
+                                <button
+                                    type="button"
+                                    className="jira-preview-toggle"
+                                    onClick={() => setShowPreview((shown) => !shown)}
+                                >
+                                    {showPreview ? 'Edit text' : 'Formatted'}
+                                </button>
+                            </div>
+
+                            {showPreview ? (
+                                // Clicking the rendered ticket drops straight into editing it,
+                                // so the formatted view is not a dead end.
+                                <div
+                                    className="jira-description-preview"
+                                    role="button"
+                                    tabIndex={0}
+                                    title="Click to edit"
+                                    onClick={() => setShowPreview(false)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter') setShowPreview(false);
+                                    }}
+                                >
+                                    <TicketPreview text={ticket.description} />
+                                </div>
+                            ) : (
+                                <textarea
+                                    id="jira-description"
+                                    value={ticket.description}
+                                    onChange={(event) =>
+                                        patch({ description: event.target.value })
+                                    }
+                                    spellCheck="true"
+                                    autoFocus
+                                />
+                            )}
                         </div>
 
                         <div className="jira-field-row">
@@ -809,64 +750,6 @@ function JiraConsolePage() {
                         )}
                     </form>
 
-                    <aside className="jira-chat" aria-label="Ask PAMI">
-                        <div className="jira-chat-head">
-                            <span className="jira-chat-title">
-                                <span className="jira-chat-spark" aria-hidden="true" />
-                                Ask PAMI
-                            </span>
-                            <span className="jira-chat-note">Fills the ticket. Never publishes it.</span>
-                        </div>
-
-                        <div className="jira-chat-body" ref={chatRef}>
-                            {messages.length === 0 ? (
-                                <div className="jira-chat-empty">
-                                    <p>Describe the work and PAMI will draft it.</p>
-                                    <ul>
-                                        <li>“A bug: renaming a node drops it off the graph.”</li>
-                                        <li>“Turn this into a story with acceptance criteria.”</li>
-                                        <li>“Tighten the AC and add the edge cases.”</li>
-                                    </ul>
-                                </div>
-                            ) : (
-                                messages.map((message, index) => (
-                                    <div
-                                        key={index}
-                                        className={`jira-chat-message jira-chat-${message.role}`}
-                                    >
-                                        <span className="jira-chat-who">
-                                            {message.role === 'user' ? 'You' : 'PAMI'}
-                                        </span>
-                                        <p>{message.content}</p>
-                                    </div>
-                                ))
-                            )}
-
-                            {isAsking && (
-                                <div className="jira-chat-message jira-chat-assistant">
-                                    <span className="jira-chat-who">PAMI</span>
-                                    <p className="jira-chat-thinking">Drafting…</p>
-                                </div>
-                            )}
-                        </div>
-
-                        <form className="jira-chat-input" onSubmit={askPami}>
-                            <input
-                                type="text"
-                                value={chatInput}
-                                placeholder="Tell PAMI what this ticket is about…"
-                                onChange={(event) => setChatInput(event.target.value)}
-                                disabled={isAsking}
-                            />
-                            <button
-                                type="submit"
-                                className="jira-btn jira-btn-primary"
-                                disabled={isAsking || !chatInput.trim()}
-                            >
-                                {isAsking ? '…' : 'Send'}
-                            </button>
-                        </form>
-                    </aside>
                     </>
                   )}
                 </section>

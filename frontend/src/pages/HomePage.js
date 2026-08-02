@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import "./HomePage.css";
 import { projectsApi, aiApi, jiraApi } from "../api/axios";
 import AppSidebar from "../components/layout/AppSidebar";
@@ -8,6 +8,7 @@ import { deriveGraph } from "../lib/graph/deriveGraph";
 import { useToast } from "../components/feedback/ToastProvider";
 import useChatScroll from "../hooks/useChatScroll";
 import useRevealedText from "../hooks/useRevealedText";
+import { draftFromApi, stashDraft } from "../lib/jira/jiraHandoff";
 
 const MODAL_LABELS = {
     createProject: "Create project",
@@ -301,6 +302,7 @@ const StatIcon = ({ name, className }) => (
 
 const HomePage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
     const toast = useToast();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [activePane, setActivePane] = useState("tree");
@@ -405,6 +407,11 @@ const HomePage = () => {
     } = useChatScroll([chatMessages, revealedChars, isChatLoading]);
 
     const fileInputRef = useRef(null);
+    // Disabling the input while a reply was in flight made the browser blur it, so
+    // every message needed a fresh click on the box. It stays enabled and keeps focus;
+    // only the send button is gated, and handleSendMessage ignores a repeat submit.
+    const chatInputRef = useRef(null);
+    const [isDraftingTicket, setIsDraftingTicket] = useState(false);
 
     const projectGraph = useMemo(
         () => deriveGraph(selectedProjectId ? contextNodesMap[selectedProjectId] || [] : []),
@@ -711,6 +718,8 @@ const HomePage = () => {
             setChatMessages((p) => [...p, { role: "assistant", content: "I'm having trouble connecting right now. Please try again." }]);
         } finally {
             setIsChatLoading(false);
+            // Back to the box, so the next message is just typing.
+            chatInputRef.current?.focus();
         }
     };
 
@@ -1117,6 +1126,48 @@ const HomePage = () => {
         } catch (err) {
             console.error("Failed to remove the member:", err);
             toast.error("Could not remove that person. Please try again.");
+        }
+    };
+
+    // The chat is where the work gets described, so this is where a ticket should start. PAMI
+    // drafts it from the conversation, the draft is handed to the Jira window through local
+    // storage - same origin, no new collection, no polling - and the origin is recorded so the
+    // Jira window can offer a way back to this exact conversation.
+    const handleDraftJiraTicket = async () => {
+        if (isDraftingTicket || chatMessages.length === 0) return;
+
+        setIsDraftingTicket(true);
+        try {
+            const transcript = chatMessages
+                .slice(-12)
+                .map((message) => `${message.role === "user" ? "User" : "PAMI"}: ${message.content}`)
+                .join("\n");
+
+            const response = await aiApi.post("/jira-drafts/assist", {
+                project_id: selectedProjectId || null,
+                message:
+                    "Draft a Jira ticket from this conversation. Choose the ticket type that " +
+                    "fits what was discussed.\n\n" + transcript,
+                draft: { template_id: "story", summary: "", description: "", issue_type: "Story", labels: ["pami"] }
+            });
+
+            stashDraft(draftFromApi(response.data?.draft), {
+                conversationId,
+                projectId: selectedProjectId || null
+            });
+
+            toast.success("PAMI drafted a ticket. Opening the Jira workspace.");
+            setSearchParams({}, { replace: true });
+            navigate("/jira");
+        } catch (error) {
+            console.error("Could not draft a Jira ticket:", error);
+            toast.error(
+                error?.response?.status === 503
+                    ? "Ticket drafting is not available right now."
+                    : "PAMI could not draft a ticket from this conversation."
+            );
+        } finally {
+            setIsDraftingTicket(false);
         }
     };
 
@@ -1588,6 +1639,18 @@ const HomePage = () => {
                                                 </svg>
                                                 Create Node
                                             </button>
+                                            <button
+                                                type="button"
+                                                className="create-node-btn"
+                                                title="Have PAMI draft a Jira ticket from this conversation"
+                                                onClick={handleDraftJiraTicket}
+                                                disabled={isDraftingTicket || chatMessages.length === 0}
+                                            >
+                                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                                    <path d="M3 3h10v10H3zM6 6h4M6 9h4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                                                </svg>
+                                                {isDraftingTicket ? "Drafting..." : "To Jira"}
+                                            </button>
                                         </div>
                                     </div>
                                     <div ref={chatBodyRef} className="chat-body" style={{ padding: "16px", overflowY: "auto", overflowX: "hidden", flex: 1, minHeight: 0 }}>
@@ -1671,7 +1734,7 @@ const HomePage = () => {
                                             value={chatInput}
                                             onChange={(e) => setChatInput(e.target.value)}
                                             onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-                                            disabled={isChatLoading}
+                                            ref={chatInputRef}
                                         />
                                         <button
                                             type="button"

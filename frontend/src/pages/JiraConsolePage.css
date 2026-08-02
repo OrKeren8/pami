@@ -668,3 +668,160 @@
     resize: vertical;
     line-height: 1.55;
 }
+
+/* ---------- Compact header, formatted description ---------- */
+
+.jira-main {
+    /* Tighter than before: the header was explaining the page every time, which cost the
+       canvas the vertical room the ticket actually needs. */
+    gap: 12px;
+    padding: 16px 26px 18px;
+}
+
+.jira-header {
+    padding-bottom: 10px;
+}
+
+.jira-heading h1 {
+    margin: 0;
+    font-size: 1.15rem;
+}
+
+.jira-kicker {
+    margin-bottom: 2px;
+}
+
+.jira-back-to-chat {
+    display: inline-block;
+    margin-top: 4px;
+    color: #7c3aed;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.jira-back-to-chat:hover {
+    text-decoration: underline;
+}
+
+.jira-description-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.jira-preview-toggle {
+    padding: 2px 10px;
+    border: 1px solid #f0d8e6;
+    border-radius: 999px;
+    background: #fff;
+    color: #be185d;
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.jira-description-preview {
+    flex: 1;
+    min-height: 240px;
+    overflow-y: auto;
+    padding: 14px 16px;
+    border: 1px solid #f0d8e6;
+    border-radius: 10px;
+    background: #fff;
+    cursor: text;
+}
+
+.jira-description-preview:focus-visible {
+    outline: 2px solid #f06292;
+    outline-offset: 1px;
+}
+
+.ticket-preview-heading {
+    margin: 14px 0 6px;
+    color: #be185d;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.ticket-preview-heading:first-child {
+    margin-top: 0;
+}
+
+.ticket-preview-paragraph {
+    margin: 0 0 8px;
+    color: #3f3f46;
+    font-size: 0.87rem;
+    line-height: 1.6;
+}
+
+.ticket-preview-list {
+    margin: 0 0 10px;
+    padding-left: 20px;
+    color: #3f3f46;
+    font-size: 0.87rem;
+    line-height: 1.6;
+}
+
+.ticket-preview-checks {
+    margin: 0 0 10px;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ticket-preview-checks li {
+    display: flex;
+    gap: 8px;
+    color: #3f3f46;
+    font-size: 0.87rem;
+    line-height: 1.5;
+}
+
+.ticket-preview-checks li.done {
+    color: #a1a1aa;
+    text-decoration: line-through;
+}
+
+.ticket-preview-checks span {
+    color: #be185d;
+}
+
+.ticket-preview em {
+    color: #c4b5d4;
+    font-style: normal;
+}
+
+.ticket-preview-empty {
+    margin: 0;
+    color: #a1a1aa;
+    font-size: 0.85rem;
+}
+
+.jira-assist-row {
+    display: flex;
+    gap: 8px;
+}
+
+.jira-assist-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid #ece0f9;
+    border-radius: 999px;
+    background: #fdfbff;
+    color: #27272a;
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+
+.jira-assist-row input:focus-visible {
+    outline: 2px solid #a855f7;
+    outline-offset: 1px;
+}

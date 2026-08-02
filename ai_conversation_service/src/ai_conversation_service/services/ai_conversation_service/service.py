@@ -683,12 +683,9 @@ class AIConversationService:
             except Exception:
                 contents = []
 
-        conversations: List[Dict[str, Any]] = []
-        for obj in contents:
+        def load_one(key: str) -> Optional[Dict[str, Any]]:
             try:
-                response = self.s3_client.get_object(
-                    Bucket=self.bucket_name, Key=obj["Key"]
-                )
+                response = self.s3_client.get_object(Bucket=self.bucket_name, Key=key)
                 raw = response["Body"].read().decode("utf-8")
                 try:
                     conversation_data = json.loads(raw)
@@ -699,16 +696,21 @@ class AIConversationService:
 
                 # dicts, not Conversation objects: routes do Response(**conv), and ** on a
                 # model instance raises TypeError.
-                conversations.append(
-                    Conversation.from_dict(conversation_data).to_dict()
-                )
-            except Exception as e:
-                self._logger.warning(
-                    f"Error processing conversation {obj.get('Key')}: {e}"
-                )
-                continue
+                return Conversation.from_dict(conversation_data).to_dict()
+            except Exception as error:
+                self._logger.warning(f"Error processing conversation {key}: {error}")
+                return None
 
-        return conversations
+        # Fetched together rather than one after another. This runs on every Chat View load,
+        # and a sequential loop meant one S3 round trip per conversation - so the page got
+        # steadily slower as conversations accumulated, which is exactly backwards. boto3 is
+        # blocking, so each read goes to a worker thread.
+        keys = [obj["Key"] for obj in contents if obj.get("Key")]
+        loaded = await asyncio.gather(
+            *(asyncio.to_thread(load_one, key) for key in keys)
+        )
+
+        return [conversation for conversation in loaded if conversation]
 
     @staticmethod
     def _preview_of(conversation: Dict[str, Any]) -> Optional[str]:
