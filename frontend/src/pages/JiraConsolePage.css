@@ -250,8 +250,8 @@
     width: 100%;
     padding: 10px 12px;
     border: 1px solid #f0d8e6;
-    border-radius: 10px
-        /* Inputs sit on white so typed text has the most contrast on a tinted sheet. */;
+    border-radius: 10px;
+    /* White, not the panel tint: typed text needs the most contrast on a tinted sheet. */
     background: #fff;
     color: #27272a;
     font-family: inherit;
@@ -370,5 +370,164 @@
 @media (max-width: 900px) {
     .jira-body {
         flex-direction: column;
+    }
+}
+
+/* ---------- Ask PAMI ---------- */
+
+.jira-chat {
+    width: 360px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid #eadcf7;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #fbf7ff 0%, #ffffff 60%);
+    box-shadow: 0 16px 34px -22px rgba(124, 58, 237, 0.35);
+    overflow: hidden;
+}
+
+.jira-chat-head {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid #f0e6fb;
+}
+
+.jira-chat-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: #6d28d9;
+    font-size: 0.86rem;
+    font-weight: 800;
+}
+
+.jira-chat-spark {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #a855f7, #ec4899);
+}
+
+.jira-chat-note {
+    color: #a1a1aa;
+    font-size: 0.72rem;
+}
+
+.jira-chat-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+}
+
+.jira-chat-empty {
+    color: #a1a1aa;
+    font-size: 0.82rem;
+}
+
+.jira-chat-empty p {
+    margin: 0 0 8px;
+}
+
+.jira-chat-empty ul {
+    margin: 0;
+    padding-left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    line-height: 1.45;
+}
+
+.jira-chat-message {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.jira-chat-who {
+    color: #b3a3c9;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.jira-chat-message p {
+    margin: 0;
+    padding: 9px 12px;
+    border-radius: 12px;
+    font-size: 0.84rem;
+    line-height: 1.5;
+    /* Replies can quote a section heading, so wrap rather than widen the panel. */
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.jira-chat-user p {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #a855f7, #ec4899);
+    color: #fff;
+}
+
+.jira-chat-user .jira-chat-who {
+    align-self: flex-end;
+}
+
+.jira-chat-assistant p {
+    border: 1px solid #f0e6fb;
+    background: #fff;
+    color: #3f3f46;
+}
+
+.jira-chat-thinking {
+    color: #a1a1aa !important;
+    font-style: italic;
+}
+
+.jira-chat-input {
+    display: flex;
+    gap: 8px;
+    padding: 12px 14px;
+    border-top: 1px solid #f0e6fb;
+    background: #fff;
+}
+
+.jira-chat-input input {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1px solid #ece0f9;
+    border-radius: 999px;
+    background: #fdfbff;
+    color: #27272a;
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+
+.jira-chat-input input:focus-visible {
+    outline: 2px solid #a855f7;
+    outline-offset: 1px;
+}
+
+.jira-chat-input .jira-btn {
+    padding: 9px 16px;
+}
+
+@media (max-width: 1100px) {
+    .jira-chat {
+        width: 320px;
+    }
+}
+
+@media (max-width: 900px) {
+    .jira-chat {
+        width: auto;
+        max-height: 340px;
     }
 }

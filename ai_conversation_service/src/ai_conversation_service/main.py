@@ -13,6 +13,7 @@ from ai_conversation_service.models.conversation_index_state import (
     ConversationIndexState,
 )
 from ai_conversation_service.agents.conversation_agent import build_conversation_agent
+from ai_conversation_service.agents.jira_draft_agent import build_jira_draft_agent
 from ai_conversation_service.services.chunk_index_service import ChunkIndexService
 from ai_conversation_service.services.context_retrieval_service import (
     ContextRetrievalService,
@@ -35,6 +36,7 @@ from ai_conversation_service.api.v1.ai_conversations import (
 from ai_conversation_service.api.v1.tree_analysis import (
     router as tree_analysis_router,
 )
+from ai_conversation_service.api.v1.jira_drafts import router as jira_drafts_router
 
 
 @asynccontextmanager
@@ -85,6 +87,11 @@ async def lifespan(app: FastAPI):
     app.state.reindex_trigger = reindex_trigger
     app.state.ai_conversation_service = ai_conversation_service
     app.state.tree_analysis_service = tree_analysis_service
+    # Independent of the embedder: drafting a ticket needs no retrieval, so it stays available
+    # even when cross-conversation search is degraded.
+    app.state.jira_draft_agent = (
+        build_jira_draft_agent() if settings.openai_api_key else None
+    )
     app.state.vector_index_ready = (
         await ensure_vector_index(database, embedder.dimensions) if embedder else False
     )
@@ -144,6 +151,7 @@ app.add_middleware(
 # are matched by the internal routers.
 app.include_router(ai_conversations_router, prefix="/ai")
 app.include_router(tree_analysis_router, prefix="/ai")
+app.include_router(jira_drafts_router, prefix="/ai")
 
 
 # Both paths: the ALB forwards /ai/* here without stripping the prefix, so a bare /health is
