@@ -394,7 +394,6 @@ const HomePage = () => {
     // text appearing at once gives no sense of progress and leaves the reader hunting for
     // where it started.
     const { revealedChars, reveal: revealReply, stop: stopReveal } = useRevealedText();
-    const [assistantAvatarUrl, setAssistantAvatarUrl] = useState(null);
     // Node just created from a conversation, highlighted on the graph while its connections
     // are revealed.
     const [spotlightNodeId, setSpotlightNodeId] = useState(null);
@@ -406,7 +405,6 @@ const HomePage = () => {
         scrollToBottom: scrollChatToBottom
     } = useChatScroll([chatMessages, revealedChars, isChatLoading]);
 
-    const fileInputRef = useRef(null);
     // Disabling the input while a reply was in flight made the browser blur it, so
     // every message needed a fresh click on the box. It stays enabled and keeps focus;
     // only the send button is gated, and handleSendMessage ignores a repeat submit.
@@ -613,10 +611,6 @@ const HomePage = () => {
 
     useEffect(() => {
         fetchProjects();
-        try {
-            const saved = localStorage.getItem('pami.assistantAvatar');
-            if (saved) setAssistantAvatarUrl(saved);
-        } catch (e) { }
     }, []);
 
     useEffect(() => {
@@ -732,24 +726,6 @@ const HomePage = () => {
             // Back to the box, so the next message is just typing.
             chatInputRef.current?.focus();
         }
-    };
-
-    const handleAvatarFile = (file) => {
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            const data = ev.target.result;
-            try { localStorage.setItem('pami.assistantAvatar', data); } catch (e) { }
-            setAssistantAvatarUrl(data);
-        };
-        reader.readAsDataURL(file);
-    };
-
-    const triggerAvatarUpload = () => fileInputRef.current && fileInputRef.current.click();
-
-    const clearAssistantAvatar = () => {
-        try { localStorage.removeItem('pami.assistantAvatar'); } catch (e) { }
-        setAssistantAvatarUrl(null);
     };
 
     const getProjectTreeNodes = () => {
@@ -1455,7 +1431,6 @@ const HomePage = () => {
         <div className={`dashboard-container ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
             <AppSidebar
                 active="dashboard"
-                avatarUrl={assistantAvatarUrl}
                 onJira={() => openModal("jira")}
             />
 
@@ -1577,31 +1552,6 @@ const HomePage = () => {
                                             <span>{selectedProjectName}</span>
                                         </div>
                                         <div className="chat-header-actions">
-                                            <button
-                                                type="button"
-                                                className="chat-icon-btn"
-                                                title="Upload assistant avatar"
-                                                aria-label="Upload assistant avatar"
-                                                onClick={triggerAvatarUpload}
-                                            >
-                                                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                    <path d="M8 10.5V2.8m0 0L5.4 5.4M8 2.8l2.6 2.6M2.8 10v2.2a1 1 0 0 0 1 1h8.4a1 1 0 0 0 1-1V10" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                                                </svg>
-                                            </button>
-                                            {assistantAvatarUrl && (
-                                                <button
-                                                    type="button"
-                                                    className="chat-icon-btn"
-                                                    title="Reset assistant avatar"
-                                                    aria-label="Reset assistant avatar"
-                                                    onClick={clearAssistantAvatar}
-                                                >
-                                                    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-                                                        <path d="M4.5 4.5l7 7m0-7l-7 7" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                                                    </svg>
-                                                </button>
-                                            )}
-                                            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleAvatarFile(e.target.files && e.target.files[0])} />
                                             <button type="button" className="create-node-btn" title="Turn this conversation into a node on the graph" onClick={handleCreateNodeFromConversation} disabled={realProjects.length === 0 || chatMessages.length === 0}>
                                                 <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                                                     <path d="M8 3.4v9.2M3.4 8h9.2" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -1634,7 +1584,7 @@ const HomePage = () => {
                                                         {isUser ? (
                                                             <div className="message-avatar user-avatar"><img src="/mario.png" alt="user" /></div>
                                                         ) : (
-                                                            <div className="message-avatar assistant" style={{ backgroundImage: `url(${assistantAvatarUrl || "/pami_ai_avatar.png"})` }} />
+                                                            <div className="message-avatar assistant" style={{ backgroundImage: 'url("/pami_ai_avatar.png")' }} />
                                                         )}
                                                         <div className="message-content">
                                                             <p>
@@ -1685,7 +1635,7 @@ const HomePage = () => {
                                         )}
                                         {isChatLoading && (
                                             <div className="chat-message assistant">
-                                                <div className="message-avatar assistant" style={{ backgroundImage: `url(${assistantAvatarUrl || "/pami_ai_avatar.png"})` }} />
+                                                <div className="message-avatar assistant" style={{ backgroundImage: 'url("/pami_ai_avatar.png")' }} />
                                                 <div className="message-content">
                                                     <div className="typing-indicator"><span></span><span></span><span></span></div>
                                                 </div>

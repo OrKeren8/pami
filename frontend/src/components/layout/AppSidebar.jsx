@@ -28,14 +28,6 @@ const RECOMMENDATIONS = [
     }
 ];
 
-const readStoredAvatar = () => {
-    try {
-        return window.localStorage.getItem('pami.assistantAvatar');
-    } catch (error) {
-        return null;
-    }
-};
-
 const LogoutIcon = () => (
     <svg className="sidebar-nav-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
         <path
@@ -52,7 +44,7 @@ const LogoutIcon = () => (
 // Shared by the dashboard and the Slack console so the console is navigable rather than a
 // dead end. `active` is the id of the current page; `onJira` lets the dashboard open its own
 // modal in place, while other pages fall back to navigating there.
-function AppSidebar({ active, avatarUrl, onJira }) {
+function AppSidebar({ active, onJira }) {
     const navigate = useNavigate();
     // From the server, not from decoding the token here: the client must not be the one
     // deciding it is an admin. This only draws or hides a link - /admin/users refuses anyone
@@ -60,7 +52,9 @@ function AppSidebar({ active, avatarUrl, onJira }) {
     const { isAdmin, email, signOut } = useSession();
     const [index, setIndex] = useState(0);
     const recommendation = RECOMMENDATIONS[index];
-    const avatar = avatarUrl || readStoredAvatar() || ASSISTANT_IMAGE;
+    // One shipped image. The upload was the only writer of the stored override, so with it
+    // gone a stored value could only be a leftover from before.
+    const avatar = ASSISTANT_IMAGE;
 
     const openJira = () => {
         if (onJira) {

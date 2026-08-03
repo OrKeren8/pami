@@ -7024,3 +7024,29 @@ button[aria-label*="Slack"] {
 .pami-chat-pane .jira-draft-chip:hover {
   background: #fff1f8;
 }
+
+/* The chat pane must fill the panel it sits in.
+   A fixed 640px minimum fought the panel's own height: on a short window it overflowed a
+   parent with overflow:hidden and got clipped, and it stopped the pane tracking the panel at
+   all. The panel already sizes itself to the viewport, so the pane just follows it. */
+.pami-chat-pane {
+  min-height: 0;
+  height: 100%;
+  flex: 1 1 auto;
+}
+
+.dashboard-grid-anchored .pami-chat-pane {
+  min-height: 0 !important;
+  max-height: none !important;
+}
+
+/* The message list is the part that grows; the header and the input row keep their size. */
+.pami-chat-pane .chat-header,
+.pami-chat-pane .chat-input-row {
+  flex: 0 0 auto;
+}
+
+.pami-chat-pane .chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
