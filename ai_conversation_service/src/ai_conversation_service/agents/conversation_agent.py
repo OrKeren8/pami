@@ -144,6 +144,19 @@ async def read_conversation(
     return windows
 
 
+def _with_pami_label(labels: list[str] | None) -> list[str]:
+    """Keep the model's labels, and always keep `pami`.
+
+    Every ticket this app creates stays identifiable. The model returning its own list would
+    otherwise drop the marker - which is the same rule merge_draft applies on the other
+    drafting path, and it was missing here.
+    """
+    kept = [label.strip() for label in (labels or []) if label and label.strip()]
+    if "pami" not in kept:
+        kept.append("pami")
+    return kept
+
+
 async def draft_jira_ticket(
     ctx: RunContext[AgentDeps],
     summary: str,
@@ -185,8 +198,7 @@ async def draft_jira_ticket(
         "description": description.strip(),
         "issue_type": (issue_type or "Task").strip(),
         "priority": (priority or None),
-        "labels": [label for label in (labels or ["pami"]) if label and label.strip()]
-        or ["pami"],
+        "labels": _with_pami_label(labels),
     }
     _logger.info(
         f"Drafted a Jira ticket from chat: {ctx.deps.jira_draft['issue_type']} "
