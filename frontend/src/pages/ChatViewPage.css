@@ -34,7 +34,6 @@
     justify-content: space-between;
     gap: var(--ds-4);
     padding-bottom: var(--ds-4);
-    border-bottom: 1px solid var(--ds-line);
 }
 
 .chat-view-kicker {
@@ -52,6 +51,7 @@
     color: var(--ds-text);
     font-size: var(--ds-t-xl);
     font-weight: 800;
+    letter-spacing: var(--ds-track-tight);
 }
 
 .chat-view-heading p {
@@ -70,8 +70,6 @@
 .chat-view-control select,
 .chat-view-control input {
     min-width: 150px;
-    padding: 8px 10px;
-    font-size: 0.84rem;
 }
 
 .chat-view-search input {
@@ -95,19 +93,22 @@
 }
 
 .chat-view-card {
+    position: relative;
     display: flex;
     align-items: center;
-    gap: var(--ds-3);
+    gap: var(--ds-4);
     width: 100%;
-    padding: var(--ds-4) 18px;
-    /* Raised off the page rather than outlined: a pink-tinted panel over a soft pink
-       shadow, so the list reads as a stack of cards at a glance. */
-    border: 1px solid #f7d6e7;
-    border-radius: var(--ds-r-lg);
-    background: linear-gradient(150deg, #ffffff 0%, var(--ds-pink-50) 58%, #ffeef7 100%);
+    padding: var(--ds-4) 18px var(--ds-4) 20px;
+    /* White paper lifted on a pink glow, not pink paper. The old diagonal white-to-pink
+       gradient put the summary text on the most saturated corner of its own card, and made
+       every card look like a highlight that had run. The colour is in the shadow now, which
+       is what "raised" actually looks like. */
+    border: 1px solid var(--ds-pink-100);
+    border-radius: var(--ds-r-md);
+    background: var(--ds-surface);
     box-shadow:
-        0 1px 2px rgba(190, 24, 93, 0.06),
-        0 10px 22px -12px rgba(190, 24, 93, 0.28);
+        0 1px 2px rgba(190, 24, 93, 0.05),
+        0 12px 24px -16px rgba(190, 24, 93, 0.35);
     font-family: var(--ds-font);
     text-align: left;
     cursor: pointer;
@@ -115,14 +116,36 @@
         transform 140ms var(--ds-ease), background 140ms var(--ds-ease);
 }
 
+/* A pink edge that grows on hover: it marks the card you are about to open without moving
+   anything, and it is the one place the brand colour belongs on a list of neutral rows. */
+.chat-view-card::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 12px;
+    bottom: 12px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--ds-pink-200);
+    transition: background 140ms var(--ds-ease), top 140ms var(--ds-ease),
+        bottom 140ms var(--ds-ease);
+}
+
 .chat-view-card:hover,
 .chat-view-card-previewing {
-    border-color: var(--ds-pink-300);
-    background: linear-gradient(150deg, #ffffff 0%, #fff1f8 55%, #ffe3f1 100%);
+    border-color: var(--ds-pink-200);
+    background: var(--ds-pink-50);
     box-shadow:
-        0 2px 4px rgba(190, 24, 93, 0.08),
-        0 22px 40px -16px rgba(190, 24, 93, 0.42);
-    transform: translateY(-3px);
+        0 2px 4px rgba(190, 24, 93, 0.07),
+        0 24px 44px -20px rgba(190, 24, 93, 0.45);
+    transform: translateY(-2px);
+}
+
+.chat-view-card:hover::before,
+.chat-view-card-previewing::before {
+    top: 6px;
+    bottom: 6px;
+    background: var(--ds-accent);
 }
 
 .chat-view-card:active {
@@ -144,9 +167,10 @@
 
 .chat-view-card-title {
     overflow: hidden;
-    color: #1f1a1d;
-    font-size: var(--ds-t-md);
-    font-weight: 700;
+    color: var(--ds-text);
+    font-size: 1rem;
+    font-weight: 650;
+    letter-spacing: var(--ds-track-snug);
     line-height: 1.35;
     /* Two lines then clipped: node headers are a few words, but a conversation with no node
        falls back to its opening question, and one long question must not set the row height
@@ -162,7 +186,7 @@
     flex-wrap: wrap;
     gap: var(--ds-2);
     color: var(--ds-ink-400);
-    font-size: 0.76rem;
+    font-size: var(--ds-t-sm);
 }
 
 .chat-view-dot {
@@ -178,14 +202,16 @@
     flex: 1 1 260px;
     min-width: 0;
     overflow: hidden;
-    color: #9b6e86;
+    /* Neutral, because it is the sentence you actually read on the card. In dusty pink on a
+       pink card it was the least legible text on the page. */
+    color: var(--ds-ink-500);
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .chat-view-card-open {
     flex-shrink: 0;
-    color: #d4a0bd;
+    color: var(--ds-pink-300);
     font-size: 1.3rem;
     line-height: 1;
 }
@@ -204,15 +230,15 @@
     width: min(620px, calc(100vw - 80px));
     max-height: min(62vh, 560px);
     padding: var(--ds-5) 22px;
-    border: 1px solid rgba(240, 98, 146, 0.4);
-    border-radius: 20px;
+    border: 1px solid var(--ds-pink-200);
+    border-radius: var(--ds-r-lg);
     /* Deliberately see-through: the preview is a peek at the conversation, not a dialog, so
        the list stays visible behind it. Not lower than this - at 0.74 the card text behind
        showed through the preview text and neither could be read. The blur does most of the
        work; it is not relied on alone because it is ignored in some rendering paths. */
-    background: rgba(255, 246, 251, 0.93);
+    background: rgba(255, 250, 252, 0.94);
     backdrop-filter: blur(14px);
-    box-shadow: 0 30px 70px -20px rgba(190, 24, 93, 0.45);
+    box-shadow: var(--ds-shadow-3), 0 40px 80px -30px rgba(190, 24, 93, 0.4);
     cursor: pointer;
     animation: chat-preview-in 130ms ease-out;
 }
@@ -223,19 +249,20 @@
     justify-content: space-between;
     gap: var(--ds-3);
     padding-bottom: 10px;
-    border-bottom: 1px solid rgba(240, 98, 146, 0.22);
+    border-bottom: 1px solid var(--ds-pink-100);
 }
 
 .chat-preview-title {
     color: var(--ds-text);
-    font-size: 1rem;
-    font-weight: 700;
+    font-size: 1.0625rem;
+    font-weight: 650;
+    letter-spacing: var(--ds-track-snug);
 }
 
 .chat-preview-count {
     flex-shrink: 0;
-    color: #b06489;
-    font-size: 0.74rem;
+    color: var(--ds-accent-strong);
+    font-size: var(--ds-t-xs);
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
@@ -284,8 +311,8 @@
 }
 
 .chat-preview-hint {
-    color: #b06489;
-    font-size: 0.74rem;
+    color: var(--ds-text-quiet);
+    font-size: var(--ds-t-xs);
     font-weight: 600;
     text-align: center;
 }

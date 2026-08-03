@@ -536,7 +536,7 @@ function JiraConsolePage() {
                     <div className="ds-inline">
                         <button
                             type="button"
-                            className="ds-btn ds-btn-quiet"
+                            className="ds-btn ds-btn-ghost ds-btn-sm"
                             onClick={() => openIssue(null, issue.issue_key)}
                             disabled={isLoadingIssue}
                         >
@@ -562,15 +562,31 @@ function JiraConsolePage() {
                     {issue.status && (
                         <span className={statusPill(issue.status)}>{issue.status}</span>
                     )}
-                    {issue.issue_type && <span className="ds-pill">{issue.issue_type}</span>}
-                    <span className="ds-pill">{issue.assignee || 'Unassigned'}</span>
-                    {issue.priority && <span className="ds-pill">{issue.priority}</span>}
-                    {issue.due_date && <span className="ds-pill">Due {issue.due_date}</span>}
                     {(issue.labels || []).map((label) => (
                         <span key={label} className="ds-pill ds-pill-accent">
                             {label}
                         </span>
                     ))}
+                </div>
+
+                {/* Type, assignee, priority and due date are facts about the issue, not
+                    statuses. As pills they crowded out the one pill that matters. */}
+                <div className="ds-meta">
+                    {issue.issue_type && <span>{issue.issue_type}</span>}
+                    <span className="ds-meta-sep" aria-hidden="true" />
+                    <span>{issue.assignee || 'Unassigned'}</span>
+                    {issue.priority && (
+                        <>
+                            <span className="ds-meta-sep" aria-hidden="true" />
+                            <span>{issue.priority} priority</span>
+                        </>
+                    )}
+                    {issue.due_date && (
+                        <>
+                            <span className="ds-meta-sep" aria-hidden="true" />
+                            <span>due {issue.due_date}</span>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -676,7 +692,7 @@ function JiraConsolePage() {
             <AppSidebar active="jira" />
 
             <main className="jira-main">
-                <header className="jira-header">
+                <header className="jira-header ds-header-rule">
                     <div className="jira-heading">
                         <span className="jira-kicker">Jira</span>
                         <h1>Ticket workspace</h1>
@@ -830,7 +846,7 @@ function JiraConsolePage() {
                                     <label htmlFor="jira-description">Description</label>
                                     <button
                                         type="button"
-                                        className="ds-btn ds-btn-quiet"
+                                        className="ds-btn ds-btn-ghost ds-btn-sm"
                                         onClick={() => setShowPreview((shown) => !shown)}
                                     >
                                         {showPreview ? 'Edit text' : 'Formatted'}

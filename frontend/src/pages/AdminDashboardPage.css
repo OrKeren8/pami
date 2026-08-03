@@ -28,7 +28,6 @@
     justify-content: space-between;
     gap: var(--ds-4);
     padding-bottom: var(--ds-4);
-    border-bottom: 1px solid var(--ds-line);
 }
 
 .admin-kicker {
@@ -46,6 +45,7 @@
     color: var(--ds-text);
     font-size: var(--ds-t-xl);
     font-weight: 800;
+    letter-spacing: var(--ds-track-tight);
 }
 
 .admin-header p {

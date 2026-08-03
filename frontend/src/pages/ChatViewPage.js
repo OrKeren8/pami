@@ -376,7 +376,7 @@ function ChatViewPage() {
             <AppSidebar active="chats" />
 
             <main className="chat-view-main">
-                <header className="chat-view-header">
+                <header className="chat-view-header ds-header-rule">
                     <div className="chat-view-heading">
                         <span className="chat-view-kicker">Chat View</span>
                         <h1>Your conversations</h1>
