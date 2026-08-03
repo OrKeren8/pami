@@ -268,6 +268,46 @@ class JiraApiService:
         ]
         return {"ok": True, "issue_types": types}
 
+    def list_recent_issues(self, project_key: str, limit: int = 20) -> dict[str, Any]:
+        """The project's most recently updated issues.
+
+        Without this the only way into an existing issue is to type its key from memory, which
+        is the kind of thing nobody can do and which makes the feature look broken rather than
+        merely inconvenient.
+
+        Tries /search/jql first and falls back to /search: Atlassian is migrating Jira Cloud
+        from the second to the first, and which one a site answers depends on when it was
+        provisioned.
+        """
+        jql = f'project = "{project_key}" ORDER BY updated DESC'
+        params = {
+            "jql": jql,
+            "maxResults": max(1, min(limit, 50)),
+            "fields": "summary,status,issuetype,updated",
+        }
+
+        try:
+            data = self._request("GET", "/search/jql", params=params)
+        except HTTPException as error:
+            if error.status_code not in (400, 404, 410):
+                raise
+            logger.info("Falling back to the older /search endpoint for this site")
+            data = self._request("GET", "/search", params=params)
+
+        issues = [
+            {
+                "key": issue.get("key"),
+                "summary": (issue.get("fields") or {}).get("summary"),
+                "status": ((issue.get("fields") or {}).get("status") or {}).get("name"),
+                "issue_type": ((issue.get("fields") or {}).get("issuetype") or {}).get(
+                    "name"
+                ),
+                "updated": (issue.get("fields") or {}).get("updated"),
+            }
+            for issue in (data or {}).get("issues", [])
+        ]
+        return {"ok": True, "issues": issues}
+
     def get_issue(self, issue_key: str) -> dict[str, Any]:
         """One issue, flattened to the fields the UI shows."""
         data = self._request(

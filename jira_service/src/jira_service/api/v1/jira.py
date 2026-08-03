@@ -28,6 +28,12 @@ def list_issue_types(project_key: str):
     return jira_api_service.list_issue_types(project_key)
 
 
+@router.get("/projects/{project_key}/issues")
+def list_recent_issues(project_key: str, limit: int = 20):
+    """Recently updated issues, so an existing issue can be picked instead of typed."""
+    return jira_api_service.list_recent_issues(project_key, limit)
+
+
 @router.post("/issues")
 def create_issue(request: CreateIssueRequest):
     return jira_api_service.create_issue(request)
