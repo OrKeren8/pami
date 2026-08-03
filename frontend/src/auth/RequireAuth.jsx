@@ -22,7 +22,7 @@ export const RequireAuth = ({ children }) => {
     if (isLoading) {
         return (
             <div className="auth-gate">
-                <span className="auth-gate-spinner" aria-hidden="true" />
+                <span className="ds-spinner" aria-hidden="true" />
                 <p>Checking your session…</p>
             </div>
         );
@@ -42,7 +42,7 @@ export const RequireAdmin = ({ children }) => {
     if (isLoading) {
         return (
             <div className="auth-gate">
-                <span className="auth-gate-spinner" aria-hidden="true" />
+                <span className="ds-spinner" aria-hidden="true" />
                 <p>Checking your session…</p>
             </div>
         );

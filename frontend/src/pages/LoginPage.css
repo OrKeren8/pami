@@ -89,53 +89,64 @@
     gap: 15px;
 }
 
+/* Sign-in keeps its own larger, rounder controls - it is one card on an empty page, not a
+   form inside a working screen - but it takes its colours from the system. The inputs used to
+   be filled bluish grey, which belonged to no other screen in the app. */
 .input-group label {
+    display: block;
+    margin-bottom: 7px;
+    color: var(--ds-ink-600);
     font-size: 0.8rem;
     font-weight: 700;
-    color: #333;
-    margin-bottom: 7px;
-    display: block;
 }
 
 .input-group input {
     width: 100%;
     padding: 13px 20px;
-    background: #f7f9fc;
-    border: 1px solid #edf0f5;
-    border-radius: 12px;
+    border: 1px solid var(--ds-line-strong);
+    border-radius: var(--ds-r-md);
+    background: var(--ds-surface);
+    color: var(--ds-ink-800);
     font-size: 0.9rem;
-    transition: all 0.2s;
+    transition: border-color var(--ds-fast) var(--ds-ease),
+        box-shadow var(--ds-fast) var(--ds-ease);
     box-sizing: border-box;
 }
 
-    .input-group input:focus {
-        outline: none;
-        border-color: rgba(240, 98, 146, 0.3);
-        box-shadow: 0 0 0 4px rgba(240, 98, 146, 0.05);
-    }
-
+.input-group input:focus-visible {
+    outline: 2px solid var(--ds-pink-400);
+    outline-offset: 1px;
+}
 
 .login-submit-btn {
-    background: linear-gradient(135deg, #f06292 0%, #ec407a 100%); 
-    color: white;
-    border: none;
-    padding: 15px;
-    border-radius: 15px;
-    font-size: 1rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.3s ease;
     display: flex;
     justify-content: center;
     align-items: center;
     margin-top: 15px;
-    box-shadow: 0 4px 15px rgba(240, 98, 146, 0.2);
+    padding: 15px;
+    border: none;
+    border-radius: var(--ds-r-lg);
+    background: linear-gradient(135deg, var(--ds-pink-400), var(--ds-pink-500));
+    color: #fff;
+    font-family: var(--ds-font);
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform var(--ds-fast) var(--ds-ease), box-shadow var(--ds-fast) var(--ds-ease);
+    box-shadow: var(--ds-shadow-accent);
 }
 
-    .login-submit-btn:hover {
-        box-shadow: 0 6px 20px rgba(240, 98, 146, 0.3);
-        transform: translateY(-2px);
-    }
+.login-submit-btn:hover:not(:disabled) {
+    box-shadow: 0 10px 22px -10px rgba(236, 72, 153, 0.9);
+    transform: translateY(-1px);
+}
+
+.login-submit-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
 
 
 .login-footer {
@@ -287,23 +298,10 @@
     gap: 14px;
     width: 100vw;
     height: 100vh;
-    background: linear-gradient(180deg, #fdf7fb 0%, #ffffff 60%);
-    color: #71717a;
+    background: var(--ds-bg);
+    color: var(--ds-text-muted);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     font-size: 0.9rem;
-}
-
-.auth-gate-spinner {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    border: 3px solid #f6e3ee;
-    border-top-color: #f06292;
-    animation: auth-gate-spin 0.8s linear infinite;
-}
-
-@keyframes auth-gate-spin {
-    to { transform: rotate(360deg); }
 }
 
 .login-secondary-action {
@@ -311,8 +309,8 @@
     padding: 0;
     border: none;
     background: none;
-    color: #be185d;
-    font-family: inherit;
+    color: var(--ds-accent-strong);
+    font-family: var(--ds-font);
     font-size: 0.82rem;
     font-weight: 600;
     text-decoration: underline;
@@ -321,7 +319,7 @@
 
 .login-mode-note {
     margin-top: 12px;
-    color: #a1a1aa;
-    font-size: 0.78rem;
+    color: var(--ds-ink-400);
+    font-size: var(--ds-t-sm);
     text-align: center;
 }
