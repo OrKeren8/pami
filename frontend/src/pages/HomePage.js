@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import "./HomePage.css";
-import { projectsApi, aiApi, jiraApi } from "../api/axios";
+import { projectsApi, aiApi } from "../api/axios";
 import AppSidebar from "../components/layout/AppSidebar";
 import GraphCanvas from "../components/graph/GraphCanvas";
 import { deriveGraph } from "../lib/graph/deriveGraph";
@@ -350,9 +350,6 @@ const HomePage = () => {
 
     const [emailInput, setEmailInput] = useState("");
     const [tokenInput, setTokenInput] = useState("");
-
-    const [isJiraLoading, setIsJiraLoading] = useState(false);
-    const [jiraProjects, setJiraProjects] = useState([]);
 
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState("");
@@ -903,98 +900,6 @@ const HomePage = () => {
     };
 
 
-    const fetchJiraProjects = async () => {
-        const response = await jiraApi.get("/list-projects");
-        if (!response.data || response.data.ok !== true) {
-            throw new Error("Failed to fetch Jira projects.");
-        }
-        return response.data.projects || [];
-    };
-
-    const handleJiraConnect = async () => {
-        setIsJiraLoading(true);
-        try {
-            const response = await jiraApi.post("/connection-check");
-            if (!response.data || response.data.ok !== true) {
-                throw new Error("Jira connection check failed.");
-            }
-            const projects = await fetchJiraProjects();
-            setJiraProjects(projects);
-            toast.success("Connected successfully to Jira.");
-            setActiveModal("jiraActions");
-        } catch (error) {
-            console.error("Jira connection failed:", error);
-            toast.error("Could not connect to Jira. Check the Jira service configuration.");
-        } finally {
-            setIsJiraLoading(false);
-        }
-    };
-
-    const handleJiraTestConnection = async () => {
-        setIsJiraLoading(true);
-        try {
-            const response = await jiraApi.post("/connection-check");
-            if (!response.data || response.data.ok !== true) {
-                throw new Error("Jira connection check failed.");
-            }
-            toast.success("Jira connection is healthy.");
-        } catch (error) {
-            console.error("Jira test connection failed:", error);
-            toast.error("Jira test connection failed.");
-        } finally {
-            setIsJiraLoading(false);
-        }
-    };
-
-    const handleListJiraProjects = async () => {
-        setIsJiraLoading(true);
-        try {
-            const projects = await fetchJiraProjects();
-            setJiraProjects(projects);
-            toast.notify(
-                projects.length > 0
-                    ? `Found ${projects.length} Jira project${projects.length === 1 ? "" : "s"}.`
-                    : "No Jira projects found."
-            );
-        } catch (error) {
-            console.error("Failed to fetch Jira projects:", error);
-            toast.error("Failed to fetch Jira projects.");
-        } finally {
-            setIsJiraLoading(false);
-        }
-    };
-
-    const handleCreateJiraTestIssue = async () => {
-        setIsJiraLoading(true);
-        try {
-            const projects = jiraProjects.length > 0 ? jiraProjects : await fetchJiraProjects();
-            setJiraProjects(projects);
-            const projectKey = projects[0] && projects[0].key;
-            if (!projectKey) {
-                toast.error("No Jira project is available to create a test issue in.");
-                return;
-            }
-
-            const response = await jiraApi.post("/issues", {
-                project_key: projectKey,
-                summary: "PAMI frontend Jira integration test",
-                description: "Created from the PAMI frontend through the Jira service.",
-                issue_type: "Task",
-                labels: ["pami", "frontend", "integration"],
-            });
-
-            if (!response.data || response.data.ok !== true) {
-                throw new Error("Failed to create Jira issue.");
-            }
-            toast.success(`Jira issue created: ${response.data.issue_key}`);
-        } catch (error) {
-            console.error("Failed to create Jira issue:", error);
-            toast.error("Failed to create Jira issue.");
-        } finally {
-            setIsJiraLoading(false);
-        }
-    };
-
     // Polls briefly for the node the AI organizer is still filling in. Bounded, and stops as
     // soon as the node has either links or a generated title.
     const refetchNodesUntilLinked = async (projectId, nodeId) => {
@@ -1173,85 +1078,36 @@ const HomePage = () => {
     };
 
 
-    const renderDefaultIntegrationModal = () => {
-        return (
-            <>
-                <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-                    <img src="https://cdn.worldvectorlogo.com/logos/jira-1.svg" alt="Jira" style={{ height: "50px", marginBottom: "10px" }} />
-                    <h2>Connect to Jira</h2>
-                    <p className="modal-subtitle">
-                        Jira credentials are configured on the Jira service. Connect to verify it can
-                        reach your Jira workspace.
-                    </p>
-                </div>
-                <button
-                    type="button"
-                    className="login-submit-btn"
-                    onClick={handleJiraConnect}
-                    disabled={isJiraLoading}
-                    style={{ width: "100%", padding: "12px", background: "#0052cc", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
-                >
-                    {isJiraLoading ? "Connecting..." : "Connect Jira"}
-                </button>
-            </>
-        );
-    };
-
-    const renderJiraActionsModal = () => {
-        return (
-            <>
-                <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
-                    <img src="https://cdn.worldvectorlogo.com/logos/jira-1.svg" alt="Jira" style={{ height: "50px", marginBottom: "10px" }} />
-                    <h2>Jira Actions</h2>
-                    <p className="modal-subtitle">
-                        Test the connection, list projects, or create a test issue.
-                    </p>
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                    <button
-                        type="button"
-                        onClick={handleJiraTestConnection}
-                        disabled={isJiraLoading}
-                        style={{ width: "100%", padding: "12px", background: "#0052cc", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
-                    >
-                        Test Jira Connection
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={handleListJiraProjects}
-                        disabled={isJiraLoading}
-                        style={{ width: "100%", padding: "12px", background: "#172b4d", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
-                    >
-                        List Jira Projects
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={handleCreateJiraTestIssue}
-                        disabled={isJiraLoading}
-                        style={{ width: "100%", padding: "12px", background: "#0f9d58", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
-                    >
-                        Create Test Issue
-                    </button>
-
-                    {jiraProjects.length > 0 && (
-                        <div style={{ marginTop: "8px", padding: "12px", background: "#f5f7fb", borderRadius: "12px", border: "1px solid #e5e7eb" }}>
-                            <strong>Projects:</strong>
-                            <ul style={{ margin: "8px 0 0 18px", padding: 0 }}>
-                                {jiraProjects.map((project) => (
-                                    <li key={project.id || project.key}>
-                                        {project.name} ({project.key})
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
-                </div>
-            </>
-        );
-    };
+    // Jira has a window of its own, so this is a signpost rather than a second, worse copy of
+    // it. It used to hold a connection check, a project list and a "create test issue" button -
+    // the last of which filed real tickets into the real project.
+    const renderJiraSignpost = () => (
+        <>
+            <div className="modal-header" style={{ textAlign: "center", marginBottom: "20px" }}>
+                <img
+                    src="https://cdn.worldvectorlogo.com/logos/jira-1.svg"
+                    alt="Jira"
+                    style={{ height: "50px", marginBottom: "10px" }}
+                />
+                <h2>Jira</h2>
+                <p className="modal-subtitle">
+                    Tickets, comments and the connection check all live in the Jira workspace,
+                    where PAMI can draft a ticket from a conversation.
+                </p>
+            </div>
+            <button
+                type="button"
+                className="ds-btn ds-btn-primary"
+                style={{ width: "100%" }}
+                onClick={() => {
+                    closeModal();
+                    navigate("/jira");
+                }}
+            >
+                Open the Jira workspace
+            </button>
+        </>
+    );
 
     const renderModalContent = () => {
         if (activeModal === "shareProject") {
@@ -1268,25 +1124,23 @@ const HomePage = () => {
                     </p>
 
                     <form onSubmit={handleShareProject} className="modal-form">
-                        <div className="input-group" style={{ marginBottom: "15px" }}>
-                            <label htmlFor="share-email" style={{ display: "block", marginBottom: "5px" }}>
-                                Their email
-                            </label>
+                        <div className="ds-field" style={{ marginBottom: "15px" }}>
+                            <label htmlFor="share-email">Their email</label>
                             <input
                                 id="share-email"
+                                className="ds-input"
                                 type="email"
                                 placeholder="teammate@example.com"
                                 value={shareEmail}
                                 onChange={(e) => setShareEmail(e.target.value)}
                                 required
-                                style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
                             />
                         </div>
                         <button
                             type="submit"
-                            className="login-submit-btn"
+                            className="ds-btn ds-btn-primary"
+                            style={{ width: "100%" }}
                             disabled={isSharing}
-                            style={{ width: "100%", padding: "12px", background: "#f06292", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}
                         >
                             {isSharing ? "Sharing..." : "Share project"}
                         </button>
@@ -1336,22 +1190,42 @@ const HomePage = () => {
                         <h2>Create New Project</h2>
                     </div>
                     <form className="modal-form" onSubmit={handleCreateProject}>
-                        <div className="input-group" style={{ marginBottom: "15px" }}>
-                            <label style={{ display: "block", marginBottom: "5px" }}>Project Name</label>
-                            <input type="text" placeholder="e.g. Neural Alpha" required value={emailInput} onChange={(e) => setEmailInput(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
+                        <div className="ds-field" style={{ marginBottom: "15px" }}>
+                            <label htmlFor="new-project-name">Project name</label>
+                            <input
+                                id="new-project-name"
+                                className="ds-input"
+                                type="text"
+                                placeholder="e.g. Neural Alpha"
+                                required
+                                value={emailInput}
+                                onChange={(e) => setEmailInput(e.target.value)}
+                            />
                         </div>
-                        <div className="input-group" style={{ marginBottom: "20px" }}>
-                            <label style={{ display: "block", marginBottom: "5px" }}>Description (Optional)</label>
-                            <input type="text" placeholder="Project goals..." value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
+                        <div className="ds-field" style={{ marginBottom: "20px" }}>
+                            <label htmlFor="new-project-goal">Description (optional)</label>
+                            <input
+                                id="new-project-goal"
+                                className="ds-input"
+                                type="text"
+                                placeholder="Project goals..."
+                                value={tokenInput}
+                                onChange={(e) => setTokenInput(e.target.value)}
+                            />
                         </div>
-                        <button type="submit" className="login-submit-btn" disabled={isLoading} style={{ width: "100%", padding: "12px", background: "#f06292", color: "white", border: "none", borderRadius: "12px", fontWeight: "bold" }}>
-                            {isLoading ? "Processing..." : "Create Project"}
+                        <button
+                            type="submit"
+                            className="ds-btn ds-btn-primary"
+                            style={{ width: "100%" }}
+                            disabled={isLoading}
+                        >
+                            {isLoading ? "Processing..." : "Create project"}
                         </button>
                     </form>
                 </>
             );
         }
-        if (activeModal === "jiraActions") return renderJiraActionsModal();
+        if (activeModal === "jiraActions") return renderJiraSignpost();
         if (activeModal === "viewNodeDetails") return (
             <NodeDetailsModal
                 selectedNode={selectedNode}
@@ -1365,7 +1239,7 @@ const HomePage = () => {
                 onOpenConversation={goToNodeConversation}
             />
         );
-        return renderDefaultIntegrationModal();
+        return renderJiraSignpost();
     };
 
     const selectedProject = realProjects.find(
