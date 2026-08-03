@@ -8,7 +8,7 @@
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    background: linear-gradient(135deg, #fdf4f7 0%, #f7eff9 100%);
+    background: linear-gradient(135deg, var(--ds-pink-50) 0%, #f6f1fa 100%);
     font-family: 'Inter', sans-serif;
     padding: 20px;
     box-sizing: border-box;
@@ -20,8 +20,8 @@
     background: white;
     width: 950px;
     height: 600px;
-    border-radius: 40px; 
-    box-shadow: 0 10px 40px rgba(240, 98, 146, 0.08);
+    border-radius: 26px;
+    box-shadow: var(--ds-shadow-3), 0 30px 70px -40px rgba(190, 24, 93, 0.35);
     overflow: hidden;
     position: relative;
     border: 1px solid rgba(240, 98, 146, 0.05);
@@ -33,7 +33,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    background: #fdf2f7; 
+    background: var(--ds-pink-50);
     padding: 40px;
 }
 
@@ -66,16 +66,17 @@
 
 
 .login-header h1 {
-    font-size: 2.2rem;
-    font-weight: 800;
-    color: #1a1a1a;
     margin: 0;
+    color: var(--ds-text);
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: var(--ds-track-tight);
     text-align: center;
 }
 
 .login-header p {
-    font-size: 0.95rem;
-    color: #666;
+    font-size: var(--ds-t-md);
+    color: var(--ds-text-muted);
     margin-top: 10px;
     margin-bottom: 30px;
     text-align: center;
@@ -125,15 +126,16 @@
     margin-top: 15px;
     padding: 15px;
     border: none;
-    border-radius: var(--ds-r-lg);
-    background: linear-gradient(135deg, var(--ds-pink-400), var(--ds-pink-500));
+    border-radius: var(--ds-r-sm);
+    background: linear-gradient(180deg, var(--ds-pink-500), var(--ds-pink-600));
     color: #fff;
     font-family: var(--ds-font);
-    font-size: 1rem;
-    font-weight: 700;
+    font-size: var(--ds-t-md);
+    font-weight: 650;
+    letter-spacing: var(--ds-track-snug);
     cursor: pointer;
     transition: transform var(--ds-fast) var(--ds-ease), box-shadow var(--ds-fast) var(--ds-ease);
-    box-shadow: var(--ds-shadow-accent);
+    box-shadow: var(--ds-shadow-accent), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .login-submit-btn:hover:not(:disabled) {

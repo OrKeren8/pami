@@ -83,10 +83,6 @@ function JiraConsolePage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [lastCreated, setLastCreated] = useState(null);
     const summaryRef = useRef(null);
-    // Editing first, formatting on demand. The other way round meant Enter and clicks in
-    // the description did something other than type, which is the last thing an editor should
-    // do. The Formatted button is right beside the label.
-    const [showPreview, setShowPreview] = useState(false);
     // Set when the chat handed this draft over, so there is a way back to the exact
     // conversation that produced it.
     const [origin] = useState(() => readDraftOrigin());
@@ -536,7 +532,7 @@ function JiraConsolePage() {
                     <div className="ds-inline">
                         <button
                             type="button"
-                            className="ds-btn ds-btn-quiet"
+                            className="ds-btn ds-btn-ghost ds-btn-sm"
                             onClick={() => openIssue(null, issue.issue_key)}
                             disabled={isLoadingIssue}
                         >
@@ -562,15 +558,31 @@ function JiraConsolePage() {
                     {issue.status && (
                         <span className={statusPill(issue.status)}>{issue.status}</span>
                     )}
-                    {issue.issue_type && <span className="ds-pill">{issue.issue_type}</span>}
-                    <span className="ds-pill">{issue.assignee || 'Unassigned'}</span>
-                    {issue.priority && <span className="ds-pill">{issue.priority}</span>}
-                    {issue.due_date && <span className="ds-pill">Due {issue.due_date}</span>}
                     {(issue.labels || []).map((label) => (
                         <span key={label} className="ds-pill ds-pill-accent">
                             {label}
                         </span>
                     ))}
+                </div>
+
+                {/* Type, assignee, priority and due date are facts about the issue, not
+                    statuses. As pills they crowded out the one pill that matters. */}
+                <div className="ds-meta">
+                    {issue.issue_type && <span>{issue.issue_type}</span>}
+                    <span className="ds-meta-sep" aria-hidden="true" />
+                    <span>{issue.assignee || 'Unassigned'}</span>
+                    {issue.priority && (
+                        <>
+                            <span className="ds-meta-sep" aria-hidden="true" />
+                            <span>{issue.priority} priority</span>
+                        </>
+                    )}
+                    {issue.due_date && (
+                        <>
+                            <span className="ds-meta-sep" aria-hidden="true" />
+                            <span>due {issue.due_date}</span>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -676,7 +688,7 @@ function JiraConsolePage() {
             <AppSidebar active="jira" />
 
             <main className="jira-main">
-                <header className="jira-header">
+                <header className="jira-header ds-header-rule">
                     <div className="jira-heading">
                         <span className="jira-kicker">Jira</span>
                         <h1>Ticket workspace</h1>
@@ -828,13 +840,9 @@ function JiraConsolePage() {
                             <div className="ds-field jira-field-grow">
                                 <div className="ds-field-head">
                                     <label htmlFor="jira-description">Description</label>
-                                    <button
-                                        type="button"
-                                        className="ds-btn ds-btn-quiet"
-                                        onClick={() => setShowPreview((shown) => !shown)}
-                                    >
-                                        {showPreview ? 'Edit text' : 'Formatted'}
-                                    </button>
+                                    <span className="ds-hint">
+                                        Headings, lists and checkboxes format as you type
+                                    </span>
                                 </div>
 
                                 {/* An empty box used to say nothing about what belongs in it or
@@ -848,21 +856,17 @@ function JiraConsolePage() {
                                         <button
                                             type="button"
                                             className="ds-btn ds-btn-ghost ds-btn-sm"
-                                            onClick={() => {
-                                                patch({ description: template.body });
-                                                setShowPreview(false);
-                                            }}
+                                            onClick={() => patch({ description: template.body })}
                                         >
                                             Load {template.label} skeleton
                                         </button>
                                     </div>
                                 )}
 
-                                {showPreview && ticket.description.trim() ? (
-                                    <div className="jira-description-preview">
-                                        <TicketPreview text={ticket.description} />
-                                    </div>
-                                ) : (
+                                {/* Both at once. A toggle meant the ticket was either editable
+                                    or readable and never both, and the button that switched
+                                    between them read as a heading. */}
+                                <div className="jira-editor-split">
                                     <textarea
                                         id="jira-description"
                                         className="ds-textarea jira-description-box"
@@ -873,7 +877,16 @@ function JiraConsolePage() {
                                         spellCheck="true"
                                         autoFocus
                                     />
-                                )}
+                                    <div className="jira-description-preview">
+                                        {ticket.description.trim() ? (
+                                            <TicketPreview text={ticket.description} />
+                                        ) : (
+                                            <p className="ds-hint">
+                                                The formatted ticket appears here as you write.
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="jira-field-row">

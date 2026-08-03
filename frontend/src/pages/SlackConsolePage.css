@@ -15,7 +15,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: radial-gradient(circle at 20% 20%, #5a1c5c 0%, #3a0e3c 45%, #240823 100%);
+    background: radial-gradient(circle at 20% 20%, var(--ds-dark-600) 0%, var(--ds-dark-800) 45%, var(--ds-dark-900) 100%);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -23,8 +23,8 @@
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    border: 3px solid rgba(255, 255, 255, 0.2);
-    border-top-color: #f06292;
+    border: 3px solid var(--ds-dark-line);
+    border-top-color: var(--ds-pink-500);
     animation: slack-console-spin 0.8s linear infinite;
 }
 
@@ -52,11 +52,11 @@
     align-items: center;
     justify-content: center;
     margin: 0 auto 4px auto;
-    background: linear-gradient(135deg, #f06292, #8b3f8f);
+    background: linear-gradient(180deg, var(--ds-pink-500), var(--ds-pink-600));
     color: white;
     font-weight: 800;
     font-size: 24px;
-    box-shadow: 0 10px 24px rgba(240, 98, 146, 0.35);
+    box-shadow: 0 10px 24px rgba(219, 39, 119, 0.35);
 }
 
 .slack-console-login-card h1 {
@@ -64,7 +64,7 @@
     text-align: center;
     font-size: 22px;
     font-weight: 800;
-    color: #2d2438;
+    color: var(--ds-ink-900);
 }
 
 .slack-console-login-card p {
@@ -72,7 +72,7 @@
     text-align: center;
     font-size: 13.5px;
     line-height: 1.5;
-    color: #7b7286;
+    color: var(--ds-ink-500);
 }
 
 .slack-console-gate-features {
@@ -88,13 +88,13 @@
     gap: 10px;
     padding: 12px 14px;
     border-radius: 14px;
-    background: #faf7ff;
-    border: 1px solid rgba(139, 92, 246, 0.12);
+    background: var(--ds-ink-50);
+    border: 1px solid rgba(168, 85, 247, 0.12);
 }
 
 .slack-console-gate-feature:nth-child(2) {
-    background: #fff7fb;
-    border-color: rgba(240, 98, 146, 0.14);
+    background: var(--ds-pink-50);
+    border-color: rgba(219, 39, 119, 0.12);
 }
 
 .slack-console-gate-feature > span:first-child {
@@ -105,22 +105,22 @@
 .slack-console-gate-feature strong {
     display: block;
     font-size: 13px;
-    color: #2d2438;
+    color: var(--ds-ink-900);
 }
 
 .slack-console-gate-feature-desc {
     display: block;
     font-size: 12px;
-    color: #7b7286;
+    color: var(--ds-ink-500);
     margin-top: 2px;
 }
 
 .slack-console-login-error {
     padding: 10px 12px;
     border-radius: 10px;
-    background: rgba(224, 30, 90, 0.08);
-    border: 1px solid rgba(224, 30, 90, 0.18);
-    color: #c21858;
+    background: rgba(192, 51, 43, 0.07);
+    border: 1px solid rgba(192, 51, 43, 0.16);
+    color: var(--ds-danger);
     font-size: 12.5px;
     line-height: 1.5;
 }
@@ -130,12 +130,12 @@
     padding: 13px;
     border: none;
     border-radius: 12px;
-    background: linear-gradient(135deg, #4a154b 0%, #8b3f8f 45%, #f06292 100%);
+    background: linear-gradient(180deg, var(--ds-pink-500), var(--ds-pink-600));
     color: white;
     font-weight: 800;
     font-size: 14.5px;
     cursor: pointer;
-    box-shadow: 0 14px 30px rgba(240, 98, 146, 0.28);
+    box-shadow: 0 14px 30px rgba(219, 39, 119, 0.3);
     transition: transform 120ms ease, opacity 120ms ease;
 }
 
@@ -152,7 +152,7 @@
 .slack-console-login-hint {
     text-align: center;
     font-size: 11.5px;
-    color: #9ca3af;
+    color: var(--ds-ink-400);
     line-height: 1.5;
 }
 
@@ -164,8 +164,8 @@
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: linear-gradient(180deg, #4a154b 0%, #3a0e3c 55%, #2e0a30 100%);
-    color: rgba(255, 255, 255, 0.92);
+    background: linear-gradient(180deg, var(--ds-dark-700) 0%, var(--ds-dark-800) 55%, var(--ds-dark-900) 100%);
+    color: var(--ds-on-dark);
     box-sizing: border-box;
 }
 
@@ -174,14 +174,14 @@
     align-items: center;
     gap: 12px;
     padding: 20px 18px 16px 18px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--ds-dark-line);
 }
 
 .slack-console-workspace-icon {
     width: 40px;
     height: 40px;
     border-radius: 12px;
-    background: linear-gradient(135deg, #f06292, #8b3f8f);
+    background: linear-gradient(180deg, var(--ds-pink-500), var(--ds-pink-600));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -189,7 +189,7 @@
     font-size: 18px;
     color: white;
     flex-shrink: 0;
-    box-shadow: 0 6px 16px rgba(240, 98, 146, 0.35);
+    box-shadow: 0 6px 16px rgba(219, 39, 119, 0.35);
 }
 
 .slack-console-workspace-info {
@@ -209,7 +209,7 @@
     align-items: center;
     gap: 6px;
     font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--ds-on-dark-muted);
     margin-top: 2px;
 }
 
@@ -217,21 +217,21 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #9aa0a6;
+    background: var(--ds-ink-400);
 }
 
 .slack-console-status-connected .slack-console-status-dot {
-    background: #2ecc71;
-    box-shadow: 0 0 6px rgba(46, 204, 113, 0.8);
+    background: #3ec27a;
+    box-shadow: 0 0 6px rgba(62, 194, 122, 0.75);
 }
 
 .slack-console-status-connecting .slack-console-status-dot {
-    background: #ecb22e;
+    background: #e0a032;
     animation: slack-console-pulse 1.2s ease-in-out infinite;
 }
 
 .slack-console-status-error .slack-console-status-dot {
-    background: #e01e5a;
+    background: var(--ds-danger);
 }
 
 @keyframes slack-console-pulse {
@@ -245,17 +245,17 @@
     gap: 8px;
     margin: 14px 16px;
     padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--ds-dark-line);
     border-radius: 10px;
     transition: background 150ms ease;
 }
 
 .slack-console-search:focus-within {
-    background: rgba(255, 255, 255, 0.14);
+    background: var(--ds-dark-raise);
 }
 
 .slack-console-search-icon {
-    color: rgba(255, 255, 255, 0.5);
+    color: var(--ds-on-dark-faint);
     font-size: 14px;
 }
 
@@ -269,7 +269,7 @@
 }
 
 .slack-console-search input::placeholder {
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--ds-on-dark-faint);
 }
 
 .slack-console-channels-header {
@@ -281,7 +281,7 @@
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--ds-on-dark-muted);
 }
 
 .slack-console-add-btn {
@@ -289,7 +289,7 @@
     height: 22px;
     border-radius: 6px;
     border: none;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--ds-dark-raise);
     color: white;
     font-size: 15px;
     line-height: 1;
@@ -298,7 +298,7 @@
 }
 
 .slack-console-add-btn:hover {
-    background: rgba(255, 255, 255, 0.22);
+    background: var(--ds-dark-line);
     transform: scale(1.06);
 }
 
@@ -308,14 +308,14 @@
     gap: 8px;
     margin: 6px 16px 10px 16px;
     padding: 10px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--ds-dark-raise);
     border-radius: 10px;
 }
 
 .slack-console-create-form input {
     padding: 8px 10px;
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    border: 1px solid var(--ds-dark-line);
     background: rgba(0, 0, 0, 0.15);
     color: white;
     font-size: 13px;
@@ -323,7 +323,7 @@
 }
 
 .slack-console-create-form input:focus {
-    border-color: rgba(240, 98, 146, 0.6);
+    border-color: rgba(244, 114, 182, 0.65);
 }
 
 .slack-console-create-actions {
@@ -339,7 +339,7 @@
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
-    background: linear-gradient(135deg, #f06292, #8b3f8f);
+    background: linear-gradient(180deg, var(--ds-pink-500), var(--ds-pink-600));
     color: white;
     transition: opacity 150ms ease;
 }
@@ -351,7 +351,7 @@
 
 .slack-console-create-actions button.ghost {
     background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--ds-dark-line);
 }
 
 .slack-console-channel-list {
@@ -368,7 +368,7 @@
 }
 
 .slack-console-channel-list::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--ds-dark-line);
     border-radius: 3px;
 }
 
@@ -379,7 +379,7 @@
     padding: 8px 10px;
     border: none;
     background: transparent;
-    color: rgba(255, 255, 255, 0.78);
+    color: var(--ds-on-dark-muted);
     border-radius: 8px;
     font-size: 14px;
     text-align: left;
@@ -388,15 +388,15 @@
 }
 
 .slack-console-channel-item:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--ds-dark-line);
     color: white;
 }
 
 .slack-console-channel-item.active {
-    background: linear-gradient(90deg, rgba(240, 98, 146, 0.28), rgba(240, 98, 146, 0.08));
+    background: linear-gradient(90deg, rgba(236, 72, 153, 0.3), rgba(236, 72, 153, 0.06));
     color: white;
     font-weight: 700;
-    box-shadow: inset 3px 0 0 #f06292;
+    box-shadow: inset 3px 0 0 var(--ds-pink-400);
 }
 
 .slack-console-channel-hash {
@@ -428,7 +428,7 @@
 .slack-console-sidebar-empty {
     padding: 12px 10px;
     font-size: 12.5px;
-    color: rgba(255, 255, 255, 0.55);
+    color: var(--ds-on-dark-muted);
     line-height: 1.5;
 }
 
@@ -447,7 +447,7 @@
     display: flex;
     align-items: center;
     padding: 16px 24px;
-    border-bottom: 1px solid #eceef1;
+    border-bottom: 1px solid var(--ds-line);
     box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
     flex-shrink: 0;
 }
@@ -458,11 +458,11 @@
     gap: 6px;
     font-size: 17px;
     font-weight: 800;
-    color: #2d2438;
+    color: var(--ds-ink-900);
 }
 
 .slack-console-channel-title .slack-console-channel-hash {
-    color: #9a8fa8;
+    color: var(--ds-ink-400);
 }
 
 .slack-console-messages {
@@ -479,7 +479,7 @@
     align-items: center;
     text-align: center;
     margin: 18px 0 14px 0;
-    color: #9a8fa8;
+    color: var(--ds-ink-400);
     font-size: 12px;
     font-weight: 700;
 }
@@ -489,7 +489,7 @@
     content: "";
     flex: 1;
     height: 1px;
-    background: #eceef1;
+    background: var(--ds-line);
 }
 
 .slack-console-day-divider span {
@@ -505,7 +505,7 @@
 }
 
 .slack-console-message:hover {
-    background: #faf7fb;
+    background: var(--ds-ink-50);
 }
 
 .slack-console-message.pending {
@@ -539,17 +539,17 @@
 .slack-console-message-author {
     font-weight: 800;
     font-size: 14px;
-    color: #2d2438;
+    color: var(--ds-ink-900);
 }
 
 .slack-console-message-time {
     font-size: 11.5px;
-    color: #9a8fa8;
+    color: var(--ds-ink-400);
 }
 
 .slack-console-message-text {
     font-size: 14.5px;
-    color: #3c3348;
+    color: var(--ds-text-body);
     line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-word;
@@ -564,7 +564,7 @@
 .slack-console-message-skeleton {
     height: 44px;
     border-radius: 10px;
-    background: linear-gradient(90deg, #f4f2f6, #ece7ef, #f4f2f6);
+    background: linear-gradient(90deg, var(--ds-ink-100), var(--ds-ink-200), var(--ds-ink-100));
     background-size: 200% 100%;
     animation: slack-console-shimmer 1.4s ease-in-out infinite;
 }
@@ -577,7 +577,7 @@
     align-items: center;
     justify-content: center;
     text-align: center;
-    color: #9a8fa8;
+    color: var(--ds-ink-400);
     gap: 4px;
 }
 
@@ -585,7 +585,7 @@
 .slack-console-no-channel {
     font-size: 15px;
     font-weight: 600;
-    color: #6b6178;
+    color: var(--ds-ink-600);
 }
 
 .slack-console-messages-empty span {
@@ -600,14 +600,14 @@
     justify-content: center;
     text-align: center;
     gap: 10px;
-    color: #9a8fa8;
+    color: var(--ds-ink-400);
     max-width: 420px;
     margin: 0 auto;
 }
 
 .slack-console-messages-error-icon {
     font-size: 26px;
-    color: #ecb22e;
+    color: #e0a032;
 }
 
 .slack-console-composer {
@@ -622,15 +622,15 @@
     flex: 1;
     padding: 13px 16px;
     border-radius: 14px;
-    border: 1.5px solid #eceef1;
+    border: 1.5px solid var(--ds-line);
     outline: none;
     font-size: 14.5px;
-    background: #faf9fb;
+    background: var(--ds-ink-50);
     transition: border-color 150ms ease, background 150ms ease;
 }
 
 .slack-console-composer input:focus {
-    border-color: rgba(240, 98, 146, 0.5);
+    border-color: rgba(244, 114, 182, 0.6);
     background: white;
 }
 
@@ -642,12 +642,12 @@
     padding: 13px 22px;
     border-radius: 14px;
     border: none;
-    background: linear-gradient(135deg, #4a154b 0%, #8b3f8f 45%, #f06292 100%);
+    background: linear-gradient(180deg, var(--ds-pink-500), var(--ds-pink-600));
     color: white;
     font-weight: 800;
     font-size: 14px;
     cursor: pointer;
-    box-shadow: 0 10px 22px rgba(240, 98, 146, 0.28);
+    box-shadow: 0 10px 22px rgba(219, 39, 119, 0.3);
     transition: transform 120ms ease, opacity 120ms ease;
     white-space: nowrap;
 }
@@ -686,9 +686,9 @@
     width: 100%;
     padding: 14px 18px 12px 18px;
     border: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--ds-dark-line);
     background: none;
-    color: rgba(255, 255, 255, 0.62);
+    color: var(--ds-on-dark-muted);
     font: inherit;
     font-size: 12.5px;
     font-weight: 600;
@@ -704,11 +704,11 @@
 
 .slack-console-back:hover {
     color: #fff;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--ds-dark-raise);
 }
 
 .slack-console-back:focus-visible {
-    outline: 2px solid rgba(255, 255, 255, 0.6);
+    outline: 2px solid var(--ds-on-dark-muted);
     outline-offset: -2px;
 }
 
@@ -717,10 +717,10 @@
 .slack-console-gate-back {
     margin-top: 18px;
     padding: 9px 18px;
-    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    border: 1px solid var(--ds-dark-line) !important;
     border-radius: 999px;
     background: transparent !important;
-    color: rgba(255, 255, 255, 0.78) !important;
+    color: var(--ds-on-dark-muted) !important;
     font: inherit;
     font-size: 12.5px;
     font-weight: 600;
@@ -728,7 +728,7 @@
 }
 
 .slack-console-gate-back:hover {
-    border-color: rgba(255, 255, 255, 0.45) !important;
+    border-color: var(--ds-on-dark-faint) !important;
     color: #fff !important;
 }
 

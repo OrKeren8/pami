@@ -104,7 +104,7 @@ function AdminDashboardPage() {
             />
 
             <main className="admin-main">
-                <header className="admin-header">
+                <header className="admin-header ds-header-rule">
                     <div>
                         <span className="admin-kicker">Admin dashboard</span>
                         <h1>Everyone using PAMI</h1>

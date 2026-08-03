@@ -36,7 +36,6 @@
     justify-content: space-between;
     gap: var(--ds-4);
     padding-bottom: var(--ds-3);
-    border-bottom: 1px solid var(--ds-line);
 }
 
 .jira-kicker {
@@ -54,6 +53,7 @@
     color: var(--ds-text);
     font-size: var(--ds-t-xl);
     font-weight: 800;
+    letter-spacing: var(--ds-track-tight);
 }
 
 .jira-back-to-chat {
@@ -77,7 +77,6 @@
 
 .jira-project-picker select {
     min-width: 210px;
-    padding: 8px 10px;
 }
 
 /* Connection state. Not a pill primitive: it owns a live dot and a Retry action. */
@@ -85,7 +84,9 @@
     display: flex;
     align-items: center;
     gap: 7px;
-    padding: 7px 12px;
+    height: var(--ds-control-h);
+    padding: 0 13px;
+    box-sizing: border-box;
     border: 1px solid var(--ds-line-strong);
     border-radius: var(--ds-r-pill);
     background: var(--ds-surface);
@@ -152,7 +153,7 @@
 
 .jira-canvas {
     flex: 1;
-    gap: var(--ds-3);
+    gap: var(--ds-4);
     overflow-y: auto;
 }
 
@@ -166,31 +167,48 @@
        up, which is what makes the template readable while it is being filled. */
     height: 100%;
     min-height: 220px;
+    padding: var(--ds-4);
+    /* Tinted, so the writing surface reads as a page laid inside the white sheet rather than
+       as a hole in it. */
+    background: var(--ds-ink-50);
     font-family: var(--ds-mono);
-    font-size: 0.82rem;
-    line-height: 1.55;
+    font-size: 0.8125rem;
+    line-height: 1.6;
 }
 
-/* Fills the canvas while composing, where it stands in for the editor. Inside an opened issue
-   it is one section among several, so there it takes only the height its text needs. */
-.jira-field-grow .jira-description-preview {
+.jira-description-box:focus-visible {
+    background: var(--ds-surface);
+}
+
+/* Write on the left, read on the right. Two panes of one object, so they share a height and
+   scroll independently: a long ticket must not push the meta fields off the canvas. */
+.jira-editor-split {
     flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--ds-3);
+}
+
+.jira-editor-split > * {
     min-height: 0;
     overflow-y: auto;
 }
 
 .jira-description-preview {
-    padding: var(--ds-3) var(--ds-4);
+    padding: var(--ds-4);
     border: 1px solid var(--ds-line);
     border-radius: var(--ds-r-sm);
-    background: var(--ds-surface);
+    background: var(--ds-ink-50);
 }
 
 #jira-summary {
     /* The one thing anyone reads on a ticket, so it is the largest text on the page. */
-    padding: 12px 14px;
-    font-size: 1.08rem;
-    font-weight: 700;
+    height: auto;
+    padding: 11px 14px;
+    font-size: 1.0625rem;
+    font-weight: 650;
+    letter-spacing: var(--ds-track-snug);
 }
 
 /* Empty description: one strip, not a panel. A full card above an empty editor read as two
@@ -200,7 +218,9 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--ds-3);
-    padding: var(--ds-2) var(--ds-3);
+    padding: var(--ds-2) var(--ds-2) var(--ds-2) var(--ds-3);
+    border-color: var(--ds-pink-200);
+    background: var(--ds-pink-50);
 }
 
 .jira-empty-strip .ds-empty-body {
@@ -224,6 +244,16 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: var(--ds-3);
+    margin-top: var(--ds-1);
+    padding: var(--ds-3) var(--ds-4);
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-r-md);
+    background: var(--ds-ink-50);
+}
+
+.jira-field-row .ds-select,
+.jira-field-row .ds-input {
+    background: var(--ds-surface);
 }
 
 .jira-priority-row {
@@ -255,7 +285,7 @@
 
 .jira-canvas-actions {
     padding-top: var(--ds-3);
-    border-top: 1px dashed var(--ds-line-strong);
+    border-top: 1px solid var(--ds-line);
 }
 
 .jira-created {
@@ -280,7 +310,7 @@
 
 .jira-browser-head {
     padding-bottom: var(--ds-3);
-    border-bottom: 1px dashed var(--ds-line-strong);
+    border-bottom: 1px solid var(--ds-line);
 }
 
 .jira-browser-find {
@@ -291,7 +321,7 @@
 
 .jira-browser-find .ds-input {
     width: 240px;
-    padding: 7px 12px;
+    height: var(--ds-control-h-sm);
     font-size: var(--ds-t-base);
 }
 
@@ -329,7 +359,7 @@
     flex-direction: column;
     gap: var(--ds-2);
     padding-bottom: var(--ds-3);
-    border-bottom: 1px dashed var(--ds-line-strong);
+    border-bottom: 1px solid var(--ds-line);
 }
 
 .jira-issue-head h2 {
@@ -380,16 +410,16 @@
 .jira-comment {
     display: flex;
     flex-direction: column;
-    gap: var(--ds-1);
-    padding: 10px 12px;
+    gap: 3px;
+    padding: 11px 14px;
     border: 1px solid var(--ds-line);
     border-radius: var(--ds-r-md);
-    background: var(--ds-surface);
+    background: var(--ds-ink-50);
 }
 
 .jira-comment-who {
-    color: var(--ds-accent-strong);
-    font-size: 0.7rem;
+    color: var(--ds-accent-deep);
+    font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -398,8 +428,8 @@
 .jira-comment p {
     margin: 0;
     color: var(--ds-text-body);
-    font-size: var(--ds-t-base);
-    line-height: 1.55;
+    font-size: var(--ds-t-md);
+    line-height: 1.6;
     /* Comments arrive as flattened rich text, so keep the author's line breaks. */
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -412,7 +442,7 @@
     flex-direction: column;
     gap: var(--ds-3);
     padding-top: var(--ds-3);
-    border-top: 1px dashed var(--ds-line-strong);
+    border-top: 1px solid var(--ds-line);
 }
 
 .jira-assist-row {
