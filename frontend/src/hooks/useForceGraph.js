@@ -147,7 +147,13 @@ export function useForceGraph({
         if (!nodes.length || !width || !height) {
             simulationRef.current?.stop();
             simulationRef.current = null;
+            const hadNodes = datumRef.current.nodes.length > 0;
             datumRef.current = { nodes: [], links: [] };
+            // The positions live in a ref, so emptying it changes nothing on screen by itself.
+            // Without this the last pills stay drawn after the list becomes empty - visible
+            // behind the empty state, which is how rewinding the graph to before its first
+            // node left three nodes standing under "Before the project began".
+            if (hadNodes) setTick((value) => value + 1);
             return undefined;
         }
 

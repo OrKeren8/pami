@@ -8,8 +8,6 @@ function GraphControls({
     search,
     onSearch,
     matchCount,
-    topics = [],
-    onTopic,
     zoomPercent,
     onFit,
     onReset
@@ -31,24 +29,6 @@ function GraphControls({
                     <span className="graph-search-count">{matchCount} found</span>
                 ) : null}
 
-                {/* The topics the AI already assigned, as one-click filters. Clicking the
-                    active one clears it, so the chip is a toggle rather than a dead end. */}
-                {topics.length > 0 && (
-                    <div className="graph-topics">
-                        {topics.map(({ topic, count }) => (
-                            <button
-                                key={topic}
-                                type="button"
-                                className="graph-topic"
-                                aria-pressed={search === topic}
-                                onClick={() => onTopic(topic)}
-                                title={`${count} conversations`}
-                            >
-                                {topic}
-                            </button>
-                        ))}
-                    </div>
-                )}
             </div>
 
             <div className="graph-controls-sliders graph-controls-right">

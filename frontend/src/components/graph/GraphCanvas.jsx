@@ -126,6 +126,21 @@ function GraphCanvas({
         repulsionForce: settings.repulsionForce
     });
 
+    // Measured, not assumed: the toolbar wraps to two rows on a narrow window, and a fixed
+    // offset would put the chip strip on top of it.
+    const [controlsHeight, setControlsHeight] = useState(48);
+
+    useEffect(() => {
+        const element = controlsRef.current;
+        if (!element) return undefined;
+
+        const measure = () => setControlsHeight(element.offsetHeight || 48);
+        measure();
+        const observer = new window.ResizeObserver(measure);
+        observer.observe(element);
+        return () => observer.disconnect();
+    }, []);
+
     useEffect(() => {
         const element = viewportRef.current;
         if (!element) return undefined;
@@ -283,6 +298,9 @@ function GraphCanvas({
 
     const focusId = hoverId || selectedId;
 
+    // GraphTimeline renders nothing below two nodes, so the fit must reserve nothing either.
+    const hasTimeline = timeMachine.total > 1;
+
     const searchTerm = search.trim().toLowerCase();
     const matchIds = useMemo(() => {
         if (!searchTerm) return null;
@@ -362,31 +380,42 @@ function GraphCanvas({
         const maxX = Math.max(...xs) + 120;
         const top = Math.min(...ys);
         const maxY = Math.max(...ys) + 60;
+        const timelineHeight = hasTimeline ? 62 : 0;
 
-        // The floating controls bar overlays the canvas, so the headroom it needs is measured
-        // in scene units — which depend on the scale we are solving for. Two passes: fit
-        // without the bar, then re-fit with the bar converted at that scale.
-        const fit = (minY) =>
+        // Both floating bars overlay the canvas - controls at the top, the timeline at the
+        // bottom - so the room they need is measured in scene units, which depend on the scale
+        // being solved for. Two passes: fit without them, then re-fit with them converted at
+        // that scale.
+        // The timeline was the one missing: the oldest nodes, which the scrubber removes
+        // first, were exactly the ones sitting behind it.
+        const timelineRoom = timelineHeight > 0 ? timelineHeight + 12 : 0;
+        const fit = (minY, bottomRoom) =>
             Math.max(
                 SCALE_MIN,
                 Math.min(
                     SCALE_MAX,
-                    Math.min(size.width / (maxX - minX), size.height / (maxY - minY))
+                    Math.min(
+                        size.width / (maxX - minX),
+                        size.height / (maxY - minY + bottomRoom)
+                    )
                 )
             );
-        const barHeight = (controlsRef.current?.offsetHeight || 40) + 20;
-        const firstPass = fit(top - 60);
+        const stripHeight = topicChips.length > 0 ? 44 : 0;
+        const barHeight = (controlsRef.current?.offsetHeight || 40) + stripHeight + 20;
+        const firstPass = fit(top - 60, 0);
         const minY = top - Math.max(60, barHeight / firstPass);
-        const scale = fit(minY);
+        const bottomRoom = timelineRoom / firstPass;
+        const scale = fit(minY, bottomRoom);
 
         // Centring vertically silently discards the headroom whenever width is the binding
         // constraint, which is how a node ends up hidden under the bar. Clamp the top node
         // to sit below it.
         // `top` is the topmost node's centre, so half a pill still sits above it.
         const halfPill = Math.max(...nodes.map((node) => node.h)) / 2;
-        const centredY = size.height / 2 - ((minY + maxY) / 2) * scale;
+        const centredY =
+            (size.height - timelineHeight) / 2 - ((minY + maxY) / 2) * scale;
         const topAnchoredY = barHeight + halfPill * scale - top * scale;
-        const fitsVertically = (maxY - minY) * scale <= size.height;
+        const fitsVertically = (maxY - minY) * scale <= size.height - timelineHeight;
         const next = zoomIdentity
             .translate(
                 size.width / 2 - ((minX + maxX) / 2) * scale,
@@ -395,7 +424,7 @@ function GraphCanvas({
             .scale(scale);
 
         select(viewportRef.current).call(behaviour.transform, next);
-    }, [nodes, size.height, size.width]);
+    }, [hasTimeline, nodes, size.height, size.width, topicChips.length]);
 
     // A node arriving or leaving re-enables framing even after the user has panned: a node
     // created from a conversation starts with no links, which puts it at the edge of the
@@ -485,12 +514,32 @@ function GraphCanvas({
                 search={search}
                 onSearch={setSearch}
                 matchCount={matchIds ? matchIds.size : 0}
-                topics={topicChips}
-                onTopic={(topic) => setSearch((current) => (current === topic ? '' : topic))}
                 zoomPercent={Math.round(transform.k * 100)}
                 onFit={fitToView}
                 onReset={resetLayout}
             />
+
+            {/* The topics the AI already assigned, as one-click filters, on their own strip
+                under the toolbar. Each chip carries its own surface, so the strip needs no
+                background of its own and nothing is laid over the graph. */}
+            {topicChips.length > 0 && (
+                <div className="graph-topics" style={{ top: controlsHeight + 14 }}>
+                    {topicChips.map(({ topic, count }) => (
+                        <button
+                            key={topic}
+                            type="button"
+                            className="graph-topic"
+                            aria-pressed={search === topic}
+                            onClick={() =>
+                                setSearch((current) => (current === topic ? '' : topic))
+                            }
+                            title={`${count} conversations`}
+                        >
+                            {topic}
+                        </button>
+                    ))}
+                </div>
+            )}
 
             <div
                 ref={viewportRef}
