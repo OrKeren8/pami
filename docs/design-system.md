@@ -56,6 +56,8 @@ Compose classes in the markup, and write page CSS only for layout:
 | Pills | `ds-pill` + `ds-pill-accent` / `-todo` / `-progress` / `-done` |
 | Lists | `ds-list`, `ds-row` (state via `aria-current`), `ds-row-truncate` |
 | Text | `ds-section-label`, `ds-hint`, `ds-empty` (+ `-title` / `-body`), `ds-error` |
+| Data | `ds-stat` (+ `-warn`), `ds-table-scroll`, `ds-table`, `ds-num` |
+| Whole-region states | `ds-state`, `ds-spinner` |
 | Layout | `ds-inline`, `ds-spread` |
 
 State comes from ARIA attributes where one exists (`aria-selected`, `aria-current`,
@@ -72,6 +74,15 @@ every transition is disabled under `prefers-reduced-motion`.
 
 The Jira workspace is built entirely on it and is the reference implementation - read
 `frontend/src/pages/JiraConsolePage.js` alongside `JiraConsolePage.css` to see the split
-between system and layout. The dashboard, Chat View and Slack console still carry their own
-older CSS; move them over a screen at a time, deleting the local rules that a primitive
-replaces rather than layering the two.
+between system and layout.
+
+Migrated so far: **Jira workspace**, **admin dashboard**, **Chat View**. In each case the page
+stylesheet lost its own buttons, inputs, spinner, table and loading/error states and kept only
+layout plus whatever is genuinely that page's identity - the pink conversation card and its
+hover preview stayed in Chat View, because nothing else would reuse them.
+
+Not migrated: the **dashboard** (`HomePage.css`, 7k lines) and the **Slack console**. The Slack
+console is deliberately a dark aubergine Slack-alike, so it needs dark-surface tokens before it
+can use the primitives - repainting it in pink would be a regression, not a migration. Take the
+dashboard a region at a time, deleting the local rules a primitive replaces rather than layering
+the two.

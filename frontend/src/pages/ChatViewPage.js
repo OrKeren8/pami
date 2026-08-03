@@ -270,8 +270,8 @@ function ChatViewPage() {
     const body = () => {
         if (isLoading) {
             return (
-                <div className="chat-view-state">
-                    <span className="chat-view-spinner" aria-hidden="true" />
+                <div className="ds-state">
+                    <span className="ds-spinner" aria-hidden="true" />
                     <p>Loading conversations…</p>
                 </div>
             );
@@ -279,9 +279,9 @@ function ChatViewPage() {
 
         if (error) {
             return (
-                <div className="chat-view-state">
+                <div className="ds-state">
                     <p>{error}</p>
-                    <button type="button" className="chat-view-retry" onClick={loadConversations}>
+                    <button type="button" className="ds-btn ds-btn-primary ds-btn-sm" onClick={loadConversations}>
                         Try again
                     </button>
                 </div>
@@ -290,11 +290,11 @@ function ChatViewPage() {
 
         if (!conversations.length) {
             return (
-                <div className="chat-view-state">
+                <div className="ds-state">
                     <p>No conversations in {projectName} yet.</p>
                     <button
                         type="button"
-                        className="chat-view-retry"
+                        className="ds-btn ds-btn-primary ds-btn-sm"
                         onClick={() => navigate('/dashboard')}
                     >
                         Start one
@@ -305,7 +305,7 @@ function ChatViewPage() {
 
         if (!visible.length) {
             return (
-                <div className="chat-view-state">
+                <div className="ds-state">
                     <p>Nothing matches “{search.trim()}”.</p>
                 </div>
             );
@@ -386,11 +386,12 @@ function ChatViewPage() {
                         </p>
                     </div>
 
-                    <div className="chat-view-controls">
+                    <div className="ds-inline chat-view-controls">
                         {projects.length > 1 && (
-                            <label className="chat-view-control">
+                            <label className="ds-field chat-view-control">
                                 <span>Project</span>
                                 <select
+                                    className="ds-select"
                                     value={projectId || ''}
                                     onChange={(event) => setProjectId(event.target.value)}
                                 >
@@ -406,9 +407,10 @@ function ChatViewPage() {
                             </label>
                         )}
 
-                        <label className="chat-view-control">
+                        <label className="ds-field chat-view-control">
                             <span>Sort by</span>
                             <select
+                                className="ds-select"
                                 value={sortBy}
                                 onChange={(event) => setSortBy(event.target.value)}
                             >
@@ -420,9 +422,10 @@ function ChatViewPage() {
                             </select>
                         </label>
 
-                        <label className="chat-view-control chat-view-search">
+                        <label className="ds-field chat-view-control chat-view-search">
                             <span>Search</span>
                             <input
+                                className="ds-input"
                                 type="search"
                                 value={search}
                                 placeholder="Find a conversation"

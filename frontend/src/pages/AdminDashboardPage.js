@@ -41,8 +41,8 @@ function AdminDashboardPage() {
     const body = () => {
         if (isLoading) {
             return (
-                <div className="admin-state">
-                    <span className="admin-spinner" aria-hidden="true" />
+                <div className="ds-state">
+                    <span className="ds-spinner" aria-hidden="true" />
                     <p>Loading users...</p>
                 </div>
             );
@@ -50,9 +50,9 @@ function AdminDashboardPage() {
 
         if (error) {
             return (
-                <div className="admin-state">
+                <div className="ds-state">
                     <p>{error}</p>
-                    <button type="button" className="admin-retry" onClick={load}>
+                    <button type="button" className="ds-btn ds-btn-primary ds-btn-sm" onClick={load}>
                         Try again
                     </button>
                 </div>
@@ -61,23 +61,23 @@ function AdminDashboardPage() {
 
         if (!overview?.users?.length) {
             return (
-                <div className="admin-state">
+                <div className="ds-state">
                     <p>No users have signed in yet.</p>
                 </div>
             );
         }
 
         return (
-            <div className="admin-table-scroll">
-                <table className="admin-table">
+            <div className="ds-table-scroll">
+                <table className="ds-table">
                     <thead>
                         <tr>
                             <th scope="col">Email</th>
                             <th scope="col">Joined</th>
                             <th scope="col">Last seen</th>
-                            <th scope="col">Sign-ins</th>
-                            <th scope="col">Owns</th>
-                            <th scope="col">Shared with them</th>
+                            <th scope="col" className="ds-num">Sign-ins</th>
+                            <th scope="col" className="ds-num">Owns</th>
+                            <th scope="col" className="ds-num">Shared with them</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -86,9 +86,9 @@ function AdminDashboardPage() {
                                 <td>{user.email}</td>
                                 <td>{formatDate(user.created_at)}</td>
                                 <td>{formatDate(user.last_seen_at)}</td>
-                                <td>{user.sign_in_count}</td>
-                                <td>{user.projects_owned}</td>
-                                <td>{user.projects_shared}</td>
+                                <td className="ds-num">{user.sign_in_count}</td>
+                                <td className="ds-num">{user.projects_owned}</td>
+                                <td className="ds-num">{user.projects_shared}</td>
                             </tr>
                         ))}
                     </tbody>
@@ -116,19 +116,19 @@ function AdminDashboardPage() {
                     </div>
 
                     {overview && (
-                        <div className="admin-stats">
-                            <div className="admin-stat">
+                        <div className="ds-inline">
+                            <div className="ds-stat">
                                 <strong>{overview.total_users}</strong>
                                 <span>Users</span>
                             </div>
-                            <div className="admin-stat">
+                            <div className="ds-stat">
                                 <strong>{overview.total_projects}</strong>
                                 <span>Projects</span>
                             </div>
                             {/* Projects with no owner are visible to nobody. Surfaced so a
                                 half-finished migration looks like what it is. */}
                             {overview.orphaned_projects > 0 && (
-                                <div className="admin-stat admin-stat-warn">
+                                <div className="ds-stat ds-stat-warn">
                                     <strong>{overview.orphaned_projects}</strong>
                                     <span>Unowned</span>
                                 </div>
