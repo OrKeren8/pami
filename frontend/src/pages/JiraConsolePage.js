@@ -37,6 +37,18 @@ const writeStored = (key, value) => {
     }
 };
 
+// Jira status names are per project, so match on what they mean rather than on an exact set.
+const statusClass = (status) => {
+    const name = (status || '').toLowerCase();
+    if (name.includes('done') || name.includes('closed') || name.includes('resolved')) {
+        return 'jira-status-pill-done';
+    }
+    if (name.includes('progress') || name.includes('review') || name.includes('doing')) {
+        return 'jira-status-pill-progress';
+    }
+    return 'jira-status-pill-todo';
+};
+
 const loadDraft = () => {
     const raw = readStored(DRAFT_KEY);
     if (!raw) return null;
@@ -483,7 +495,11 @@ function JiraConsolePage() {
                                     </a>
                                     <h2>{issue.summary}</h2>
                                     <div className="jira-issue-meta">
-                                        {issue.status && <span>{issue.status}</span>}
+                                        {issue.status && (
+                                            <span className={statusClass(issue.status)}>
+                                                {issue.status}
+                                            </span>
+                                        )}
                                         {issue.issue_type && <span>{issue.issue_type}</span>}
                                         <span>{issue.assignee || 'Unassigned'}</span>
                                     </div>
@@ -687,7 +703,15 @@ function JiraConsolePage() {
                             </label>
 
                             <label className="jira-field">
-                                <span>Priority</span>
+                                <span className="jira-priority-row">
+                                    <span
+                                        className={`jira-priority-dot jira-priority-${(
+                                            ticket.priority || 'none'
+                                        ).toLowerCase()}`}
+                                        aria-hidden="true"
+                                    />
+                                    Priority
+                                </span>
                                 <select
                                     value={ticket.priority}
                                     onChange={(event) => patch({ priority: event.target.value })}

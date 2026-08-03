@@ -17,7 +17,7 @@
     gap: 16px;
     padding: 24px 28px;
     overflow: hidden;
-    background: linear-gradient(180deg, #fdf7fb 0%, #ffffff 42%);
+    background: #fbf9fb;
 }
 
 /* ---------- Header ---------- */
@@ -178,12 +178,13 @@
     overflow-y: auto;
     /* Raised on a pink-tinted panel, matching the chat cards: this is the one object on the
        page, so it reads as a sheet of paper rather than a form on a background. */
-    border: 1px solid #f7d6e7;
-    border-radius: 18px;
-    background: linear-gradient(160deg, #ffffff 0%, #fffafd 55%, #fff4fa 100%);
-    box-shadow:
-        0 1px 2px rgba(190, 24, 93, 0.05),
-        0 16px 34px -20px rgba(190, 24, 93, 0.35);
+    border: 1px solid #ecdfe8;
+    border-radius: 16px;
+    /* Flat and neutral. The tinted gradient put colour behind every line of the ticket, so
+       nothing on the page had priority - the panel competed with its own contents. Pink is
+       now reserved for actions and brand marks, which is what makes them read as actions. */
+    background: #ffffff;
+    box-shadow: 0 1px 2px rgba(24, 24, 27, 0.04), 0 12px 28px -22px rgba(24, 24, 27, 0.25);
 }
 
 .jira-canvas-head {
@@ -266,8 +267,10 @@
 }
 
 #jira-summary {
-    font-size: 1rem;
-    font-weight: 600;
+    /* The one thing anyone reads on a ticket, so it is the largest text on the page. */
+    padding: 12px 14px;
+    font-size: 1.08rem;
+    font-weight: 700;
 }
 
 .jira-field-grow {
@@ -728,10 +731,11 @@
     min-height: 240px;
     overflow-y: auto;
     padding: 14px 16px;
-    border: 1px solid #f0d8e6;
+    border: 1px solid #ecdfe8;
     border-radius: 10px;
-    background: #fff;
-    cursor: text;
+    /* Faintly tinted so "formatted" and "editing" are distinguishable without reading the
+       toggle - the white field is where you type. */
+    background: #fbf9fb;
 }
 
 .jira-description-preview:focus-visible {
@@ -824,4 +828,84 @@
 .jira-assist-row input:focus-visible {
     outline: 2px solid #a855f7;
     outline-offset: 1px;
+}
+
+/* ---------- Functional colour ----------
+   Priority and status were the same grey as everything else, so a Highest-priority ticket
+   looked exactly like a Low one. These are the only places colour carries meaning rather than
+   brand, which is why they are the only non-pink colours on the page. */
+
+.jira-priority-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 7px;
+    border-radius: 2px;
+    vertical-align: baseline;
+    background: #d4d4d8;
+}
+
+.jira-priority-highest { background: #dc2626; }
+.jira-priority-high    { background: #f97316; }
+.jira-priority-medium  { background: #eab308; }
+.jira-priority-low     { background: #64748b; }
+.jira-priority-lowest  { background: #94a3b8; }
+
+.jira-priority-row {
+    display: flex;
+    align-items: center;
+}
+
+/* The issue's own status, in the Open issue view. */
+.jira-issue-meta .jira-status-pill-todo {
+    border-color: #d8dce4;
+    color: #52525b;
+}
+
+.jira-issue-meta .jira-status-pill-progress {
+    border-color: #bfdbfe;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.jira-issue-meta .jira-status-pill-done {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+    color: #15803d;
+}
+
+/* Micro-interaction: the primary action lifts, so it reads as the thing that happens. */
+.jira-btn-primary {
+    transition: transform 110ms ease, box-shadow 110ms ease;
+}
+
+.jira-btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px -10px rgba(236, 72, 153, 0.9);
+}
+
+.jira-btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .jira-btn-primary {
+        transition: none;
+    }
+    .jira-btn-primary:hover:not(:disabled) {
+        transform: none;
+    }
+}
+
+/* A pasted URL or stack frame has no spaces to break on, and would otherwise push the panel
+   wider than the window. Wraps rather than scrolling sideways: a ticket is prose. */
+.ticket-preview-paragraph,
+.ticket-preview-list li,
+.ticket-preview-checks li,
+.ticket-preview-heading {
+    overflow-wrap: anywhere;
+}
+
+.jira-issue-head h2 {
+    overflow-wrap: anywhere;
 }
