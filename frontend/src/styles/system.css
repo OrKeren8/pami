@@ -1,0 +1,468 @@
+/**
+ * PAMI design system - tokens and primitives.
+ *
+ * Every page had been styling its own buttons, labels, pills and panels, so the same control
+ * came out a different size and colour on each screen. This file owns those decisions once:
+ * pages compose `ds-*` classes and only write CSS for their own layout.
+ *
+ * Rules of the road:
+ *   - Use the tokens. A raw hex in a page stylesheet is a bug waiting to drift.
+ *   - Pink is for actions and brand marks only. Surfaces stay near-white so the thing you can
+ *     click is the only coloured thing on screen.
+ *   - One accent per view. If two things are pink, neither is the primary action.
+ */
+
+:root {
+    /* ---- Palette: one pink ramp, one neutral ramp ---- */
+    --ds-pink-50: #fff5fa;
+    --ds-pink-100: #fde7f1;
+    --ds-pink-200: #f9cfe2;
+    --ds-pink-300: #f4a9cb;
+    --ds-pink-400: #f06292;
+    --ds-pink-500: #ec4899;
+    --ds-pink-600: #be185d;
+    --ds-pink-700: #9d174d;
+
+    --ds-ink-0: #ffffff;
+    --ds-ink-50: #fbf9fb;
+    --ds-ink-100: #f4f4f5;
+    --ds-ink-200: #e4e4e7;
+    --ds-ink-400: #a1a1aa;
+    --ds-ink-500: #71717a;
+    --ds-ink-600: #52525b;
+    --ds-ink-800: #27272a;
+    --ds-ink-900: #18181b;
+
+    /* ---- Semantic aliases: what a page should actually reference ---- */
+    --ds-bg: var(--ds-ink-50);
+    --ds-surface: var(--ds-ink-0);
+    --ds-surface-soft: var(--ds-pink-50);
+    --ds-line: #ecdfe8;
+    --ds-line-strong: var(--ds-pink-200);
+    --ds-text: var(--ds-ink-900);
+    --ds-text-body: #3f3f46;
+    --ds-text-muted: var(--ds-ink-500);
+    --ds-text-quiet: #8f82a6;
+    --ds-accent: var(--ds-pink-500);
+    --ds-accent-strong: var(--ds-pink-600);
+    --ds-accent-soft: var(--ds-pink-100);
+    --ds-danger: #b91c1c;
+    --ds-danger-soft: #fff6f6;
+    --ds-danger-line: #f7c9c9;
+    --ds-ok: #15803d;
+    --ds-ok-soft: #f0fdf4;
+    --ds-ok-line: #bbf7d0;
+    --ds-info: #1d4ed8;
+    --ds-info-soft: #eff6ff;
+    --ds-info-line: #bfdbfe;
+
+    /* ---- Space: a 4px scale, so gaps in different components line up ---- */
+    --ds-1: 4px;
+    --ds-2: 8px;
+    --ds-3: 12px;
+    --ds-4: 16px;
+    --ds-5: 20px;
+    --ds-6: 24px;
+    --ds-7: 32px;
+    --ds-8: 40px;
+
+    /* ---- Radii ---- */
+    --ds-r-sm: 8px;
+    --ds-r-md: 12px;
+    --ds-r-lg: 16px;
+    --ds-r-pill: 999px;
+
+    /* ---- Elevation: three steps, no more. A page with five depths has none. ---- */
+    --ds-shadow-1: 0 1px 2px rgba(24, 24, 27, 0.04);
+    --ds-shadow-2: 0 1px 2px rgba(24, 24, 27, 0.04), 0 12px 28px -22px rgba(24, 24, 27, 0.25);
+    --ds-shadow-3: 0 18px 40px -24px rgba(24, 24, 27, 0.35);
+    --ds-shadow-accent: 0 8px 18px -10px rgba(236, 72, 153, 0.8);
+
+    /* ---- Type ---- */
+    --ds-font: inherit;
+    --ds-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    --ds-t-xs: 0.72rem;
+    --ds-t-sm: 0.78rem;
+    --ds-t-base: 0.85rem;
+    --ds-t-md: 0.95rem;
+    --ds-t-lg: 1.1rem;
+    --ds-t-xl: 1.35rem;
+
+    /* ---- Motion ---- */
+    --ds-fast: 110ms;
+    --ds-ease: cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+/* ---------- Panel: the sheet a task happens on ---------- */
+
+.ds-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-r-lg);
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-2);
+}
+
+.ds-panel-pad {
+    padding: var(--ds-5);
+}
+
+.ds-panel-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-3);
+    padding-bottom: var(--ds-3);
+    border-bottom: 1px dashed var(--ds-line-strong);
+}
+
+/* ---------- Section label: names a region without competing with it ---------- */
+
+.ds-section-label {
+    color: var(--ds-ink-400);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+/* ---------- Fields ---------- */
+
+.ds-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+/* Labels are the quietest thing on a form: they name the value, they are not the value. */
+.ds-field > label,
+.ds-field > span,
+.ds-label {
+    color: var(--ds-text-quiet);
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.ds-field-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--ds-2);
+}
+
+.ds-input,
+.ds-select,
+.ds-textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--ds-line-strong);
+    border-radius: var(--ds-r-sm);
+    background: var(--ds-surface);
+    color: var(--ds-ink-800);
+    font-family: var(--ds-font);
+    font-size: 0.88rem;
+}
+
+.ds-textarea {
+    resize: vertical;
+}
+
+.ds-input::placeholder,
+.ds-textarea::placeholder {
+    color: var(--ds-ink-400);
+}
+
+.ds-input:focus-visible,
+.ds-select:focus-visible,
+.ds-textarea:focus-visible {
+    outline: 2px solid var(--ds-pink-400);
+    outline-offset: 1px;
+}
+
+/* ---------- Buttons ---------- */
+
+.ds-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--ds-2);
+    padding: 9px 20px;
+    border: 1px solid transparent;
+    border-radius: var(--ds-r-pill);
+    background: none;
+    color: var(--ds-text-body);
+    font-family: var(--ds-font);
+    font-size: var(--ds-t-base);
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: transform var(--ds-fast) var(--ds-ease),
+        box-shadow var(--ds-fast) var(--ds-ease), border-color var(--ds-fast) var(--ds-ease),
+        color var(--ds-fast) var(--ds-ease);
+}
+
+.ds-btn:focus-visible {
+    outline: 2px solid var(--ds-pink-400);
+    outline-offset: 2px;
+}
+
+.ds-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
+
+.ds-btn-primary {
+    background: linear-gradient(135deg, var(--ds-pink-400), var(--ds-pink-500));
+    color: #fff;
+    box-shadow: var(--ds-shadow-accent);
+}
+
+.ds-btn-primary:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px -10px rgba(236, 72, 153, 0.9);
+}
+
+.ds-btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.ds-btn-ghost {
+    border-color: var(--ds-line-strong);
+    background: var(--ds-surface);
+    color: var(--ds-text-muted);
+}
+
+.ds-btn-ghost:hover:not(:disabled) {
+    border-color: var(--ds-pink-300);
+    color: var(--ds-accent-strong);
+}
+
+/* Destructive intent, second click only. Outlined rather than filled: a red block reads as
+   the primary action, and discarding never is. */
+.ds-btn-danger {
+    border-color: var(--ds-danger-line);
+    background: var(--ds-danger-soft);
+    color: var(--ds-danger);
+}
+
+.ds-btn-danger:hover:not(:disabled) {
+    border-color: var(--ds-danger);
+}
+
+/* A link that happens to be a button. For "back", "retry", "show more". */
+.ds-btn-quiet {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--ds-text-muted);
+    font-size: var(--ds-t-sm);
+    font-weight: 600;
+}
+
+.ds-btn-quiet:hover:not(:disabled) {
+    color: var(--ds-accent-strong);
+}
+
+.ds-btn-sm {
+    padding: 6px 14px;
+    font-size: var(--ds-t-sm);
+}
+
+/* ---------- Tabs (segmented control) ---------- */
+
+.ds-tabs {
+    display: flex;
+    gap: var(--ds-1);
+    padding: 3px;
+    border: 1px solid var(--ds-line-strong);
+    border-radius: var(--ds-r-pill);
+    background: var(--ds-surface);
+}
+
+.ds-tab {
+    padding: 6px 14px;
+    border: none;
+    border-radius: var(--ds-r-pill);
+    background: transparent;
+    color: var(--ds-text-quiet);
+    font-family: var(--ds-font);
+    font-size: var(--ds-t-sm);
+    font-weight: 700;
+    cursor: pointer;
+    transition: background var(--ds-fast) var(--ds-ease), color var(--ds-fast) var(--ds-ease);
+}
+
+.ds-tab:hover {
+    color: var(--ds-accent-strong);
+}
+
+.ds-tab[aria-selected='true'] {
+    background: linear-gradient(135deg, var(--ds-pink-400), var(--ds-pink-500));
+    color: #fff;
+}
+
+/* ---------- Pills ---------- */
+
+.ds-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border: 1px solid var(--ds-line-strong);
+    border-radius: var(--ds-r-pill);
+    background: var(--ds-surface);
+    color: var(--ds-text-quiet);
+    font-size: var(--ds-t-xs);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ds-pill-accent {
+    border-color: var(--ds-pink-200);
+    background: var(--ds-pink-50);
+    color: var(--ds-accent-strong);
+}
+
+.ds-pill-todo {
+    border-color: var(--ds-ink-200);
+    color: var(--ds-ink-600);
+}
+
+.ds-pill-progress {
+    border-color: var(--ds-info-line);
+    background: var(--ds-info-soft);
+    color: var(--ds-info);
+}
+
+.ds-pill-done {
+    border-color: var(--ds-ok-line);
+    background: var(--ds-ok-soft);
+    color: var(--ds-ok);
+}
+
+/* ---------- List rows: pick one of these ---------- */
+
+.ds-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-height: 0;
+}
+
+.ds-row {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-3);
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid transparent;
+    border-radius: var(--ds-r-sm);
+    background: none;
+    color: var(--ds-text-body);
+    font-family: var(--ds-font);
+    font-size: var(--ds-t-base);
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--ds-fast) var(--ds-ease),
+        border-color var(--ds-fast) var(--ds-ease);
+}
+
+.ds-row:hover {
+    border-color: var(--ds-line-strong);
+    background: var(--ds-pink-50);
+}
+
+.ds-row[aria-current='true'] {
+    border-color: var(--ds-pink-300);
+    background: var(--ds-pink-50);
+}
+
+.ds-row-truncate {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+/* ---------- Empty states and hints ---------- */
+
+.ds-empty {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-2);
+    padding: var(--ds-4);
+    border: 1px dashed var(--ds-line-strong);
+    border-radius: var(--ds-r-md);
+    background: var(--ds-surface-soft);
+}
+
+.ds-empty-title {
+    margin: 0;
+    color: var(--ds-ink-600);
+    font-size: var(--ds-t-base);
+    font-weight: 700;
+}
+
+.ds-empty-body {
+    margin: 0;
+    max-width: 62ch;
+    color: var(--ds-text-quiet);
+    font-size: var(--ds-t-sm);
+    line-height: 1.5;
+}
+
+.ds-hint {
+    color: var(--ds-ink-400);
+    font-size: var(--ds-t-sm);
+}
+
+.ds-error {
+    margin: 0;
+    padding: 11px 14px;
+    border: 1px solid var(--ds-danger-line);
+    border-left: 4px solid #dc2626;
+    border-radius: var(--ds-r-md);
+    background: var(--ds-danger-soft);
+    color: #7f1d1d;
+    font-size: var(--ds-t-base);
+    line-height: 1.5;
+}
+
+/* ---------- Layout helpers, the two that earn their keep ---------- */
+
+.ds-inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-2);
+}
+
+.ds-spread {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-3);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ds-btn,
+    .ds-row,
+    .ds-tab {
+        transition: none;
+    }
+
+    .ds-btn-primary:hover:not(:disabled) {
+        transform: none;
+    }
+}

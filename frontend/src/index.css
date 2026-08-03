@@ -1,0 +1,3 @@
+/* The design system loads before any page stylesheet, so a page can override a primitive on
+   purpose and never by accident of source order. */
+@import './styles/system.css';
