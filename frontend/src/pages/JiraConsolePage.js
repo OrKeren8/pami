@@ -92,10 +92,19 @@ function JiraConsolePage() {
     const [isPosting, setIsPosting] = useState(false);
     const [isDraftingComment, setIsDraftingComment] = useState(false);
     const [commentAsk, setCommentAsk] = useState('');
+    const [recentIssues, setRecentIssues] = useState([]);
+    const [isLoadingRecent, setIsLoadingRecent] = useState(false);
+
+    // (6) Nothing said the draft was kept, so closing the tab looked like losing the work.
+    const [savedAt, setSavedAt] = useState(null);
+    // (9) Discard is destructive behind one confirm. A short undo window is friendlier than
+    // a second modal, and it is the same ticket object so nothing has to be reconstructed.
+    const [undoTicket, setUndoTicket] = useState(null);
 
 
     useEffect(() => {
         writeStored(DRAFT_KEY, JSON.stringify(ticket));
+        setSavedAt(Date.now());
     }, [ticket]);
 
     useEffect(() => {
@@ -175,6 +184,44 @@ function JiraConsolePage() {
         };
     }, [projectKey]);
 
+    // (1) Recently updated issues, so "Open issue" is a list to pick from rather than a key to
+    // remember. Loaded only in that mode: the compose canvas has no use for it.
+    useEffect(() => {
+        if (!projectKey || mode !== 'issue') return;
+
+        let cancelled = false;
+        setIsLoadingRecent(true);
+        jiraApi
+            .get(`/projects/${projectKey}/issues`)
+            .then((response) => {
+                if (!cancelled) setRecentIssues(response.data?.issues || []);
+            })
+            .catch((error) => {
+                console.error('Could not list recent issues:', error);
+                if (!cancelled) setRecentIssues([]);
+            })
+            .finally(() => {
+                if (!cancelled) setIsLoadingRecent(false);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [projectKey, mode]);
+
+    // (7) A half-written ticket only lives in this tab, so leaving is worth one question.
+    useEffect(() => {
+        const warn = (event) => {
+            if (!ticketHasContent(ticket)) return undefined;
+            event.preventDefault();
+            // Browsers show their own wording; the string only has to be non-empty.
+            event.returnValue = '';
+            return '';
+        };
+        window.addEventListener('beforeunload', warn);
+        return () => window.removeEventListener('beforeunload', warn);
+    }, [ticket]);
+
     // --- Template, submit, discard -----------------------------------------------------
 
     const applyTemplate = (templateId) => {
@@ -217,9 +264,11 @@ function JiraConsolePage() {
 
     // --- Replying on an existing issue -------------------------------------------------
 
-    const openIssue = async (event) => {
+    const openIssue = async (event, explicitKey) => {
         event?.preventDefault();
-        const key = issueKeyInput.trim().toUpperCase();
+        // Taken as an argument when a row is clicked: setIssueKeyInput has not applied yet at
+        // that point, so reading it from state would open the previous key.
+        const key = (explicitKey || issueKeyInput).trim().toUpperCase();
         if (!key) return;
 
         setIsLoadingIssue(true);
@@ -312,15 +361,21 @@ function JiraConsolePage() {
     };
 
     const discard = () => {
-        if (
-            ticketHasContent(ticket) &&
-            !window.confirm('Discard this ticket and start a new one? This cannot be undone.')
-        ) {
-            return;
+        // No confirm dialog: the work is recoverable for a few seconds instead, which is a
+        // better trade than a modal on every clear - including the empty ones.
+        if (ticketHasContent(ticket)) {
+            setUndoTicket(ticket);
+            toast.notify('Ticket discarded. Undo from the button below.', { duration: 8000 });
         }
         setTicket(blankTicket(ticket.templateId, projectKey));
         setLastCreated(null);
         summaryRef.current?.focus();
+    };
+
+    const undoDiscard = () => {
+        if (!undoTicket) return;
+        setTicket(undoTicket);
+        setUndoTicket(null);
     };
 
     const submit = async (event) => {
@@ -380,7 +435,7 @@ function JiraConsolePage() {
 
     return (
         <div className="dashboard-container jira-page">
-            <AppSidebar active="jira" onJira={() => {}} />
+            <AppSidebar active="jira" />
 
             <main className="jira-main">
                 <header className="jira-header">
@@ -487,9 +542,56 @@ function JiraConsolePage() {
                             </p>
                         )}
 
+                        {/* (1) Pick an issue rather than remember its key. Hidden once one is
+                            open, so the thread is not competing with a list. */}
+                        {!issue && (
+                            <div className="jira-recent">
+                                <span className="jira-thread-label">
+                                    {isLoadingRecent
+                                        ? 'Loading recent issues...'
+                                        : recentIssues.length
+                                          ? 'Recently updated'
+                                          : 'No issues in this project yet'}
+                                </span>
+                                <ul className="jira-recent-list">
+                                    {recentIssues.map((row) => (
+                                        <li key={row.key}>
+                                            <button
+                                                type="button"
+                                                className="jira-recent-item"
+                                                onClick={() => {
+                                                    setIssueKeyInput(row.key);
+                                                    openIssue({ preventDefault: () => {} }, row.key);
+                                                }}
+                                            >
+                                                <span className="jira-recent-key">{row.key}</span>
+                                                <span className="jira-recent-summary">
+                                                    {row.summary}
+                                                </span>
+                                                <span className={statusClass(row.status)}>
+                                                    {row.status}
+                                                </span>
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
                         {issue && (
                             <>
                                 <div className="jira-issue-head">
+                                    <button
+                                        type="button"
+                                        className="jira-back-to-list"
+                                        onClick={() => {
+                                            setIssue(null);
+                                            setThread([]);
+                                            setCommentBody('');
+                                        }}
+                                    >
+                                        &larr; All issues
+                                    </button>
                                     <a href={issue.issue_url} target="_blank" rel="noreferrer">
                                         {issue.issue_key}
                                     </a>
@@ -598,7 +700,17 @@ function JiraConsolePage() {
                             // Enter in any single-line field submits a form by default, which
                             // here would publish the ticket to Jira mid-sentence. Publishing is
                             // the button's job only.
-                            if (event.key === 'Enter' && event.target.tagName !== 'TEXTAREA') {
+                            if (event.key !== 'Enter') return;
+
+                            // Ctrl/Cmd+Enter publishes from anywhere in the form, including
+                            // mid-description - the shortcut every issue tracker has.
+                            if (event.metaKey || event.ctrlKey) {
+                                event.preventDefault();
+                                submit(event);
+                                return;
+                            }
+
+                            if (event.target.tagName !== 'TEXTAREA') {
                                 event.preventDefault();
                             }
                         }}
@@ -626,7 +738,20 @@ function JiraConsolePage() {
                         </div>
 
                         <div className="jira-field">
-                            <label htmlFor="jira-summary">Summary</label>
+                            <div className="jira-description-head">
+                                <label htmlFor="jira-summary">Summary</label>
+                                {/* (3) Quiet until it matters: Jira rejects an over-long
+                                    summary, and finding that out at publish time is late. */}
+                                {ticket.summary.length > 180 && (
+                                    <span
+                                        className={`jira-counter ${
+                                            ticket.summary.length > 250 ? 'over' : ''
+                                        }`}
+                                    >
+                                        {ticket.summary.length} / 250
+                                    </span>
+                                )}
+                            </div>
                             <input
                                 id="jira-summary"
                                 ref={summaryRef}
@@ -649,7 +774,32 @@ function JiraConsolePage() {
                                 </button>
                             </div>
 
-                            {showPreview ? (
+                            {/* (4) An empty box used to say nothing about what belongs in it or
+                                where a filled one comes from. Both ways out are here. */}
+                            {!ticket.description.trim() && (
+                                <div className="jira-description-empty">
+                                    <p className="jira-empty-title">Nothing written yet</p>
+                                    <p className="jira-empty-body">
+                                        Load the {template.label.toLowerCase()} skeleton and fill
+                                        it in, or ask PAMI in a chat to draft the ticket from what
+                                        you discussed.
+                                    </p>
+                                    <div className="jira-empty-actions">
+                                        <button
+                                            type="button"
+                                            className="jira-empty-primary"
+                                            onClick={() => {
+                                                patch({ description: template.body });
+                                                setShowPreview(false);
+                                            }}
+                                        >
+                                            Load {template.label} skeleton
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {showPreview && ticket.description.trim() ? (
                                 <div className="jira-description-preview">
                                     <TicketPreview text={ticket.description} />
                                 </div>
@@ -736,12 +886,25 @@ function JiraConsolePage() {
                         </div>
 
                         <div className="jira-canvas-actions">
-                            <div className="jira-labels">
-                                {ticket.labels.map((label) => (
-                                    <span key={label} className="jira-label">
-                                        {label}
-                                    </span>
-                                ))}
+                            <div className="jira-action-left">
+                                <div className="jira-labels">
+                                    {ticket.labels.map((label) => (
+                                        <span key={label} className="jira-label">
+                                            {label}
+                                        </span>
+                                    ))}
+                                </div>
+                                {undoTicket ? (
+                                    <button
+                                        type="button"
+                                        className="jira-undo"
+                                        onClick={undoDiscard}
+                                    >
+                                        Undo discard
+                                    </button>
+                                ) : (
+                                    savedAt && <span className="jira-saved">Draft saved</span>
+                                )}
                             </div>
 
                             <div className="jira-buttons">
