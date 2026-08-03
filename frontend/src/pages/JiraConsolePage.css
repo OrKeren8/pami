@@ -141,6 +141,49 @@
     cursor: pointer;
 }
 
+/* A ticket arriving from the chat while the canvas already has work on it. Tinted, because
+   it is a choice to make rather than a message to read. */
+.jira-incoming {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-3);
+    padding: var(--ds-3) var(--ds-4);
+    border: 1px solid var(--ds-pink-200);
+    border-radius: var(--ds-r-md);
+    background: var(--ds-pink-50);
+}
+
+.jira-incoming-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.jira-incoming-text strong {
+    color: var(--ds-accent-deep);
+    font-size: var(--ds-t-md);
+    letter-spacing: var(--ds-track-snug);
+}
+
+/* What PAMI said when it drafted the ticket. Navigating here means that sentence was never
+   read in the chat, and it usually says what the ticket does and does not cover. */
+.jira-origin-note {
+    display: flex;
+    align-items: baseline;
+    gap: var(--ds-2);
+    margin: 0;
+    color: var(--ds-text-muted);
+    font-size: var(--ds-t-sm);
+    line-height: 1.5;
+}
+
+.jira-origin-note .ds-section-label {
+    flex-shrink: 0;
+}
+
 /* ---------- The canvas ---------- */
 
 .jira-body {

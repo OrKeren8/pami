@@ -4,7 +4,13 @@ import { aiApi, jiraApi } from '../api/axios';
 import AppSidebar from '../components/layout/AppSidebar';
 import { useToast } from '../components/feedback/ToastProvider';
 import TicketPreview from '../components/jira/TicketPreview';
-import { clearDraftOrigin, readDraftOrigin } from '../lib/jira/jiraHandoff';
+import {
+    clearDraftOrigin,
+    clearIncomingDraft,
+    draftHasContent,
+    readDraftOrigin,
+    readIncomingDraft
+} from '../lib/jira/jiraHandoff';
 import {
     PRIORITIES,
     TICKET_TEMPLATES,
@@ -86,6 +92,10 @@ function JiraConsolePage() {
     // Set when the chat handed this draft over, so there is a way back to the exact
     // conversation that produced it.
     const [origin] = useState(() => readDraftOrigin());
+    // A ticket PAMI drafted in the chat, waiting to be taken. Held rather than applied when
+    // there is already work on the canvas, because losing a half-written ticket to a chat
+    // message you sent thirty seconds ago is the worst thing this page could do.
+    const [incoming, setIncoming] = useState(() => readIncomingDraft());
 
     // Two modes in one window: writing a new ticket, or replying on an existing one. A second
     // page would have duplicated the sidebar, the connection check and the project picker.
@@ -130,6 +140,29 @@ function JiraConsolePage() {
     const patch = useCallback((fields) => {
         setTicket((current) => ({ ...current, ...fields }));
     }, []);
+
+    // Nothing to protect, so take it silently: this is the ordinary case, where the user asked
+    // PAMI for a ticket and arrived here to find it waiting.
+    useEffect(() => {
+        if (!incoming || ticketHasContent(ticket)) return;
+        setTicket(incoming);
+        clearIncomingDraft();
+        setIncoming(null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [incoming]);
+
+    const takeIncoming = () => {
+        if (!incoming) return;
+        setTicket(incoming);
+        clearIncomingDraft();
+        setIncoming(null);
+        toast.success('Took the ticket PAMI drafted.');
+    };
+
+    const dismissIncoming = () => {
+        clearIncomingDraft();
+        setIncoming(null);
+    };
 
     // --- Connection and reference data -------------------------------------------------
 
@@ -761,6 +794,42 @@ function JiraConsolePage() {
                         <strong>Jira is not reachable.</strong>{' '}
                         {connection.detail || 'Check the Jira service configuration.'}
                     </div>
+                )}
+
+                {/* Only ever shown when taking the new ticket would destroy work in progress.
+                    Otherwise the draft is already on the canvas by the time you look. */}
+                {incoming && draftHasContent(incoming) && (
+                    <div className="jira-incoming" role="status">
+                        <div className="jira-incoming-text">
+                            <strong>PAMI drafted a ticket from your chat.</strong>
+                            <span className="ds-hint">
+                                {incoming.summary || 'No summary'} &middot; taking it replaces
+                                what is on the canvas.
+                            </span>
+                        </div>
+                        <div className="ds-inline">
+                            <button
+                                type="button"
+                                className="ds-btn ds-btn-ghost ds-btn-sm"
+                                onClick={dismissIncoming}
+                            >
+                                Keep mine
+                            </button>
+                            <button
+                                type="button"
+                                className="ds-btn ds-btn-primary ds-btn-sm"
+                                onClick={takeIncoming}
+                            >
+                                Use PAMI's
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {origin?.note && (
+                    <p className="jira-origin-note">
+                        <span className="ds-section-label">From the chat</span> {origin.note}
+                    </p>
                 )}
 
                 <section className="jira-body">

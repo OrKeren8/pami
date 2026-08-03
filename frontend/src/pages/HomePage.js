@@ -712,7 +712,10 @@ const HomePage = () => {
             if (drafted) {
                 stashDraft(draftFromApi(drafted), {
                     conversationId: convId,
-                    projectId: selectedProjectId || null
+                    projectId: selectedProjectId || null,
+                    // What PAMI said about the draft. Navigating away means the reply is
+                    // never read in the chat, so it travels with the ticket.
+                    note: (aiText || '').slice(0, 200)
                 });
                 toast.success("Ticket drafted - opening the Jira workspace.");
                 navigate("/jira");

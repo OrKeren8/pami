@@ -7,7 +7,12 @@
  * conversation instead of hunting for it again.
  */
 
+// What the Jira window is editing right now.
 const DRAFT_KEY = 'pami.jira.draft';
+// What the chat has just produced and the Jira window has not accepted yet. Separate on
+// purpose: writing straight into DRAFT_KEY threw away a half-written ticket the moment you
+// asked PAMI for a new one, with no warning and no way back.
+const INCOMING_KEY = 'pami.jira.incoming';
 const ORIGIN_KEY = 'pami.jira.draftOrigin';
 
 const read = (key) => {
@@ -27,14 +32,14 @@ const write = (key, value) => {
     }
 };
 
-/** Store a draft the chat produced, plus where it came from. */
+/** Store a draft the chat produced, plus where it came from. Never overwrites the editor. */
 export const stashDraft = (draft, origin) => {
-    write(DRAFT_KEY, JSON.stringify(draft));
+    write(INCOMING_KEY, JSON.stringify(draft));
     write(ORIGIN_KEY, origin ? JSON.stringify(origin) : null);
 };
 
-export const readStashedDraft = () => {
-    const raw = read(DRAFT_KEY);
+const readJson = (key) => {
+    const raw = read(key);
     if (!raw) return null;
     try {
         const parsed = JSON.parse(raw);
@@ -43,6 +48,18 @@ export const readStashedDraft = () => {
         return null;
     }
 };
+
+/** A draft the chat produced that the Jira window has not taken yet. */
+export const readIncomingDraft = () => readJson(INCOMING_KEY);
+
+export const clearIncomingDraft = () => write(INCOMING_KEY, null);
+
+export const readStashedDraft = () => readJson(DRAFT_KEY);
+
+/** Whether a stored ticket has anything in it worth protecting. */
+export const draftHasContent = (draft) =>
+    Boolean(draft && (draft.summary || '').trim()) ||
+    Boolean(draft && (draft.description || '').trim());
 
 /** Which conversation the current draft came from, if any. */
 export const readDraftOrigin = () => {
