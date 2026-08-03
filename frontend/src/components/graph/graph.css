@@ -490,3 +490,48 @@
         display: none;
     }
 }
+
+/* ---------- Topic chips ---------- */
+
+.graph-topics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    align-items: center;
+}
+
+.graph-topic {
+    padding: 3px 10px;
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-r-pill);
+    background: rgba(255, 255, 255, 0.85);
+    color: var(--ds-ink-500);
+    font-family: inherit;
+    font-size: var(--ds-t-xs);
+    font-weight: 600;
+    cursor: pointer;
+    transition: border-color var(--ds-fast) var(--ds-ease),
+        background var(--ds-fast) var(--ds-ease), color var(--ds-fast) var(--ds-ease);
+}
+
+.graph-topic:hover {
+    border-color: var(--ds-pink-300);
+    color: var(--ds-accent-strong);
+}
+
+.graph-topic[aria-pressed='true'] {
+    border-color: transparent;
+    background: linear-gradient(180deg, var(--ds-pink-500), var(--ds-pink-600));
+    color: #fff;
+}
+
+.graph-topic:focus-visible {
+    outline: 2px solid var(--ds-pink-400);
+    outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+    .graph-topics {
+        display: none;
+    }
+}

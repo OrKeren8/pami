@@ -108,8 +108,11 @@ stylesheet lost its own buttons, inputs, spinner, table and loading/error states
 layout plus whatever is genuinely that page's identity - the pink conversation card and its
 hover preview stayed in Chat View, because nothing else would reuse them.
 
-Not migrated: the **dashboard** (`HomePage.css`, 7k lines) and the **Slack console**. The Slack
-console is deliberately a dark aubergine Slack-alike, so it needs dark-surface tokens before it
-can use the primitives - repainting it in pink would be a regression, not a migration. Take the
-dashboard a region at a time, deleting the local rules a primitive replaces rather than layering
-the two.
+Also migrated: **sign-in**, and the **Slack console**, which needed the dark surface tokens
+(`--ds-dark-*`, `--ds-on-dark*`) before it could use anything - it is deliberately a dark
+Slack-alike, so the move was to give the system plum darks in the pink's own hue family rather
+than to repaint the console pink.
+
+Not migrated: the **dashboard** (`HomePage.css`, 7k lines). Take it a region at a time, deleting
+the local rules a primitive replaces rather than layering the two. Its modals and forms already
+use the primitives; the graph, the chat pane and the node modal do not.

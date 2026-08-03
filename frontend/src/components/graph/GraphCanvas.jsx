@@ -11,6 +11,40 @@ import { useForceGraph } from '../../hooks/useForceGraph';
 import { useTimeMachine } from '../../hooks/useTimeMachine';
 import './graph.css';
 
+// Tags that describe the conversation rather than what it was about. Mirrors the list the
+// organizer applies server-side; this one exists for nodes organized before that landed.
+const MEDIUM_WORDS = new Set([
+    'assistant',
+    'chat',
+    'clarification',
+    'conversation',
+    'dialogue',
+    'discussion',
+    'exchange',
+    'followup',
+    'general',
+    'greeting',
+    'hello',
+    'inquiry',
+    'interaction',
+    'introduction',
+    'message',
+    'misc',
+    'other',
+    'question',
+    'reply',
+    'request',
+    'response',
+    'start',
+    'unclear',
+    'user'
+]);
+
+const isMediumTopic = (topic) => {
+    const words = topic.replace(/-/g, ' ').split(/\s+/).filter(Boolean);
+    return words.length > 0 && words.every((word) => MEDIUM_WORDS.has(word));
+};
+
 const SCALE_MIN = 0.3;
 const SCALE_MAX = 2.5;
 const SETTINGS_KEY = 'pami.graph.forces';
@@ -254,10 +288,41 @@ function GraphCanvas({
         if (!searchTerm) return null;
         return new Set(
             nodes
-                .filter((node) => node.title.toLowerCase().includes(searchTerm))
+                .filter((node) => {
+                    // Header, summary and the topics the AI chose. A header is five words, so
+                    // searching it alone missed a conversation by every word it was actually
+                    // about.
+                    if (node.title.toLowerCase().includes(searchTerm)) return true;
+                    if ((node.summary || '').toLowerCase().includes(searchTerm)) return true;
+                    return (node.topics || []).some((topic) =>
+                        String(topic).toLowerCase().includes(searchTerm)
+                    );
+                })
                 .map((node) => node.id)
         );
     }, [nodes, searchTerm]);
+
+    // The topics worth offering as one-click filters: the ones that group nodes together. A
+    // topic on a single node narrows nothing, and there is a long tail of those.
+    const topicChips = useMemo(() => {
+        const counts = new Map();
+        nodes.forEach((node) => {
+            (node.topics || []).forEach((raw) => {
+                const topic = String(raw).trim().toLowerCase();
+                if (topic.length < 3) return;
+                // Nodes organized before the prompt was fixed carry tags about the medium
+                // rather than the subject - "greeting", "assistant response". They are the
+                // most common tags in an old project and the least useful chips.
+                if (isMediumTopic(topic)) return;
+                counts.set(topic, (counts.get(topic) || 0) + 1);
+            });
+        });
+        return Array.from(counts.entries())
+            .filter(([, count]) => count > 1)
+            .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+            .slice(0, 6)
+            .map(([topic, count]) => ({ topic, count }));
+    }, [nodes]);
 
     const { neighbourIds, activeLinkIds } = useMemo(() => {
         const neighbours = new Set();
@@ -338,9 +403,12 @@ function GraphCanvas({
     useEffect(() => {
         if (nodes.length && nodes.length !== lastCountRef.current) {
             lastCountRef.current = nodes.length;
-            userAdjustedRef.current = false;
+            // Not while rewound: the count changes on every step of the scrubber, and
+            // re-framing each time makes the camera chase the graph instead of letting it
+            // grow inside a steady frame.
+            if (timeMachine.isLive) userAdjustedRef.current = false;
         }
-    }, [nodes.length]);
+    }, [nodes.length, timeMachine.isLive]);
 
     // Keep the graph framed while it settles, and hand control over for good the moment
     // the user zooms or pans themselves.
@@ -417,6 +485,8 @@ function GraphCanvas({
                 search={search}
                 onSearch={setSearch}
                 matchCount={matchIds ? matchIds.size : 0}
+                topics={topicChips}
+                onTopic={(topic) => setSearch((current) => (current === topic ? '' : topic))}
                 zoomPercent={Math.round(transform.k * 100)}
                 onFit={fitToView}
                 onReset={resetLayout}

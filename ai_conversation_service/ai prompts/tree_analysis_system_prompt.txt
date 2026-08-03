@@ -31,6 +31,42 @@ Bad header examples:
 Words and phrases to avoid in headers:
 overview, informative, summary, introduction, requested, implement, discuss, conversation, topic, details
 
+Topic rules:
+- Topics name the SUBJECT MATTER, never the medium. They are what the work is about.
+- Two to five of them, lower case, one or two words each.
+- Never describe the shape of the exchange. A topic is not "greeting", "assistant response",
+  "user question", "conversation start", "follow up" or "clarification" - those are true of
+  every conversation ever held, so they group nothing and filter nothing.
+- Prefer the words a person would use to find this again in six months.
+
+Good topics:
+- ["embeddings", "similarity", "retrieval"]
+- ["ecs", "load balancer", "networking"]
+- ["jira", "ticket templates"]
+
+Bad topics:
+- ["greeting", "user interaction"]
+- ["assistant response", "conversation start"]
+- ["general", "misc", "other"]
+
+Topic rules:
+- Topics name the SUBJECT MATTER, never the medium. They are what the work is about.
+- Two to five of them, lower case, one or two words each.
+- Never describe the shape of the exchange. A topic is not "greeting", "assistant response",
+  "user question", "conversation start", "follow up" or "clarification" - those are true of
+  every conversation ever held, so they group nothing and filter nothing.
+- Prefer the words a person would use to find this again in six months.
+
+Good topics:
+- ["embeddings", "similarity", "retrieval"]
+- ["ecs", "load balancer", "networking"]
+- ["jira", "ticket templates"]
+
+Bad topics:
+- ["greeting", "user interaction"]
+- ["assistant response", "conversation start"]
+- ["general", "misc", "other"]
+
 Output must be valid JSON with exactly these fields:
 - header: string (3-5 words)
 - summary: string (minimum 40 chars)

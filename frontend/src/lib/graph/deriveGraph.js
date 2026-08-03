@@ -18,6 +18,7 @@ export function deriveGraph(contextNodes, minScore = MIN_CORRELATION_SCORE) {
                 id,
                 title: node.header || 'Context node',
                 summary: node.summary || '',
+                topics: Array.isArray(node.topics) ? node.topics : [],
                 color: node.color || '#8b5cf6',
                 nodeType: node.node_type || 'context',
                 conversationId:

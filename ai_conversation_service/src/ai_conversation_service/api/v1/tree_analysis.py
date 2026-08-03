@@ -6,6 +6,9 @@ from ai_conversation_service.schemas.tree_analysis_schemas import (
     NodeOrganizationResponse,
 )
 from ai_conversation_service.core.auth import ServiceCallerDep
+from ai_conversation_service.services.ai_conversation_service.service import (
+    ConversationNotFoundError,
+)
 from ai_conversation_service.services.tree_analysis_service import TreeAnalysisService
 from ai_conversation_service.dependencies import get_tree_analysis_service
 
@@ -34,8 +37,16 @@ async def organize_node(
     """
     try:
         return await service.analyze_and_organize_node(request)
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except ConversationNotFoundError as error:
+        # Only a missing conversation is a 404. A model that answered with a header of the
+        # wrong length is not "not found", and reporting it that way left the caller's log
+        # saying the conversation had vanished.
+        raise HTTPException(status_code=404, detail=str(error))
+    except ValueError as error:
+        logger.warning(f"organize_node got an unusable model response: {error}")
+        raise HTTPException(
+            status_code=502, detail="The model returned an unusable organization"
+        )
     except Exception as error:
         # str(error) here is a botocore, OpenAI or pymongo message: it leaks the S3
         # bucket and key layout, the model and org ids, or the replica-set hostnames

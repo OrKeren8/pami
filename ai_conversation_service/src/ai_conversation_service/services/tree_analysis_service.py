@@ -10,6 +10,9 @@ from ai_conversation_service.schemas.tree_analysis_schemas import (
 )
 from ai_conversation_service.core.config import settings
 from ai_conversation_service.core.prompt_loader import load_prompt_file
+from ai_conversation_service.services.ai_conversation_service.service import (
+    ConversationNotFoundError,
+)
 from ai_conversation_service.services.similarity import top_k_scores
 
 TREE_ANALYSIS_SYSTEM_PROMPT = load_prompt_file("tree_analysis_system_prompt.txt")
@@ -41,7 +44,9 @@ class TreeAnalysisService:
         )
 
         if not conversation:
-            raise ValueError(f"Conversation {request.conversation_id} not found")
+            raise ConversationNotFoundError(
+                f"Conversation {request.conversation_id} not found"
+            )
 
         # Log conversation metadata for debugging
         try:
@@ -123,6 +128,8 @@ class TreeAnalysisService:
             if not isinstance(topics, list) or not topics:
                 raise ValueError("AI organization missing required non-empty topics")
 
+            topics = self._subject_topics(topics)
+
             scored_suggestions = await self._score_siblings(request)
 
             return NodeOrganizationResponse(
@@ -137,6 +144,82 @@ class TreeAnalysisService:
         except Exception as e:
             self._logger.error(f"Failed to analyze tree structure: {e}")
             raise
+
+    # Topics describing the exchange rather than its subject. True of every conversation
+    # ever held, so they group nothing and filter nothing - and because they are true, the
+    # model reaches for them whenever the transcript is thin.
+    _MEDIUM_WORDS = frozenset(
+        {
+            "assistant",
+            "chat",
+            "clarification",
+            "conversation",
+            "dialogue",
+            "discussion",
+            "exchange",
+            "follow up",
+            "followup",
+            "general",
+            "greeting",
+            "hello",
+            "inquiry",
+            "interaction",
+            "introduction",
+            "message",
+            "misc",
+            "miscellaneous",
+            "other",
+            "question",
+            "reply",
+            "request",
+            "response",
+            "start",
+            "unclear",
+            "user",
+        }
+    )
+
+    # Whole tags rather than words: the word test cannot catch these, because on their own
+    # "small" and "talk" are not about the medium. "small talk" is the tag that gets dropped,
+    # and a set of words could never express that - which is why "small talk" sat in the word
+    # list doing nothing until a test asked it to work.
+    _MEDIUM_PHRASES = frozenset(
+        {"small talk", "follow up", "next steps", "getting started", "off topic"}
+    )
+
+    def _subject_topics(self, topics: list) -> list:
+        """Drop topics that describe the conversation instead of its subject.
+
+        The prompt asks for subject matter; this is what makes it true. A tag is dropped when
+        every word in it is about the medium - so "user interaction" and "assistant response"
+        go, while "user accounts" and "response caching" stay, because "accounts" and "caching"
+        are subjects.
+
+        Never returns empty: if a node genuinely has nothing but medium words to say about
+        itself, that is worth keeping over failing the whole organization pass, which would
+        leave the node with no header or summary either.
+        """
+        kept = []
+        for raw in topics:
+            topic = " ".join(str(raw).strip().lower().split())
+            if not topic:
+                continue
+            if topic in self._MEDIUM_PHRASES:
+                continue
+            words = [word for word in topic.replace("-", " ").split() if word]
+            if words and all(word in self._MEDIUM_WORDS for word in words):
+                continue
+            if topic not in kept:
+                kept.append(topic)
+
+        if not kept:
+            self._logger.info(
+                f"Every topic the model suggested described the medium: {topics}"
+            )
+            return [
+                str(topic).strip().lower() for topic in topics if str(topic).strip()
+            ]
+        return kept
 
     async def _score_siblings(
         self, request: AnalyzeTreeRequest

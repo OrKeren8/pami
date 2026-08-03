@@ -13,9 +13,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
  * one node.
  */
 
-// Slow enough to read the header of the node that just appeared, fast enough that a project
-// with thirty nodes does not take half a minute to replay.
-const PLAY_STEP_MS = 620;
+// Playback aims at a total length rather than a fixed step: at a fixed 620ms a project with
+// thirty-seven nodes takes twenty-three seconds to replay, which nobody watches to the end,
+// and a project with three is over before it registers.
+const PLAY_TARGET_MS = 11000;
+const PLAY_STEP_MIN_MS = 220;
+const PLAY_STEP_MAX_MS = 700;
+
+const stepDuration = (total) => {
+    if (total < 1) return PLAY_STEP_MAX_MS;
+    const even = PLAY_TARGET_MS / total;
+    return Math.min(PLAY_STEP_MAX_MS, Math.max(PLAY_STEP_MIN_MS, even));
+};
 
 const nodeId = (node) => {
     const raw = node?.id || node?._id;
@@ -78,7 +87,7 @@ export function useTimeMachine(contextNodes) {
                 }
                 return next;
             });
-        }, PLAY_STEP_MS);
+        }, stepDuration(total));
 
         return () => window.clearInterval(timer);
     }, [isPlaying, total]);
