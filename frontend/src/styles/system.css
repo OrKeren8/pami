@@ -63,6 +63,18 @@
     --ds-info-soft: #eef2ff;
     --ds-info-line: #c7d2fe;
 
+    /* ---- Dark surfaces. Plum rather than blue-black: the same hue family as the pink, so
+       a dark rail beside a light panel reads as one product. Used by the Slack console. ---- */
+    --ds-dark-900: #191320;
+    --ds-dark-800: #221a2b;
+    --ds-dark-700: #2c2136;
+    --ds-dark-600: #382a44;
+    --ds-on-dark: #f7f4f9;
+    --ds-on-dark-muted: rgba(247, 244, 249, 0.64);
+    --ds-on-dark-faint: rgba(247, 244, 249, 0.42);
+    --ds-dark-line: rgba(247, 244, 249, 0.1);
+    --ds-dark-raise: rgba(247, 244, 249, 0.07);
+
     /* ---- Space: a 4px scale, so gaps in different components line up ---- */
     --ds-1: 4px;
     --ds-2: 8px;
