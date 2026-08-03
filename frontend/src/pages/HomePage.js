@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import "./HomePage.css";
 import { projectsApi, aiApi, jiraApi } from "../api/axios";
 import AppSidebar from "../components/layout/AppSidebar";
@@ -302,6 +302,7 @@ const StatIcon = ({ name, className }) => (
 
 const HomePage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
     const toast = useToast();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [activePane, setActivePane] = useState("tree");
@@ -706,15 +707,19 @@ const HomePage = () => {
                 }
             ]);
 
-            // The model decided to draft a ticket, so hand it to the Jira workspace and record
-            // which conversation it came from. Stored rather than navigated: yanking the user
-            // out of the chat mid-thought would be worse than offering the link.
+            // The model decided to draft a ticket, so hand it to the Jira workspace and go
+            // there. Asking for a ticket is asking to be in the ticket editor, and the reply is
+            // not lost by leaving: the conversation is saved, and the Jira window carries a
+            // link back to it.
             const drafted = resp.data && resp.data.jira_draft;
             if (drafted) {
                 stashDraft(draftFromApi(drafted), {
                     conversationId: convId,
                     projectId: selectedProjectId || null
                 });
+                toast.success("Ticket drafted - opening the Jira workspace.");
+                navigate("/jira");
+                return;
             }
             revealReply((aiText || "(no response)").length);
         } catch (err) {
