@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import { projectsApi } from '../api/axios';
 import AppSidebar from '../components/layout/AppSidebar';
@@ -13,7 +12,6 @@ const formatDate = (iso) => {
 };
 
 function AdminDashboardPage() {
-    const navigate = useNavigate();
     const [overview, setOverview] = useState(null);
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -103,7 +101,6 @@ function AdminDashboardPage() {
         <div className="dashboard-container admin-page">
             <AppSidebar
                 active="admin"
-                onJira={() => navigate('/dashboard?integration=jira')}
             />
 
             <main className="admin-main">

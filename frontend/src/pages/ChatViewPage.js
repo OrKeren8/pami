@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 
 import { aiApi, projectsApi } from '../api/axios';
 import AppSidebar from '../components/layout/AppSidebar';
-import { useToast } from '../components/feedback/ToastProvider';
 import './HomePage.css';
 import './ChatViewPage.css';
 
@@ -52,7 +51,6 @@ const absoluteTime = (iso) => asUtc(iso)?.toLocaleString() || '';
 
 function ChatViewPage() {
     const navigate = useNavigate();
-    const toast = useToast();
 
     const [projects, setProjects] = useState([]);
     const [projectId, setProjectId] = useState(null);
@@ -375,13 +373,7 @@ function ChatViewPage() {
 
     return (
         <div className="dashboard-container chat-view-page">
-            <AppSidebar
-                active="chats"
-                onJira={() => {
-                    toast.notify('Open the dashboard to connect Jira.');
-                    navigate('/dashboard?integration=jira');
-                }}
-            />
+            <AppSidebar active="chats" />
 
             <main className="chat-view-main">
                 <header className="chat-view-header">

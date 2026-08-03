@@ -42,9 +42,9 @@ const LogoutIcon = () => (
 );
 
 // Shared by the dashboard and the Slack console so the console is navigable rather than a
-// dead end. `active` is the id of the current page; `onJira` lets the dashboard open its own
-// modal in place, while other pages fall back to navigating there.
-function AppSidebar({ active, onJira }) {
+// dead end. `active` is the id of the current page. Jira now has a full window of its own, so
+// every page navigates there rather than one of them opening a modal in place.
+function AppSidebar({ active }) {
     const navigate = useNavigate();
     // From the server, not from decoding the token here: the client must not be the one
     // deciding it is an admin. This only draws or hides a link - /admin/users refuses anyone
@@ -55,14 +55,6 @@ function AppSidebar({ active, onJira }) {
     // One shipped image. The upload was the only writer of the stored override, so with it
     // gone a stored value could only be a leftover from before.
     const avatar = ASSISTANT_IMAGE;
-
-    const openJira = () => {
-        if (onJira) {
-            onJira();
-            return;
-        }
-        navigate('/dashboard?integration=jira');
-    };
 
     const items = [
         { id: 'dashboard', label: 'Neural Dashboard', onClick: () => navigate('/dashboard') },

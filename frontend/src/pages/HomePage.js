@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import "./HomePage.css";
 import { projectsApi, aiApi, jiraApi } from "../api/axios";
 import AppSidebar from "../components/layout/AppSidebar";
@@ -302,7 +302,6 @@ const StatIcon = ({ name, className }) => (
 
 const HomePage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const navigate = useNavigate();
     const toast = useToast();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [activePane, setActivePane] = useState("tree");
@@ -1129,7 +1128,6 @@ const HomePage = () => {
                 return;
             }
 
-            const recent = chatMessages.slice(-10).map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n\n');
             const latestUserMessage = [...chatMessages]
                 .reverse()
                 .find((m) => (m.role || "").toLowerCase() === "user")?.content;
@@ -1429,10 +1427,7 @@ const HomePage = () => {
 
     return (
         <div className={`dashboard-container ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
-            <AppSidebar
-                active="dashboard"
-                onJira={() => openModal("jira")}
-            />
+            <AppSidebar active="dashboard" />
 
             <main className={`main-content ${isSidebarOpen ? "sidebar-open" : "sidebar-closed"}`}>
                 <header className="top-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", boxSizing: "border-box", flexShrink: 0 }}>
