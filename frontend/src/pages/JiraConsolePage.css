@@ -180,10 +180,17 @@
     background: var(--ds-surface);
 }
 
-/* Fills the canvas while composing, where it stands in for the editor. Inside an opened issue
-   it is one section among several, so there it takes only the height its text needs. */
-.jira-field-grow .jira-description-preview {
+/* Write on the left, read on the right. Two panes of one object, so they share a height and
+   scroll independently: a long ticket must not push the meta fields off the canvas. */
+.jira-editor-split {
     flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--ds-3);
+}
+
+.jira-editor-split > * {
     min-height: 0;
     overflow-y: auto;
 }

@@ -83,10 +83,6 @@ function JiraConsolePage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [lastCreated, setLastCreated] = useState(null);
     const summaryRef = useRef(null);
-    // Editing first, formatting on demand. The other way round meant Enter and clicks in
-    // the description did something other than type, which is the last thing an editor should
-    // do. The Formatted button is right beside the label.
-    const [showPreview, setShowPreview] = useState(false);
     // Set when the chat handed this draft over, so there is a way back to the exact
     // conversation that produced it.
     const [origin] = useState(() => readDraftOrigin());
@@ -844,13 +840,9 @@ function JiraConsolePage() {
                             <div className="ds-field jira-field-grow">
                                 <div className="ds-field-head">
                                     <label htmlFor="jira-description">Description</label>
-                                    <button
-                                        type="button"
-                                        className="ds-btn ds-btn-ghost ds-btn-sm"
-                                        onClick={() => setShowPreview((shown) => !shown)}
-                                    >
-                                        {showPreview ? 'Edit text' : 'Formatted'}
-                                    </button>
+                                    <span className="ds-hint">
+                                        Headings, lists and checkboxes format as you type
+                                    </span>
                                 </div>
 
                                 {/* An empty box used to say nothing about what belongs in it or
@@ -864,21 +856,17 @@ function JiraConsolePage() {
                                         <button
                                             type="button"
                                             className="ds-btn ds-btn-ghost ds-btn-sm"
-                                            onClick={() => {
-                                                patch({ description: template.body });
-                                                setShowPreview(false);
-                                            }}
+                                            onClick={() => patch({ description: template.body })}
                                         >
                                             Load {template.label} skeleton
                                         </button>
                                     </div>
                                 )}
 
-                                {showPreview && ticket.description.trim() ? (
-                                    <div className="jira-description-preview">
-                                        <TicketPreview text={ticket.description} />
-                                    </div>
-                                ) : (
+                                {/* Both at once. A toggle meant the ticket was either editable
+                                    or readable and never both, and the button that switched
+                                    between them read as a heading. */}
+                                <div className="jira-editor-split">
                                     <textarea
                                         id="jira-description"
                                         className="ds-textarea jira-description-box"
@@ -889,7 +877,16 @@ function JiraConsolePage() {
                                         spellCheck="true"
                                         autoFocus
                                     />
-                                )}
+                                    <div className="jira-description-preview">
+                                        {ticket.description.trim() ? (
+                                            <TicketPreview text={ticket.description} />
+                                        ) : (
+                                            <p className="ds-hint">
+                                                The formatted ticket appears here as you write.
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="jira-field-row">
