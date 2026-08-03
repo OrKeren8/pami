@@ -38,15 +38,26 @@ const writeStored = (key, value) => {
 };
 
 // Jira status names are per project, so match on what they mean rather than on an exact set.
-const statusClass = (status) => {
+const statusPill = (status) => {
     const name = (status || '').toLowerCase();
     if (name.includes('done') || name.includes('closed') || name.includes('resolved')) {
-        return 'jira-status-pill-done';
+        return 'ds-pill ds-pill-done';
     }
     if (name.includes('progress') || name.includes('review') || name.includes('doing')) {
-        return 'jira-status-pill-progress';
+        return 'ds-pill ds-pill-progress';
     }
-    return 'jira-status-pill-todo';
+    return 'ds-pill ds-pill-todo';
+};
+
+// One box does both jobs: narrow the list, or jump straight to a key. Which one is meant is
+// decided by what was typed, not by a second field the user has to find.
+const KEY_SHAPE = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
+
+const shortDate = (iso) => {
+    if (!iso) return '';
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
 const loadDraft = () => {
@@ -94,13 +105,14 @@ function JiraConsolePage() {
     const [commentAsk, setCommentAsk] = useState('');
     const [recentIssues, setRecentIssues] = useState([]);
     const [isLoadingRecent, setIsLoadingRecent] = useState(false);
+    const [issueFilter, setIssueFilter] = useState('');
 
-    // (6) Nothing said the draft was kept, so closing the tab looked like losing the work.
+    // Nothing said the draft was kept, so closing the tab looked like losing the work.
     const [savedAt, setSavedAt] = useState(null);
-    // (9) Discard is destructive behind one confirm. A short undo window is friendlier than
-    // a second modal, and it is the same ticket object so nothing has to be reconstructed.
-    const [undoTicket, setUndoTicket] = useState(null);
-
+    // Discard asks for a second click on the same button instead of offering an Undo at the
+    // other end of the row - by the time you have found the undo you have already had the
+    // fright, and the two controls being far apart is what made it a fright.
+    const [isConfirmingDiscard, setIsConfirmingDiscard] = useState(false);
 
     useEffect(() => {
         writeStored(DRAFT_KEY, JSON.stringify(ticket));
@@ -110,6 +122,14 @@ function JiraConsolePage() {
     useEffect(() => {
         if (projectKey) writeStored(PROJECT_KEY, projectKey);
     }, [projectKey]);
+
+    // A confirm that stays armed forever is a trap: come back to the tab later and the button
+    // that says Discard really does discard on one click.
+    useEffect(() => {
+        if (!isConfirmingDiscard) return undefined;
+        const timer = window.setTimeout(() => setIsConfirmingDiscard(false), 6000);
+        return () => window.clearTimeout(timer);
+    }, [isConfirmingDiscard]);
 
     const patch = useCallback((fields) => {
         setTicket((current) => ({ ...current, ...fields }));
@@ -184,10 +204,10 @@ function JiraConsolePage() {
         };
     }, [projectKey]);
 
-    // (1) Recently updated issues, so "Open issue" is a list to pick from rather than a key to
-    // remember. Loaded only in that mode: the compose canvas has no use for it.
+    // The issue browser is a list, not a key to remember. Loaded only in that mode: the
+    // compose canvas has no use for it.
     useEffect(() => {
-        if (!projectKey || mode !== 'issue') return;
+        if (!projectKey || mode !== 'issue') return undefined;
 
         let cancelled = false;
         setIsLoadingRecent(true);
@@ -209,7 +229,7 @@ function JiraConsolePage() {
         };
     }, [projectKey, mode]);
 
-    // (7) A half-written ticket only lives in this tab, so leaving is worth one question.
+    // A half-written ticket only lives in this tab, so leaving is worth one question.
     useEffect(() => {
         const warn = (event) => {
             if (!ticketHasContent(ticket)) return undefined;
@@ -271,6 +291,7 @@ function JiraConsolePage() {
         const key = (explicitKey || issueKeyInput).trim().toUpperCase();
         if (!key) return;
 
+        setIssueKeyInput(key);
         setIsLoadingIssue(true);
         setIssueError(null);
         try {
@@ -282,6 +303,7 @@ function JiraConsolePage() {
             ]);
             setIssue(issueResult.data || null);
             setThread(commentsResult.data?.comments || []);
+            setCommentBody('');
         } catch (error) {
             console.error('Could not open the issue:', error);
             const status = error?.response?.status;
@@ -295,6 +317,14 @@ function JiraConsolePage() {
         } finally {
             setIsLoadingIssue(false);
         }
+    };
+
+    const closeIssue = () => {
+        setIssue(null);
+        setThread([]);
+        setCommentBody('');
+        setCommentAsk('');
+        setIssueError(null);
     };
 
     const refreshThread = async () => {
@@ -361,21 +391,14 @@ function JiraConsolePage() {
     };
 
     const discard = () => {
-        // No confirm dialog: the work is recoverable for a few seconds instead, which is a
-        // better trade than a modal on every clear - including the empty ones.
-        if (ticketHasContent(ticket)) {
-            setUndoTicket(ticket);
-            toast.notify('Ticket discarded. Undo from the button below.', { duration: 8000 });
+        if (!isConfirmingDiscard && ticketHasContent(ticket)) {
+            setIsConfirmingDiscard(true);
+            return;
         }
+        setIsConfirmingDiscard(false);
         setTicket(blankTicket(ticket.templateId, projectKey));
         setLastCreated(null);
         summaryRef.current?.focus();
-    };
-
-    const undoDiscard = () => {
-        if (!undoTicket) return;
-        setTicket(undoTicket);
-        setUndoTicket(null);
     };
 
     const submit = async (event) => {
@@ -411,7 +434,7 @@ function JiraConsolePage() {
             // A submitted ticket is done, so the canvas clears - which is the whole "new
             // canvas appears" behaviour, just reached by succeeding instead of discarding.
             setTicket(blankTicket(ticket.templateId, projectKey));
-            } catch (error) {
+        } catch (error) {
             console.error('Failed to create the Jira issue:', error);
             const detail = error?.response?.data?.detail;
             toast.error(
@@ -432,6 +455,221 @@ function JiraConsolePage() {
         connected: 'Connected',
         error: 'Not connected'
     }[connection.status];
+
+    const filteredIssues = useMemo(() => {
+        const needle = issueFilter.trim().toLowerCase();
+        if (!needle) return recentIssues;
+        return recentIssues.filter((row) =>
+            `${row.key} ${row.summary || ''}`.toLowerCase().includes(needle)
+        );
+    }, [recentIssues, issueFilter]);
+
+    const renderIssueBrowser = () => (
+        <div className="jira-issue-browser">
+            <div className="ds-spread jira-browser-head">
+                <span className="ds-section-label">
+                    {isLoadingRecent
+                        ? 'Loading issues…'
+                        : recentIssues.length
+                          ? `${projectKey} · recently updated`
+                          : 'No issues in this project yet'}
+                </span>
+                <form className="jira-browser-find" onSubmit={openIssue}>
+                    <input
+                        className="ds-input ds-input-sm"
+                        type="text"
+                        value={issueFilter}
+                        placeholder="Filter, or type a key…"
+                        aria-label="Filter issues, or type an issue key"
+                        onChange={(event) => {
+                            setIssueFilter(event.target.value);
+                            setIssueKeyInput(event.target.value);
+                        }}
+                    />
+                    <button
+                        type="submit"
+                        className="ds-btn ds-btn-ghost ds-btn-sm"
+                        disabled={isLoadingIssue || !KEY_SHAPE.test(issueKeyInput.trim())}
+                        title="Type a full issue key, e.g. SCRUM-12"
+                    >
+                        {isLoadingIssue ? 'Opening…' : 'Open'}
+                    </button>
+                </form>
+            </div>
+
+            {issueError && (
+                <p className="ds-error" role="alert">
+                    {issueError}
+                </p>
+            )}
+
+            {!isLoadingRecent && recentIssues.length > 0 && filteredIssues.length === 0 && (
+                <p className="ds-hint">Nothing matches “{issueFilter}”.</p>
+            )}
+
+            <ul className="ds-list jira-issue-list">
+                {filteredIssues.map((row) => (
+                    <li key={row.key}>
+                        <button
+                            type="button"
+                            className="ds-row"
+                            onClick={() => openIssue(null, row.key)}
+                        >
+                            <span className="jira-row-key">{row.key}</span>
+                            <span className="ds-row-truncate">{row.summary}</span>
+                            <span className="jira-row-when">{shortDate(row.updated)}</span>
+                            <span className={statusPill(row.status)}>{row.status}</span>
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+
+    const renderIssue = () => (
+        <div className="jira-issue-detail">
+            <div className="jira-issue-head">
+                <div className="ds-spread">
+                    <button type="button" className="ds-btn ds-btn-quiet" onClick={closeIssue}>
+                        &larr; All issues
+                    </button>
+                    <div className="ds-inline">
+                        <button
+                            type="button"
+                            className="ds-btn ds-btn-quiet"
+                            onClick={() => openIssue(null, issue.issue_key)}
+                            disabled={isLoadingIssue}
+                        >
+                            {isLoadingIssue ? 'Refreshing…' : 'Refresh'}
+                        </button>
+                        <a
+                            className="jira-open-in-jira"
+                            href={issue.issue_url}
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            Open in Jira ↗
+                        </a>
+                    </div>
+                </div>
+
+                <h2>
+                    <span className="jira-issue-key">{issue.issue_key}</span>
+                    {issue.summary}
+                </h2>
+
+                <div className="ds-inline">
+                    {issue.status && (
+                        <span className={statusPill(issue.status)}>{issue.status}</span>
+                    )}
+                    {issue.issue_type && <span className="ds-pill">{issue.issue_type}</span>}
+                    <span className="ds-pill">{issue.assignee || 'Unassigned'}</span>
+                    {issue.priority && <span className="ds-pill">{issue.priority}</span>}
+                    {issue.due_date && <span className="ds-pill">Due {issue.due_date}</span>}
+                    {(issue.labels || []).map((label) => (
+                        <span key={label} className="ds-pill ds-pill-accent">
+                            {label}
+                        </span>
+                    ))}
+                </div>
+            </div>
+
+            <div className="jira-issue-scroll">
+                {/* The description was missing from this view entirely, which is what made an
+                    opened issue look empty. Same renderer as the compose preview, so a ticket
+                    reads the same before and after it is published. */}
+                <section className="jira-issue-section">
+                    <span className="ds-section-label">Description</span>
+                    {issue.description ? (
+                        <div className="jira-description-preview">
+                            <TicketPreview text={issue.description} />
+                        </div>
+                    ) : (
+                        <p className="ds-hint">This issue has no description in Jira.</p>
+                    )}
+                </section>
+
+                <section className="jira-issue-section">
+                    <span className="ds-section-label">
+                        {thread.length
+                            ? `${thread.length} comment${thread.length === 1 ? '' : 's'}`
+                            : 'No comments yet'}
+                    </span>
+                    {thread.map((comment) => (
+                        <div key={comment.id} className="jira-comment">
+                            <div className="ds-spread">
+                                <span className="jira-comment-who">
+                                    {comment.author || 'Someone'}
+                                </span>
+                                <span className="ds-hint">{shortDate(comment.created)}</span>
+                            </div>
+                            <p>{comment.body}</p>
+                        </div>
+                    ))}
+                </section>
+            </div>
+
+            <form className="jira-comment-composer" onSubmit={postComment}>
+                {/* One row, not a chat: no history, no transcript. It asks PAMI to write into
+                    the box below, which the user then edits and posts. */}
+                <div className="jira-assist-row">
+                    <input
+                        className="ds-input"
+                        type="text"
+                        value={commentAsk}
+                        placeholder="Ask PAMI to draft the reply…"
+                        onChange={(event) => setCommentAsk(event.target.value)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                                event.preventDefault();
+                                askPamiForComment();
+                            }
+                        }}
+                    />
+                    <button
+                        type="button"
+                        className="ds-btn ds-btn-ghost"
+                        onClick={askPamiForComment}
+                        disabled={isDraftingComment || !commentAsk.trim()}
+                    >
+                        {isDraftingComment ? 'Drafting…' : 'Draft with PAMI'}
+                    </button>
+                </div>
+
+                <div className="ds-field">
+                    <label htmlFor="jira-comment">Your reply</label>
+                    <textarea
+                        id="jira-comment"
+                        className="ds-textarea jira-comment-box"
+                        value={commentBody}
+                        placeholder="Write a comment, or ask PAMI to draft one."
+                        onChange={(event) => setCommentBody(event.target.value)}
+                    />
+                </div>
+
+                <div className="ds-spread jira-composer-actions">
+                    <span className="ds-hint">PAMI drafts into this box. Posting is your click.</span>
+                    <div className="ds-inline">
+                        <button
+                            type="button"
+                            className="ds-btn ds-btn-ghost"
+                            onClick={() => setCommentBody('')}
+                            disabled={!commentBody}
+                        >
+                            Clear
+                        </button>
+                        <button
+                            type="submit"
+                            className="ds-btn ds-btn-primary"
+                            disabled={isPosting || !commentBody.trim()}
+                        >
+                            {isPosting ? 'Posting…' : 'Post comment'}
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    );
 
     return (
         <div className="dashboard-container jira-page">
@@ -456,12 +694,12 @@ function JiraConsolePage() {
                     </div>
 
                     <div className="jira-header-side">
-                        <div className="jira-mode-tabs" role="tablist" aria-label="Workspace mode">
+                        <div className="ds-tabs" role="tablist" aria-label="Workspace mode">
                             <button
                                 type="button"
                                 role="tab"
                                 aria-selected={mode === 'compose'}
-                                className={`jira-mode-tab ${mode === 'compose' ? 'active' : ''}`}
+                                className="ds-tab"
                                 onClick={() => setMode('compose')}
                             >
                                 New ticket
@@ -470,7 +708,7 @@ function JiraConsolePage() {
                                 type="button"
                                 role="tab"
                                 aria-selected={mode === 'issue'}
-                                className={`jira-mode-tab ${mode === 'issue' ? 'active' : ''}`}
+                                className="ds-tab"
                                 onClick={() => setMode('issue')}
                             >
                                 Open issue
@@ -487,9 +725,10 @@ function JiraConsolePage() {
                             )}
                         </div>
 
-                        <label className="jira-control">
+                        <label className="ds-field jira-project-picker">
                             <span>Project</span>
                             <select
+                                className="ds-select"
                                 value={projectKey}
                                 onChange={(event) => setProjectKey(event.target.value)}
                                 disabled={!projects.length}
@@ -506,288 +745,109 @@ function JiraConsolePage() {
                 </header>
 
                 {connection.status === 'error' && (
-                    <div className="jira-banner" role="alert">
+                    <div className="ds-error" role="alert">
                         <strong>Jira is not reachable.</strong>{' '}
                         {connection.detail || 'Check the Jira service configuration.'}
                     </div>
                 )}
 
                 <section className="jira-body">
-                  {mode === 'issue' ? (
-                    <>
-                    <div className="jira-canvas">
-                        <form className="jira-issue-open" onSubmit={openIssue}>
-                            <div className="jira-field">
-                                <label htmlFor="jira-issue-key">Issue key</label>
+                    {mode === 'issue' ? (
+                        <div className="ds-panel ds-panel-pad jira-canvas">
+                            {issue ? renderIssue() : renderIssueBrowser()}
+                        </div>
+                    ) : (
+                        <form
+                            className="ds-panel ds-panel-pad jira-canvas"
+                            onSubmit={submit}
+                            onKeyDown={(event) => {
+                                // Enter in any single-line field submits a form by default,
+                                // which here would publish the ticket to Jira mid-sentence.
+                                // Publishing is the button's job only.
+                                if (event.key !== 'Enter') return;
+
+                                // Ctrl/Cmd+Enter publishes from anywhere in the form, including
+                                // mid-description - the shortcut every issue tracker has.
+                                if (event.metaKey || event.ctrlKey) {
+                                    event.preventDefault();
+                                    submit(event);
+                                    return;
+                                }
+
+                                if (event.target.tagName !== 'TEXTAREA') {
+                                    event.preventDefault();
+                                }
+                            }}
+                        >
+                            <div className="ds-panel-head">
+                                <div className="ds-tabs" role="tablist" aria-label="Ticket type">
+                                    {TICKET_TEMPLATES.map((option) => (
+                                        <button
+                                            key={option.id}
+                                            type="button"
+                                            role="tab"
+                                            aria-selected={option.id === ticket.templateId}
+                                            className="ds-tab"
+                                            onClick={() => applyTemplate(option.id)}
+                                            title={option.hint}
+                                        >
+                                            {option.label}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <span className="ds-hint">{template.hint}</span>
+                            </div>
+
+                            <div className="ds-field">
+                                <div className="ds-field-head">
+                                    <label htmlFor="jira-summary">Summary</label>
+                                    {/* Quiet until it matters: Jira rejects an over-long
+                                        summary, and finding that out at publish time is late. */}
+                                    {ticket.summary.length > 180 && (
+                                        <span
+                                            className={`jira-counter ${
+                                                ticket.summary.length > 250 ? 'over' : ''
+                                            }`}
+                                        >
+                                            {ticket.summary.length} / 250
+                                        </span>
+                                    )}
+                                </div>
                                 <input
-                                    id="jira-issue-key"
+                                    id="jira-summary"
+                                    className="ds-input"
+                                    ref={summaryRef}
                                     type="text"
-                                    value={issueKeyInput}
-                                    placeholder={`${projectKey || 'SCRUM'}-123`}
-                                    onChange={(event) => setIssueKeyInput(event.target.value)}
+                                    value={ticket.summary}
+                                    placeholder={template.summaryHint}
+                                    onChange={(event) => patch({ summary: event.target.value })}
                                 />
                             </div>
-                            <button
-                                type="submit"
-                                className="jira-btn jira-btn-primary"
-                                disabled={isLoadingIssue || !issueKeyInput.trim()}
-                            >
-                                {isLoadingIssue ? 'Opening...' : 'Open'}
-                            </button>
-                        </form>
 
-                        {issueError && (
-                            <p className="jira-issue-error" role="alert">
-                                {issueError}
-                            </p>
-                        )}
-
-                        {/* (1) Pick an issue rather than remember its key. Hidden once one is
-                            open, so the thread is not competing with a list. */}
-                        {!issue && (
-                            <div className="jira-recent">
-                                <span className="jira-thread-label">
-                                    {isLoadingRecent
-                                        ? 'Loading recent issues...'
-                                        : recentIssues.length
-                                          ? 'Recently updated'
-                                          : 'No issues in this project yet'}
-                                </span>
-                                <ul className="jira-recent-list">
-                                    {recentIssues.map((row) => (
-                                        <li key={row.key}>
-                                            <button
-                                                type="button"
-                                                className="jira-recent-item"
-                                                onClick={() => {
-                                                    setIssueKeyInput(row.key);
-                                                    openIssue({ preventDefault: () => {} }, row.key);
-                                                }}
-                                            >
-                                                <span className="jira-recent-key">{row.key}</span>
-                                                <span className="jira-recent-summary">
-                                                    {row.summary}
-                                                </span>
-                                                <span className={statusClass(row.status)}>
-                                                    {row.status}
-                                                </span>
-                                            </button>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-
-                        {issue && (
-                            <>
-                                <div className="jira-issue-head">
+                            <div className="ds-field jira-field-grow">
+                                <div className="ds-field-head">
+                                    <label htmlFor="jira-description">Description</label>
                                     <button
                                         type="button"
-                                        className="jira-back-to-list"
-                                        onClick={() => {
-                                            setIssue(null);
-                                            setThread([]);
-                                            setCommentBody('');
-                                        }}
+                                        className="ds-btn ds-btn-quiet"
+                                        onClick={() => setShowPreview((shown) => !shown)}
                                     >
-                                        &larr; All issues
+                                        {showPreview ? 'Edit text' : 'Formatted'}
                                     </button>
-                                    <a href={issue.issue_url} target="_blank" rel="noreferrer">
-                                        {issue.issue_key}
-                                    </a>
-                                    <h2>{issue.summary}</h2>
-                                    <div className="jira-issue-meta">
-                                        {issue.status && (
-                                            <span className={statusClass(issue.status)}>
-                                                {issue.status}
-                                            </span>
-                                        )}
-                                        {issue.issue_type && <span>{issue.issue_type}</span>}
-                                        <span>{issue.assignee || 'Unassigned'}</span>
-                                    </div>
                                 </div>
 
-                                <div className="jira-thread">
-                                    <span className="jira-thread-label">
-                                        {thread.length
-                                            ? `${thread.length} comment${
-                                                  thread.length === 1 ? '' : 's'
-                                              }`
-                                            : 'No comments yet'}
-                                    </span>
-                                    {thread.map((comment) => (
-                                        <div key={comment.id} className="jira-comment">
-                                            <span className="jira-comment-who">
-                                                {comment.author || 'Someone'}
-                                            </span>
-                                            <p>{comment.body}</p>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <form className="jira-comment-composer" onSubmit={postComment}>
-                                    {/* One row, not a chat: no history, no transcript. It asks
-                                        PAMI to write into the box below, which the user then
-                                        edits and posts. */}
-                                    <div className="jira-assist-row">
-                                        <input
-                                            type="text"
-                                            value={commentAsk}
-                                            placeholder="Ask PAMI to draft the reply..."
-                                            onChange={(event) => setCommentAsk(event.target.value)}
-                                            onKeyDown={(event) => {
-                                                if (event.key === 'Enter') {
-                                                    event.preventDefault();
-                                                    askPamiForComment();
-                                                }
-                                            }}
-                                        />
+                                {/* An empty box used to say nothing about what belongs in it or
+                                    where a filled one comes from. Both ways out are here. */}
+                                {!ticket.description.trim() && (
+                                    <div className="ds-empty jira-empty-strip">
+                                        <p className="ds-empty-body">
+                                            Empty. Start from the skeleton, or ask PAMI in a chat
+                                            to draft this from what you discussed.
+                                        </p>
                                         <button
                                             type="button"
-                                            className="jira-btn jira-btn-ghost"
-                                            onClick={askPamiForComment}
-                                            disabled={isDraftingComment || !commentAsk.trim()}
-                                        >
-                                            {isDraftingComment ? 'Drafting...' : 'Draft with PAMI'}
-                                        </button>
-                                    </div>
-
-                                    <div className="jira-field">
-                                        <label htmlFor="jira-comment">Your reply</label>
-                                        <textarea
-                                            id="jira-comment"
-                                            value={commentBody}
-                                            placeholder="Write a comment, or ask PAMI to draft one."
-                                            onChange={(event) =>
-                                                setCommentBody(event.target.value)
-                                            }
-                                        />
-                                    </div>
-                                    <div className="jira-canvas-actions">
-                                        <span className="jira-template-hint">
-                                            PAMI drafts into this box. Posting is your click.
-                                        </span>
-                                        <div className="jira-buttons">
-                                            <button
-                                                type="button"
-                                                className="jira-btn jira-btn-ghost"
-                                                onClick={() => setCommentBody('')}
-                                                disabled={!commentBody}
-                                            >
-                                                Clear
-                                            </button>
-                                            <button
-                                                type="submit"
-                                                className="jira-btn jira-btn-primary"
-                                                disabled={isPosting || !commentBody.trim()}
-                                            >
-                                                {isPosting ? 'Posting...' : 'Post comment'}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </form>
-                            </>
-                        )}
-                    </div>
-
-                    </>
-                  ) : (
-                    <>
-                    <form
-                        className="jira-canvas"
-                        onSubmit={submit}
-                        onKeyDown={(event) => {
-                            // Enter in any single-line field submits a form by default, which
-                            // here would publish the ticket to Jira mid-sentence. Publishing is
-                            // the button's job only.
-                            if (event.key !== 'Enter') return;
-
-                            // Ctrl/Cmd+Enter publishes from anywhere in the form, including
-                            // mid-description - the shortcut every issue tracker has.
-                            if (event.metaKey || event.ctrlKey) {
-                                event.preventDefault();
-                                submit(event);
-                                return;
-                            }
-
-                            if (event.target.tagName !== 'TEXTAREA') {
-                                event.preventDefault();
-                            }
-                        }}
-                    >
-                        <div className="jira-canvas-head">
-                            <div className="jira-template-tabs" role="tablist" aria-label="Ticket type">
-                                {TICKET_TEMPLATES.map((option) => (
-                                    <button
-                                        key={option.id}
-                                        type="button"
-                                        role="tab"
-                                        aria-selected={option.id === ticket.templateId}
-                                        className={`jira-template-tab ${
-                                            option.id === ticket.templateId ? 'active' : ''
-                                        }`}
-                                        onClick={() => applyTemplate(option.id)}
-                                        title={option.hint}
-                                    >
-                                        {option.label}
-                                    </button>
-                                ))}
-                            </div>
-
-                            <span className="jira-template-hint">{template.hint}</span>
-                        </div>
-
-                        <div className="jira-field">
-                            <div className="jira-description-head">
-                                <label htmlFor="jira-summary">Summary</label>
-                                {/* (3) Quiet until it matters: Jira rejects an over-long
-                                    summary, and finding that out at publish time is late. */}
-                                {ticket.summary.length > 180 && (
-                                    <span
-                                        className={`jira-counter ${
-                                            ticket.summary.length > 250 ? 'over' : ''
-                                        }`}
-                                    >
-                                        {ticket.summary.length} / 250
-                                    </span>
-                                )}
-                            </div>
-                            <input
-                                id="jira-summary"
-                                ref={summaryRef}
-                                type="text"
-                                value={ticket.summary}
-                                placeholder={template.summaryHint}
-                                onChange={(event) => patch({ summary: event.target.value })}
-                            />
-                        </div>
-
-                        <div className="jira-field jira-field-grow">
-                            <div className="jira-description-head">
-                                <label htmlFor="jira-description">Description</label>
-                                <button
-                                    type="button"
-                                    className="jira-preview-toggle"
-                                    onClick={() => setShowPreview((shown) => !shown)}
-                                >
-                                    {showPreview ? 'Edit text' : 'Formatted'}
-                                </button>
-                            </div>
-
-                            {/* (4) An empty box used to say nothing about what belongs in it or
-                                where a filled one comes from. Both ways out are here. */}
-                            {!ticket.description.trim() && (
-                                <div className="jira-description-empty">
-                                    <p className="jira-empty-title">Nothing written yet</p>
-                                    <p className="jira-empty-body">
-                                        Load the {template.label.toLowerCase()} skeleton and fill
-                                        it in, or ask PAMI in a chat to draft the ticket from what
-                                        you discussed.
-                                    </p>
-                                    <div className="jira-empty-actions">
-                                        <button
-                                            type="button"
-                                            className="jira-empty-primary"
+                                            className="ds-btn ds-btn-ghost ds-btn-sm"
                                             onClick={() => {
                                                 patch({ description: template.body });
                                                 setShowPreview(false);
@@ -796,150 +856,159 @@ function JiraConsolePage() {
                                             Load {template.label} skeleton
                                         </button>
                                     </div>
-                                </div>
-                            )}
+                                )}
 
-                            {showPreview && ticket.description.trim() ? (
-                                <div className="jira-description-preview">
-                                    <TicketPreview text={ticket.description} />
-                                </div>
-                            ) : (
-                                <textarea
-                                    id="jira-description"
-                                    value={ticket.description}
-                                    onChange={(event) =>
-                                        patch({ description: event.target.value })
-                                    }
-                                    spellCheck="true"
-                                    autoFocus
-                                />
-                            )}
-                        </div>
-
-                        <div className="jira-field-row">
-                            <label className="jira-field">
-                                <span>Type</span>
-                                <select
-                                    value={resolvedIssueType}
-                                    onChange={(event) => patch({ issueType: event.target.value })}
-                                >
-                                    {issueTypes.length ? (
-                                        issueTypes.map((type) => (
-                                            <option key={type.id} value={type.name}>
-                                                {type.name}
-                                            </option>
-                                        ))
-                                    ) : (
-                                        <option value={ticket.issueType}>{ticket.issueType}</option>
-                                    )}
-                                </select>
-                            </label>
-
-                            <label className="jira-field">
-                                <span>Assignee</span>
-                                <select
-                                    value={ticket.assigneeAccountId}
-                                    onChange={(event) =>
-                                        patch({ assigneeAccountId: event.target.value })
-                                    }
-                                >
-                                    <option value="">Unassigned</option>
-                                    {users.map((user) => (
-                                        <option key={user.account_id} value={user.account_id}>
-                                            {user.display_name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-
-                            <label className="jira-field">
-                                <span className="jira-priority-row">
-                                    <span
-                                        className={`jira-priority-dot jira-priority-${(
-                                            ticket.priority || 'none'
-                                        ).toLowerCase()}`}
-                                        aria-hidden="true"
-                                    />
-                                    Priority
-                                </span>
-                                <select
-                                    value={ticket.priority}
-                                    onChange={(event) => patch({ priority: event.target.value })}
-                                >
-                                    <option value="">Default</option>
-                                    {PRIORITIES.map((priority) => (
-                                        <option key={priority} value={priority}>
-                                            {priority}
-                                        </option>
-                                    ))}
-                                </select>
-                            </label>
-
-                            <label className="jira-field">
-                                <span>Due date</span>
-                                <input
-                                    type="date"
-                                    value={ticket.dueDate}
-                                    onChange={(event) => patch({ dueDate: event.target.value })}
-                                />
-                            </label>
-                        </div>
-
-                        <div className="jira-canvas-actions">
-                            <div className="jira-action-left">
-                                <div className="jira-labels">
-                                    {ticket.labels.map((label) => (
-                                        <span key={label} className="jira-label">
-                                            {label}
-                                        </span>
-                                    ))}
-                                </div>
-                                {undoTicket ? (
-                                    <button
-                                        type="button"
-                                        className="jira-undo"
-                                        onClick={undoDiscard}
-                                    >
-                                        Undo discard
-                                    </button>
+                                {showPreview && ticket.description.trim() ? (
+                                    <div className="jira-description-preview">
+                                        <TicketPreview text={ticket.description} />
+                                    </div>
                                 ) : (
-                                    savedAt && <span className="jira-saved">Draft saved</span>
+                                    <textarea
+                                        id="jira-description"
+                                        className="ds-textarea jira-description-box"
+                                        value={ticket.description}
+                                        onChange={(event) =>
+                                            patch({ description: event.target.value })
+                                        }
+                                        spellCheck="true"
+                                        autoFocus
+                                    />
                                 )}
                             </div>
 
-                            <div className="jira-buttons">
-                                <button
-                                    type="button"
-                                    className="jira-btn jira-btn-ghost"
-                                    onClick={discard}
-                                >
-                                    Discard
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="jira-btn jira-btn-primary"
-                                    disabled={isSubmitting || connection.status !== 'connected'}
-                                >
-                                    {isSubmitting ? 'Publishing…' : 'Submit to Jira'}
-                                </button>
+                            <div className="jira-field-row">
+                                <label className="ds-field">
+                                    <span>Type</span>
+                                    <select
+                                        className="ds-select"
+                                        value={resolvedIssueType}
+                                        onChange={(event) =>
+                                            patch({ issueType: event.target.value })
+                                        }
+                                    >
+                                        {issueTypes.length ? (
+                                            issueTypes.map((type) => (
+                                                <option key={type.id} value={type.name}>
+                                                    {type.name}
+                                                </option>
+                                            ))
+                                        ) : (
+                                            <option value={ticket.issueType}>
+                                                {ticket.issueType}
+                                            </option>
+                                        )}
+                                    </select>
+                                </label>
+
+                                <label className="ds-field">
+                                    <span>Assignee</span>
+                                    <select
+                                        className="ds-select"
+                                        value={ticket.assigneeAccountId}
+                                        onChange={(event) =>
+                                            patch({ assigneeAccountId: event.target.value })
+                                        }
+                                    >
+                                        <option value="">Unassigned</option>
+                                        {users.map((user) => (
+                                            <option key={user.account_id} value={user.account_id}>
+                                                {user.display_name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label className="ds-field">
+                                    <span className="jira-priority-row">
+                                        <span
+                                            className={`jira-priority-dot jira-priority-${(
+                                                ticket.priority || 'none'
+                                            ).toLowerCase()}`}
+                                            aria-hidden="true"
+                                        />
+                                        Priority
+                                    </span>
+                                    <select
+                                        className="ds-select"
+                                        value={ticket.priority}
+                                        onChange={(event) =>
+                                            patch({ priority: event.target.value })
+                                        }
+                                    >
+                                        <option value="">Default</option>
+                                        {PRIORITIES.map((priority) => (
+                                            <option key={priority} value={priority}>
+                                                {priority}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
+
+                                <label className="ds-field">
+                                    <span>Due date</span>
+                                    <input
+                                        className="ds-input"
+                                        type="date"
+                                        value={ticket.dueDate}
+                                        onChange={(event) => patch({ dueDate: event.target.value })}
+                                    />
+                                </label>
                             </div>
-                        </div>
 
-                        {/* Placed inside the form so Enter in a field submits the ticket, not
-                            the chat - the chat has its own form below. */}
-                        {lastCreated?.key && (
-                            <p className="jira-created" role="status">
-                                Published{' '}
-                                <a href={lastCreated.url} target="_blank" rel="noreferrer">
-                                    {lastCreated.key}
-                                </a>
-                                . The canvas is ready for the next one.
-                            </p>
-                        )}
-                    </form>
+                            <div className="ds-spread jira-canvas-actions">
+                                <div className="ds-inline">
+                                    {ticket.labels.map((label) => (
+                                        <span key={label} className="ds-pill ds-pill-accent">
+                                            {label}
+                                        </span>
+                                    ))}
+                                    {savedAt && <span className="ds-hint">Draft saved</span>}
+                                </div>
 
-                    </>
-                  )}
+                                <div className="ds-inline">
+                                    {isConfirmingDiscard && (
+                                        <button
+                                            type="button"
+                                            className="ds-btn ds-btn-quiet"
+                                            onClick={() => setIsConfirmingDiscard(false)}
+                                        >
+                                            Keep it
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        className={`ds-btn ${
+                                            isConfirmingDiscard ? 'ds-btn-danger' : 'ds-btn-ghost'
+                                        }`}
+                                        onClick={discard}
+                                    >
+                                        {isConfirmingDiscard ? 'Discard for good' : 'Discard'}
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="ds-btn ds-btn-primary"
+                                        disabled={
+                                            isSubmitting || connection.status !== 'connected'
+                                        }
+                                    >
+                                        {isSubmitting ? 'Publishing…' : 'Submit to Jira'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Inside the form so Enter in a field is handled by the same
+                                keydown rule as the rest of the canvas. */}
+                            {lastCreated?.key && (
+                                <p className="jira-created" role="status">
+                                    Published{' '}
+                                    <a href={lastCreated.url} target="_blank" rel="noreferrer">
+                                        {lastCreated.key}
+                                    </a>
+                                    . The canvas is ready for the next one.
+                                </p>
+                            )}
+                        </form>
+                    )}
                 </section>
             </main>
         </div>

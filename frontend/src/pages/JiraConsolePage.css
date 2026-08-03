@@ -1,5 +1,12 @@
-/* Jira's layout - a ticket canvas you work inside - in PAMI's palette rather than Jira's
-   blue. Same shell as the dashboard and Chat View so the sidebar keeps its context. */
+/**
+ * Jira workspace - layout only.
+ *
+ * Buttons, fields, pills, panels, tabs, empty states and errors all come from the design
+ * system (src/styles/system.css). What is left here is where things sit on this page, plus the
+ * two or three things that are genuinely specific to a ticket: the priority dot, the monospace
+ * description box, and the formatted preview.
+ */
+
 .jira-page {
     display: flex;
     width: 100vw;
@@ -14,10 +21,10 @@
     margin-left: var(--sidebar-width);
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 24px 28px;
+    gap: var(--ds-4);
+    padding: var(--ds-6) 28px;
     overflow: hidden;
-    background: #fbf9fb;
+    background: var(--ds-bg);
 }
 
 /* ---------- Header ---------- */
@@ -27,15 +34,15 @@
     flex-wrap: wrap;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 18px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid #f3e3ee;
+    gap: var(--ds-4);
+    padding-bottom: var(--ds-3);
+    border-bottom: 1px solid var(--ds-line);
 }
 
 .jira-kicker {
     display: inline-block;
-    margin-bottom: 6px;
-    color: #be185d;
+    margin-bottom: var(--ds-1);
+    color: var(--ds-accent-strong);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.09em;
@@ -43,36 +50,47 @@
 }
 
 .jira-heading h1 {
-    margin: 0 0 6px;
-    color: #18181b;
-    font-size: 1.45rem;
+    margin: 0;
+    color: var(--ds-text);
+    font-size: var(--ds-t-xl);
     font-weight: 800;
 }
 
-.jira-heading p {
-    margin: 0;
-    max-width: 60ch;
-    color: #71717a;
-    font-size: 0.85rem;
-    line-height: 1.5;
+.jira-back-to-chat {
+    display: inline-block;
+    margin-top: 5px;
+    color: var(--ds-text-muted);
+    font-size: var(--ds-t-sm);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.jira-back-to-chat:hover {
+    color: var(--ds-accent-strong);
 }
 
 .jira-header-side {
     display: flex;
     align-items: flex-end;
-    gap: 12px;
+    gap: var(--ds-3);
 }
 
+.jira-project-picker select {
+    min-width: 210px;
+    padding: 8px 10px;
+}
+
+/* Connection state. Not a pill primitive: it owns a live dot and a Retry action. */
 .jira-status {
     display: flex;
     align-items: center;
     gap: 7px;
     padding: 7px 12px;
-    border: 1px solid #f0d8e6;
-    border-radius: 999px;
-    background: #fff;
-    color: #71717a;
-    font-size: 0.78rem;
+    border: 1px solid var(--ds-line-strong);
+    border-radius: var(--ds-r-pill);
+    background: var(--ds-surface);
+    color: var(--ds-text-muted);
+    font-size: var(--ds-t-sm);
     font-weight: 600;
     white-space: nowrap;
 }
@@ -81,24 +99,24 @@
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: #d4d4d8;
+    background: var(--ds-ink-200);
+}
+
+.jira-status-connected {
+    color: var(--ds-ok);
 }
 
 .jira-status-connected .jira-status-dot {
     background: #16a34a;
 }
 
-.jira-status-connected {
-    color: #15803d;
+.jira-status-error {
+    border-color: var(--ds-danger-line);
+    color: var(--ds-danger);
 }
 
 .jira-status-error .jira-status-dot {
     background: #dc2626;
-}
-
-.jira-status-error {
-    color: #b91c1c;
-    border-color: #f7c9c9;
 }
 
 .jira-status-checking .jira-status-dot {
@@ -122,149 +140,50 @@
     cursor: pointer;
 }
 
-.jira-control {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.jira-control > span {
-    color: #a1a1aa;
-    font-size: 10.5px;
-    font-weight: 700;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-}
-
-.jira-control select {
-    min-width: 210px;
-    padding: 8px 10px;
-    border: 1px solid #f0d8e6;
-    border-radius: 10px;
-    background: #fff;
-    color: #3f3f46;
-    font-family: inherit;
-    font-size: 0.84rem;
-}
-
-.jira-banner {
-    padding: 11px 14px;
-    border: 1px solid #f7c9c9;
-    border-left: 4px solid #dc2626;
-    border-radius: 12px;
-    background: #fff6f6;
-    color: #7f1d1d;
-    font-size: 0.84rem;
-    line-height: 1.5;
-}
-
-/* ---------- Canvas ---------- */
+/* ---------- The canvas ---------- */
 
 .jira-body {
     flex: 1;
     min-height: 0;
     display: flex;
-    gap: 16px;
+    gap: var(--ds-4);
     overflow: hidden;
 }
 
 .jira-canvas {
     flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    padding: 18px 20px;
+    gap: var(--ds-3);
     overflow-y: auto;
-    /* Raised on a pink-tinted panel, matching the chat cards: this is the one object on the
-       page, so it reads as a sheet of paper rather than a form on a background. */
-    border: 1px solid #ecdfe8;
-    border-radius: 16px;
-    /* Flat and neutral. The tinted gradient put colour behind every line of the ticket, so
-       nothing on the page had priority - the panel competed with its own contents. Pink is
-       now reserved for actions and brand marks, which is what makes them read as actions. */
-    background: #ffffff;
-    box-shadow: 0 1px 2px rgba(24, 24, 27, 0.04), 0 12px 28px -22px rgba(24, 24, 27, 0.25);
 }
 
-.jira-canvas-head {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px;
-    padding-bottom: 12px;
-    border-bottom: 1px dashed #f3d9e8;
+.jira-field-grow {
+    flex: 1;
+    min-height: 0;
 }
 
-.jira-template-tabs {
-    display: flex;
-    gap: 6px;
-}
-
-.jira-template-tab {
-    padding: 7px 15px;
-    border: 1px solid #f2dcea;
-    border-radius: 999px;
-    background: #fff;
-    color: #8b7ba8;
-    font-family: inherit;
+.jira-description-box {
+    /* Monospace for the section skeleton: the "## AC" headings and "- [ ]" checkboxes line
+       up, which is what makes the template readable while it is being filled. */
+    height: 100%;
+    min-height: 220px;
+    font-family: var(--ds-mono);
     font-size: 0.82rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+    line-height: 1.55;
 }
 
-.jira-template-tab:hover {
-    border-color: #f4a9cb;
-    color: #be185d;
+/* Fills the canvas while composing, where it stands in for the editor. Inside an opened issue
+   it is one section among several, so there it takes only the height its text needs. */
+.jira-field-grow .jira-description-preview {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
-.jira-template-tab.active {
-    border-color: transparent;
-    background: linear-gradient(135deg, #f06292, #ec4899);
-    color: #fff;
-}
-
-.jira-template-hint {
-    color: #a1a1aa;
-    font-size: 0.78rem;
-}
-
-.jira-field {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-/* (5) Field labels are the quietest thing on a form. Uppercase 700 made four of them shout
-   over the values they name - and over the summary, which is what the ticket actually is. */
-.jira-field label,
-.jira-field > span {
-    color: #8f82a6;
-    font-size: 11.5px;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-}
-
-.jira-field input,
-.jira-field select,
-.jira-field textarea {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid #f0d8e6;
-    border-radius: 10px;
-    /* White, not the panel tint: typed text needs the most contrast on a tinted sheet. */
-    background: #fff;
-    color: #27272a;
-    font-family: inherit;
-    font-size: 0.88rem;
-}
-
-.jira-field input:focus-visible,
-.jira-field select:focus-visible,
-.jira-field textarea:focus-visible {
-    outline: 2px solid #f06292;
-    outline-offset: 1px;
+.jira-description-preview {
+    padding: var(--ds-3) var(--ds-4);
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-r-sm);
+    background: var(--ds-surface);
 }
 
 #jira-summary {
@@ -274,375 +193,202 @@
     font-weight: 700;
 }
 
-.jira-field-grow {
-    flex: 1;
-    min-height: 0;
+/* Empty description: one strip, not a panel. A full card above an empty editor read as two
+   empty boxes stacked, which is worse than the silence it replaced. */
+.jira-empty-strip {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-3);
+    padding: var(--ds-2) var(--ds-3);
 }
 
-.jira-field-grow textarea {
-    /* Monospace for the section skeleton: the "## AC" headings and "- [ ]" checkboxes line
-       up, which is what makes the template readable while it is being filled. */
-    height: 100%;
-    min-height: 260px;
-    resize: vertical;
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-    font-size: 0.82rem;
-    line-height: 1.55;
+.jira-empty-strip .ds-empty-body {
+    flex: 1;
+    max-width: none;
+    font-size: var(--ds-t-sm);
+}
+
+.jira-counter {
+    color: var(--ds-ink-400);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.jira-counter.over {
+    color: var(--ds-danger);
+    font-weight: 700;
 }
 
 .jira-field-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
+    gap: var(--ds-3);
 }
 
-.jira-canvas-actions {
-    display: flex;
-    flex-wrap: wrap;
+.jira-priority-row {
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding-top: 12px;
-    border-top: 1px dashed #f3d9e8;
-}
-
-.jira-labels {
-    display: flex;
-    flex-wrap: wrap;
     gap: 6px;
 }
 
-.jira-label {
-    padding: 3px 10px;
-    border: 1px solid #e6d4f5;
-    border-radius: 999px;
-    background: #faf5ff;
-    color: #7c3aed;
-    font-size: 0.72rem;
-    font-weight: 700;
+.jira-priority-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ds-ink-200);
 }
 
-.jira-buttons {
-    display: flex;
-    gap: 8px;
+.jira-priority-highest,
+.jira-priority-high {
+    background: #ef4444;
 }
 
-.jira-btn {
-    padding: 9px 20px;
-    border-radius: 999px;
-    font-family: inherit;
-    font-size: 0.85rem;
-    font-weight: 700;
-    cursor: pointer;
+.jira-priority-medium {
+    background: #f59e0b;
 }
 
-.jira-btn-primary {
-    border: none;
-    background: linear-gradient(135deg, #f06292, #ec4899);
-    color: #fff;
-    box-shadow: 0 8px 18px -10px rgba(236, 72, 153, 0.8);
+.jira-priority-low,
+.jira-priority-lowest {
+    background: #38bdf8;
 }
 
-.jira-btn-primary:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    box-shadow: none;
-}
-
-.jira-btn-ghost {
-    border: 1px solid #f0d8e6;
-    background: #fff;
-    color: #71717a;
-}
-
-.jira-btn-ghost:hover {
-    border-color: #f4a9cb;
-    color: #be185d;
+.jira-canvas-actions {
+    padding-top: var(--ds-3);
+    border-top: 1px dashed var(--ds-line-strong);
 }
 
 .jira-created {
     margin: 0;
-    color: #15803d;
+    color: var(--ds-ok);
     font-size: 0.83rem;
 }
 
 .jira-created a {
-    color: #be185d;
+    color: var(--ds-accent-strong);
     font-weight: 700;
 }
 
-@media (max-width: 900px) {
-    .jira-body {
-        flex-direction: column;
-    }
-}
+/* ---------- Issue browser ---------- */
 
-/* ---------- Ask PAMI ---------- */
-
-.jira-chat {
-    width: 360px;
-    flex-shrink: 0;
+.jira-issue-browser {
     display: flex;
     flex-direction: column;
-    border: 1px solid #eadcf7;
-    border-radius: 18px;
-    background: linear-gradient(180deg, #fbf7ff 0%, #ffffff 60%);
-    box-shadow: 0 16px 34px -22px rgba(124, 58, 237, 0.35);
-    overflow: hidden;
+    gap: var(--ds-3);
+    min-height: 0;
 }
 
-.jira-chat-head {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 14px 16px 12px;
-    border-bottom: 1px solid #f0e6fb;
+.jira-browser-head {
+    padding-bottom: var(--ds-3);
+    border-bottom: 1px dashed var(--ds-line-strong);
 }
 
-.jira-chat-title {
+.jira-browser-find {
     display: flex;
     align-items: center;
-    gap: 7px;
-    color: #6d28d9;
-    font-size: 0.86rem;
-    font-weight: 800;
+    gap: var(--ds-2);
 }
 
-.jira-chat-spark {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #a855f7, #ec4899);
+.jira-browser-find .ds-input {
+    width: 240px;
+    padding: 7px 12px;
+    font-size: var(--ds-t-base);
 }
 
-.jira-chat-note {
-    color: #a1a1aa;
-    font-size: 0.72rem;
-}
-
-.jira-chat-body {
-    flex: 1;
+.jira-issue-list {
     min-height: 0;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 14px 16px;
 }
 
-.jira-chat-empty {
-    color: #a1a1aa;
-    font-size: 0.82rem;
-}
-
-.jira-chat-empty p {
-    margin: 0 0 8px;
-}
-
-.jira-chat-empty ul {
-    margin: 0;
-    padding-left: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    line-height: 1.45;
-}
-
-.jira-chat-message {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-}
-
-.jira-chat-who {
-    color: #b3a3c9;
-    font-size: 0.66rem;
+.jira-row-key {
+    flex-shrink: 0;
+    width: 84px;
+    color: var(--ds-accent-strong);
     font-weight: 700;
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
+    font-size: var(--ds-t-sm);
 }
 
-.jira-chat-message p {
-    margin: 0;
-    padding: 9px 12px;
-    border-radius: 12px;
-    font-size: 0.84rem;
-    line-height: 1.5;
-    /* Replies can quote a section heading, so wrap rather than widen the panel. */
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
+.jira-row-when {
+    flex-shrink: 0;
+    color: var(--ds-ink-400);
+    font-size: var(--ds-t-xs);
 }
 
-.jira-chat-user p {
-    align-self: flex-end;
-    background: linear-gradient(135deg, #a855f7, #ec4899);
-    color: #fff;
-}
+/* ---------- One issue ---------- */
 
-.jira-chat-user .jira-chat-who {
-    align-self: flex-end;
-}
-
-.jira-chat-assistant p {
-    border: 1px solid #f0e6fb;
-    background: #fff;
-    color: #3f3f46;
-}
-
-.jira-chat-thinking {
-    color: #a1a1aa !important;
-    font-style: italic;
-}
-
-.jira-chat-input {
+.jira-issue-detail {
     display: flex;
-    gap: 8px;
-    padding: 12px 14px;
-    border-top: 1px solid #f0e6fb;
-    background: #fff;
-}
-
-.jira-chat-input input {
+    flex-direction: column;
+    gap: var(--ds-3);
+    min-height: 0;
     flex: 1;
-    min-width: 0;
-    padding: 9px 12px;
-    border: 1px solid #ece0f9;
-    border-radius: 999px;
-    background: #fdfbff;
-    color: #27272a;
-    font-family: inherit;
-    font-size: 0.85rem;
 }
 
-.jira-chat-input input:focus-visible {
-    outline: 2px solid #a855f7;
-    outline-offset: 1px;
-}
-
-.jira-chat-input .jira-btn {
-    padding: 9px 16px;
-}
-
-@media (max-width: 1100px) {
-    .jira-chat {
-        width: 320px;
-    }
-}
-
-@media (max-width: 900px) {
-    .jira-chat {
-        width: auto;
-        max-height: 340px;
-    }
-}
-
-/* ---------- Mode tabs and the issue view ---------- */
-
-.jira-mode-tabs {
+.jira-issue-head {
     display: flex;
-    gap: 4px;
-    padding: 3px;
-    border: 1px solid #f0d8e6;
-    border-radius: 999px;
-    background: #fff;
-}
-
-.jira-mode-tab {
-    padding: 6px 14px;
-    border: none;
-    border-radius: 999px;
-    background: transparent;
-    color: #8b7ba8;
-    font-family: inherit;
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.jira-mode-tab.active {
-    background: linear-gradient(135deg, #f06292, #ec4899);
-    color: #fff;
-}
-
-.jira-issue-open {
-    display: flex;
-    align-items: flex-end;
-    gap: 10px;
-    padding-bottom: 14px;
-    border-bottom: 1px dashed #f3d9e8;
-}
-
-.jira-issue-open .jira-field {
-    max-width: 220px;
-}
-
-.jira-issue-error {
-    margin: 0;
-    color: #b91c1c;
-    font-size: 0.84rem;
-}
-
-.jira-issue-head a {
-    color: #be185d;
-    font-size: 0.78rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
+    flex-direction: column;
+    gap: var(--ds-2);
+    padding-bottom: var(--ds-3);
+    border-bottom: 1px dashed var(--ds-line-strong);
 }
 
 .jira-issue-head h2 {
-    margin: 4px 0 6px;
-    color: #18181b;
-    font-size: 1.1rem;
+    margin: 0;
+    color: var(--ds-text);
+    font-size: var(--ds-t-lg);
     font-weight: 700;
     line-height: 1.35;
+    overflow-wrap: anywhere;
 }
 
-.jira-issue-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
+.jira-issue-key {
+    margin-right: var(--ds-2);
+    color: var(--ds-accent-strong);
+    font-size: var(--ds-t-sm);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    vertical-align: 2px;
 }
 
-.jira-issue-meta span {
-    padding: 3px 10px;
-    border: 1px solid #f0d8e6;
-    border-radius: 999px;
-    background: #fff;
-    color: #8b7ba8;
-    font-size: 0.72rem;
-    font-weight: 600;
+.jira-open-in-jira {
+    color: var(--ds-accent-strong);
+    font-size: var(--ds-t-sm);
+    font-weight: 700;
+    text-decoration: none;
 }
 
-.jira-thread {
+.jira-open-in-jira:hover {
+    text-decoration: underline;
+}
+
+.jira-issue-scroll {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 12px 0;
+    gap: var(--ds-4);
+    padding-right: var(--ds-1);
 }
 
-.jira-thread-label {
-    color: #a1a1aa;
-    font-size: 10.5px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+.jira-issue-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-2);
 }
 
 .jira-comment {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: var(--ds-1);
     padding: 10px 12px;
-    border: 1px solid #f3e3ee;
-    border-radius: 12px;
-    background: #fff;
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-r-md);
+    background: var(--ds-surface);
 }
 
 .jira-comment-who {
-    color: #be185d;
+    color: var(--ds-accent-strong);
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.05em;
@@ -651,250 +397,78 @@
 
 .jira-comment p {
     margin: 0;
-    color: #3f3f46;
-    font-size: 0.85rem;
+    color: var(--ds-text-body);
+    font-size: var(--ds-t-base);
     line-height: 1.55;
     /* Comments arrive as flattened rich text, so keep the author's line breaks. */
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
 
+/* ---------- Reply composer ---------- */
+
 .jira-comment-composer {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding-top: 12px;
-    border-top: 1px dashed #f3d9e8;
-}
-
-.jira-comment-composer textarea {
-    min-height: 110px;
-    resize: vertical;
-    line-height: 1.55;
-}
-
-/* ---------- Compact header, formatted description ---------- */
-
-.jira-main {
-    /* Tighter than before: the header was explaining the page every time, which cost the
-       canvas the vertical room the ticket actually needs. */
-    gap: 12px;
-    padding: 16px 26px 18px;
-}
-
-.jira-header {
-    padding-bottom: 10px;
-}
-
-.jira-heading h1 {
-    margin: 0;
-    font-size: 1.15rem;
-}
-
-.jira-kicker {
-    margin-bottom: 2px;
-}
-
-.jira-back-to-chat {
-    display: inline-block;
-    margin-top: 4px;
-    color: #7c3aed;
-    font-size: 0.78rem;
-    font-weight: 600;
-    text-decoration: none;
-}
-
-.jira-back-to-chat:hover {
-    text-decoration: underline;
-}
-
-.jira-description-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
-}
-
-.jira-preview-toggle {
-    padding: 2px 10px;
-    border: 1px solid #f0d8e6;
-    border-radius: 999px;
-    background: #fff;
-    color: #be185d;
-    font-family: inherit;
-    font-size: 0.72rem;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-.jira-description-preview {
-    flex: 1;
-    min-height: 240px;
-    overflow-y: auto;
-    padding: 14px 16px;
-    border: 1px solid #ecdfe8;
-    border-radius: 10px;
-    /* Faintly tinted so "formatted" and "editing" are distinguishable without reading the
-       toggle - the white field is where you type. */
-    background: #fbf9fb;
-}
-
-.jira-description-preview:focus-visible {
-    outline: 2px solid #f06292;
-    outline-offset: 1px;
-}
-
-.ticket-preview-heading {
-    margin: 14px 0 6px;
-    color: #be185d;
-    font-size: 0.78rem;
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-.ticket-preview-heading:first-child {
-    margin-top: 0;
-}
-
-.ticket-preview-paragraph {
-    margin: 0 0 8px;
-    color: #3f3f46;
-    font-size: 0.87rem;
-    line-height: 1.6;
-}
-
-.ticket-preview-list {
-    margin: 0 0 10px;
-    padding-left: 20px;
-    color: #3f3f46;
-    font-size: 0.87rem;
-    line-height: 1.6;
-}
-
-.ticket-preview-checks {
-    margin: 0 0 10px;
-    padding: 0;
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-
-.ticket-preview-checks li {
-    display: flex;
-    gap: 8px;
-    color: #3f3f46;
-    font-size: 0.87rem;
-    line-height: 1.5;
-}
-
-.ticket-preview-checks li.done {
-    color: #a1a1aa;
-    text-decoration: line-through;
-}
-
-.ticket-preview-checks span {
-    color: #be185d;
-}
-
-.ticket-preview em {
-    color: #c4b5d4;
-    font-style: normal;
-}
-
-.ticket-preview-empty {
-    margin: 0;
-    color: #a1a1aa;
-    font-size: 0.85rem;
+    gap: var(--ds-3);
+    padding-top: var(--ds-3);
+    border-top: 1px dashed var(--ds-line-strong);
 }
 
 .jira-assist-row {
     display: flex;
-    gap: 8px;
+    gap: var(--ds-2);
 }
 
-.jira-assist-row input {
+.jira-assist-row .ds-input {
     flex: 1;
     min-width: 0;
-    padding: 9px 12px;
-    border: 1px solid #ece0f9;
-    border-radius: 999px;
-    background: #fdfbff;
-    color: #27272a;
-    font-family: inherit;
-    font-size: 0.85rem;
 }
 
-.jira-assist-row input:focus-visible {
-    outline: 2px solid #a855f7;
-    outline-offset: 1px;
+.jira-comment-box {
+    min-height: 96px;
 }
 
-/* ---------- Functional colour ----------
-   Priority and status were the same grey as everything else, so a Highest-priority ticket
-   looked exactly like a Low one. These are the only places colour carries meaning rather than
-   brand, which is why they are the only non-pink colours on the page. */
+/* ---------- Narrow windows ---------- */
 
-.jira-priority-dot {
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    margin-right: 7px;
-    border-radius: 2px;
-    vertical-align: baseline;
-    background: #d4d4d8;
-}
-
-.jira-priority-highest { background: #dc2626; }
-.jira-priority-high    { background: #f97316; }
-.jira-priority-medium  { background: #eab308; }
-.jira-priority-low     { background: #64748b; }
-.jira-priority-lowest  { background: #94a3b8; }
-
-.jira-priority-row {
-    display: flex;
-    align-items: center;
-}
-
-/* The issue's own status, in the Open issue view. */
-.jira-issue-meta .jira-status-pill-todo {
-    border-color: #d8dce4;
-    color: #52525b;
-}
-
-.jira-issue-meta .jira-status-pill-progress {
-    border-color: #bfdbfe;
-    background: #eff6ff;
-    color: #1d4ed8;
-}
-
-.jira-issue-meta .jira-status-pill-done {
-    border-color: #bbf7d0;
-    background: #f0fdf4;
-    color: #15803d;
-}
-
-/* Micro-interaction: the primary action lifts, so it reads as the thing that happens. */
-.jira-btn-primary {
-    transition: transform 110ms ease, box-shadow 110ms ease;
-}
-
-.jira-btn-primary:hover:not(:disabled) {
-    transform: translateY(-1px);
-    box-shadow: 0 10px 22px -10px rgba(236, 72, 153, 0.9);
-}
-
-.jira-btn-primary:active:not(:disabled) {
-    transform: translateY(0);
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .jira-btn-primary {
-        transition: none;
+@media (max-width: 900px) {
+    .jira-main {
+        padding: var(--ds-4);
     }
-    .jira-btn-primary:hover:not(:disabled) {
-        transform: none;
+
+    .jira-body {
+        flex-direction: column;
+    }
+
+    .jira-field-row {
+        /* 160px minimums fitted three across and left the date input clipped. */
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+
+    .jira-description-box {
+        min-height: 180px;
+    }
+
+    .jira-browser-find .ds-input {
+        width: 160px;
+    }
+}
+
+@media (max-width: 700px) {
+    .jira-header-side {
+        flex-wrap: wrap;
+    }
+
+    .jira-field-row {
+        grid-template-columns: 1fr;
+    }
+
+    .jira-row-key {
+        width: auto;
+    }
+
+    .ds-row {
+        flex-wrap: wrap;
     }
 }
 
@@ -905,198 +479,4 @@
 .ticket-preview-checks li,
 .ticket-preview-heading {
     overflow-wrap: anywhere;
-}
-
-.jira-issue-head h2 {
-    overflow-wrap: anywhere;
-}
-
-/* ---------- (1) Recent issues ---------- */
-
-.jira-recent {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 14px;
-}
-
-.jira-recent-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    /* Twenty rows would push the key field off screen; the list scrolls, the panel does not. */
-    max-height: 320px;
-    overflow-y: auto;
-}
-
-.jira-recent-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 9px 12px;
-    border: 1px solid #f3e0ec;
-    border-radius: 10px;
-    background: #fff;
-    color: #3f3f46;
-    font-family: inherit;
-    font-size: 0.85rem;
-    text-align: left;
-    cursor: pointer;
-    transition: border-color 110ms ease, box-shadow 110ms ease;
-}
-
-.jira-recent-item:hover {
-    border-color: #f9a8d4;
-    box-shadow: 0 6px 16px -12px rgba(236, 72, 153, 0.8);
-}
-
-.jira-recent-key {
-    flex-shrink: 0;
-    color: #be185d;
-    font-weight: 700;
-    font-size: 0.8rem;
-}
-
-.jira-recent-summary {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-}
-
-.jira-back-to-list {
-    padding: 0;
-    border: 0;
-    background: none;
-    color: #a1a1aa;
-    font-family: inherit;
-    font-size: 0.8rem;
-    cursor: pointer;
-}
-
-.jira-back-to-list:hover {
-    color: #be185d;
-}
-
-/* ---------- (3) Summary length, (6) saved, (9) undo ---------- */
-
-.jira-counter {
-    color: #a1a1aa;
-    font-size: 0.75rem;
-    font-variant-numeric: tabular-nums;
-}
-
-.jira-counter.over {
-    color: #b91c1c;
-    font-weight: 700;
-}
-
-.jira-action-left {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-}
-
-.jira-saved {
-    color: #a1a1aa;
-    font-size: 0.76rem;
-}
-
-.jira-undo {
-    padding: 5px 12px;
-    border: 1px solid #f0d8e6;
-    border-radius: 999px;
-    background: #fff;
-    color: #be185d;
-    font-family: inherit;
-    font-size: 0.78rem;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.jira-undo:hover {
-    border-color: #f9a8d4;
-}
-
-/* ---------- (4) Empty description ---------- */
-
-.jira-description-empty {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 14px 16px;
-    border: 1px dashed #f0cfe2;
-    border-radius: 12px;
-    background: #fffafd;
-}
-
-.jira-empty-title {
-    margin: 0;
-    color: #52525b;
-    font-size: 0.86rem;
-    font-weight: 700;
-}
-
-.jira-empty-body {
-    margin: 0;
-    max-width: 62ch;
-    color: #8f82a6;
-    font-size: 0.8rem;
-    line-height: 1.5;
-}
-
-.jira-empty-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 4px;
-}
-
-.jira-empty-primary {
-    padding: 7px 14px;
-    border: 0;
-    border-radius: 999px;
-    background: linear-gradient(135deg, #ec4899, #f472b6);
-    color: #fff;
-    font-family: inherit;
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-}
-
-/* ---------- (8) Narrow windows ---------- */
-
-@media (max-width: 900px) {
-    .jira-field-row {
-        /* 160px minimums fitted three across and left the date input clipped. */
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    }
-
-    .jira-canvas-actions {
-        align-items: stretch;
-        gap: 10px;
-    }
-
-    .jira-field-grow textarea {
-        min-height: 180px;
-    }
-}
-
-@media (max-width: 700px) {
-    .jira-field-row {
-        grid-template-columns: 1fr;
-    }
-
-    .jira-template-tabs {
-        overflow-x: auto;
-    }
-
-    .jira-recent-summary {
-        white-space: normal;
-    }
 }
