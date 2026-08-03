@@ -16,6 +16,22 @@ class AdminUserRow(BaseModel):
     projects_shared: int
 
 
+class UnownedProjectRow(BaseModel):
+    """A project with no members, listed so it can be given an owner.
+
+    A count alone said the data existed but not which data, and nothing could act on it:
+    sharing needs an owner, so an ownerless project cannot be recovered by any user route.
+    """
+
+    id: str
+    name: str
+    created_at: Optional[datetime] = None
+
+
+class AdoptProjectRequest(BaseModel):
+    email: str
+
+
 class AdminOverviewResponse(BaseModel):
     users: List[AdminUserRow] = Field(default_factory=list)
     total_users: int
@@ -23,6 +39,7 @@ class AdminOverviewResponse(BaseModel):
     # Projects with no members at all: nobody can see them. Shown so a half-finished
     # migration is visible instead of looking like missing data.
     orphaned_projects: int
+    unowned: List[UnownedProjectRow] = Field(default_factory=list)
 
 
 class SessionResponse(BaseModel):

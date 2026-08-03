@@ -975,7 +975,9 @@ function JiraConsolePage() {
                                             {label}
                                         </span>
                                     ))}
-                                    {savedAt && <span className="ds-hint">Draft saved</span>}
+                                    {savedAt && ticketHasContent(ticket) && (
+                                        <span className="ds-hint">Draft saved</span>
+                                    )}
                                 </div>
 
                                 <div className="ds-inline">

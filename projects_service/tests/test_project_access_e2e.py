@@ -392,6 +392,88 @@ def test_a_project_with_no_owner_is_visible_to_nobody(app_context, monkeypatch):
     )
 
 
+def test_an_admin_can_give_an_unowned_project_an_owner(app_context, monkeypatch):
+    """The only way back for pre-ownership data.
+
+    With authentication on, a project with no members is visible to nobody, and no user route
+    can fix it: sharing needs an owner and there is none. Without this the data is lost to
+    everyone except whoever can write to Mongo directly.
+    """
+    from projects_service.core.config import settings
+
+    monkeypatch.setattr(settings, "auth_required", True, raising=False)
+    _, client, repository, directory, as_user = app_context
+    directory.add(OWNER)
+    orphan = FakeProjectDoc(name="Legacy", owner_id=None, members=[])
+    repository.projects[str(orphan.id)] = orphan
+
+    as_user(ADMIN)
+    listed = client.get("/admin/users").json()
+    assert [row["name"] for row in listed["unowned"]] == ["Legacy"], (
+        "an admin has to be able to see which project is unreachable, not just how many"
+    )
+
+    response = client.post(
+        f"/admin/projects/{orphan.id}/owner", json={"email": OWNER.email}
+    )
+    assert response.status_code == 200, response.text
+
+    as_user(OWNER)
+    assert [p["name"] for p in client.get("/projects/").json()] == ["Legacy"]
+
+    as_user(ADMIN)
+    assert client.get("/admin/users").json()["unowned"] == []
+
+
+def test_adopting_cannot_take_over_a_project_that_has_members(app_context):
+    """Narrow on purpose: this endpoint rescues orphans, it does not reassign ownership."""
+    _, client, _, directory, as_user = app_context
+    project_id = _create_project(client, "Owned")
+    directory.add(OUTSIDER)
+
+    as_user(ADMIN)
+    response = client.post(
+        f"/admin/projects/{project_id}/owner", json={"email": OUTSIDER.email}
+    )
+
+    assert response.status_code == 409
+
+    as_user(OWNER)
+    assert [p["name"] for p in client.get("/projects/").json()] == ["Owned"], (
+        "the original owner must still own it"
+    )
+
+
+def test_adopting_needs_an_account_that_exists(app_context):
+    _, client, repository, _, as_user = app_context
+    orphan = FakeProjectDoc(name="Legacy", owner_id=None, members=[])
+    repository.projects[str(orphan.id)] = orphan
+
+    as_user(ADMIN)
+    response = client.post(
+        f"/admin/projects/{orphan.id}/owner", json={"email": "nobody@example.com"}
+    )
+
+    assert response.status_code == 422
+    assert "sign in" in response.json()["detail"]
+
+
+def test_adopting_is_refused_to_everyone_but_an_admin(app_context):
+    _, client, repository, directory, as_user = app_context
+    directory.add(OUTSIDER)
+    orphan = FakeProjectDoc(name="Legacy", owner_id=None, members=[])
+    repository.projects[str(orphan.id)] = orphan
+
+    for who in (OWNER, OUTSIDER):
+        as_user(who)
+        response = client.post(
+            f"/admin/projects/{orphan.id}/owner", json={"email": OUTSIDER.email}
+        )
+        assert response.status_code == 403, (
+            "an ordinary user must not be able to claim unowned data"
+        )
+
+
 def test_the_stand_in_identity_is_not_recorded_as_a_user():
     """It is not a person, and it appeared in the admin dashboard as though it were.
 

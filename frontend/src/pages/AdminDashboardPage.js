@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 
 import { projectsApi } from '../api/axios';
+import { useToast } from '../components/feedback/ToastProvider';
 import AppSidebar from '../components/layout/AppSidebar';
 import './HomePage.css';
 import './AdminDashboardPage.css';
@@ -12,9 +13,13 @@ const formatDate = (iso) => {
 };
 
 function AdminDashboardPage() {
+    const toast = useToast();
     const [overview, setOverview] = useState(null);
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    // Keyed by project id: two orphans on screen must not share one input.
+    const [adoptEmail, setAdoptEmail] = useState({});
+    const [adopting, setAdopting] = useState(null);
 
     const load = useCallback(async () => {
         setIsLoading(true);
@@ -37,6 +42,30 @@ function AdminDashboardPage() {
     useEffect(() => {
         load();
     }, [load]);
+
+    const adopt = async (project) => {
+        const email = (adoptEmail[project.id] || '').trim();
+        if (!email) return;
+
+        setAdopting(project.id);
+        try {
+            const response = await projectsApi.post(
+                `/admin/projects/${project.id}/owner`,
+                { email }
+            );
+            toast.success(response.data?.message || `${project.name} has an owner now.`);
+            setAdoptEmail((current) => ({ ...current, [project.id]: '' }));
+            await load();
+        } catch (adoptError) {
+            console.error('Could not assign an owner:', adoptError);
+            const detail = adoptError?.response?.data?.detail;
+            toast.error(
+                typeof detail === 'string' ? detail : 'Could not assign that owner.'
+            );
+        } finally {
+            setAdopting(null);
+        }
+    };
 
     const body = () => {
         if (isLoading) {
@@ -68,7 +97,55 @@ function AdminDashboardPage() {
         }
 
         return (
-            <div className="ds-table-scroll">
+            <>
+                {/* Data nobody can reach. Sharing needs an owner, so an ownerless project
+                    cannot be rescued from any user screen - only from here. */}
+                {(overview.unowned || []).length > 0 && (
+                    <section className="admin-unowned">
+                        <span className="ds-section-label">
+                            {overview.unowned.length} project
+                            {overview.unowned.length === 1 ? '' : 's'} with no owner
+                        </span>
+                        <p className="ds-hint">
+                            Nobody can see these. Give one to whoever should have it - they
+                            need to have signed in at least once.
+                        </p>
+                        <ul className="ds-list">
+                            {overview.unowned.map((project) => (
+                                <li key={project.id} className="admin-unowned-row">
+                                    <span className="admin-unowned-name">{project.name}</span>
+                                    <span className="ds-hint">{formatDate(project.created_at)}</span>
+                                    <input
+                                        className="ds-input"
+                                        type="email"
+                                        placeholder="owner@example.com"
+                                        aria-label={`New owner for ${project.name}`}
+                                        value={adoptEmail[project.id] || ''}
+                                        onChange={(event) =>
+                                            setAdoptEmail((current) => ({
+                                                ...current,
+                                                [project.id]: event.target.value
+                                            }))
+                                        }
+                                    />
+                                    <button
+                                        type="button"
+                                        className="ds-btn ds-btn-primary ds-btn-sm"
+                                        onClick={() => adopt(project)}
+                                        disabled={
+                                            adopting === project.id ||
+                                            !(adoptEmail[project.id] || '').trim()
+                                        }
+                                    >
+                                        {adopting === project.id ? 'Assigning…' : 'Assign owner'}
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
+
+                <div className="ds-table-scroll">
                 <table className="ds-table">
                     <thead>
                         <tr>
@@ -92,8 +169,9 @@ function AdminDashboardPage() {
                             </tr>
                         ))}
                     </tbody>
-                </table>
-            </div>
+                    </table>
+                </div>
+            </>
         );
     };
 

@@ -5,17 +5,21 @@ nav entry in the frontend is cosmetic - anyone can call an HTTP endpoint - so th
 the restriction actually lives.
 """
 
+from datetime import datetime
 from typing import List
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
 
 from projects_service.core.auth import CurrentAdminDep
 from projects_service.data.project_repository import ProjectRepository
 from projects_service.dependencies import get_project_repository, get_user_directory
+from projects_service.models.project import ProjectMember, ProjectRole
 from projects_service.schemas.admin_schemas import (
     AdminOverviewResponse,
     AdminUserRow,
+    AdoptProjectRequest,
+    UnownedProjectRow,
 )
 from projects_service.services.user_directory import UserDirectory
 
@@ -44,12 +48,18 @@ async def list_users(
 
     owned: dict[str, int] = {}
     shared: dict[str, int] = {}
-    orphaned = 0
+    unowned: List[UnownedProjectRow] = []
     for project in all_projects:
         if not project.members:
-            # No owner, so invisible to every user - the un-migrated case. Surfaced rather
-            # than silently ignored, because it is data nobody can reach.
-            orphaned += 1
+            # No owner, so invisible to every user - the un-migrated case. Listed rather
+            # than counted, because a count is not something an admin can act on.
+            unowned.append(
+                UnownedProjectRow(
+                    id=str(project.id),
+                    name=project.name,
+                    created_at=project.created_at,
+                )
+            )
             continue
         for member in project.members:
             if member.user_id == project.owner_id:
@@ -74,5 +84,53 @@ async def list_users(
         users=rows,
         total_users=len(rows),
         total_projects=len(all_projects),
-        orphaned_projects=orphaned,
+        orphaned_projects=len(unowned),
+        unowned=unowned,
     )
+
+
+@router.post("/projects/{project_id}/owner")
+async def adopt_project(
+    project_id: str,
+    request: AdoptProjectRequest,
+    admin: CurrentAdminDep,
+    directory: UserDirectory = Depends(get_user_directory),
+    projects: ProjectRepository = Depends(get_project_repository),
+):
+    """Give an ownerless project to a user, by email.
+
+    Projects created before ownership existed have no members, so with authentication on they
+    are visible to nobody and no user route can rescue them: sharing requires an owner, and
+    there is none. This is the only way back, and it is deliberately narrow - it refuses a
+    project that already has members, so it can never be used to take one over.
+    """
+    project = await projects.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="No such project")
+
+    if project.members:
+        raise HTTPException(
+            status_code=409,
+            detail="That project already has members. Share it from the project instead.",
+        )
+
+    user = await directory.find_by_email(request.email)
+    if not user:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No account for {request.email} yet - they have to sign in once first.",
+        )
+
+    owner = ProjectMember(user_id=user.sub, email=user.email, role=ProjectRole.OWNER)
+    await projects.update(
+        project_id,
+        {
+            "owner_id": user.sub,
+            "members": [owner.model_dump()],
+            "updated_at": datetime.utcnow(),
+        },
+    )
+    logger.bind(component="admin").info(
+        f"{admin.email or admin.user_id} gave project {project_id} to {user.email}"
+    )
+    return {"message": f"{project.name} now belongs to {user.email}"}

@@ -62,6 +62,52 @@
     overflow: hidden;
 }
 
+/* Unowned projects. Above the table because it is the only thing on this page that needs an
+   action rather than a read. */
+.admin-body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-4);
+}
+
+.admin-unowned {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-2);
+    flex-shrink: 0;
+    padding: var(--ds-4);
+    border: 1px solid #fcd34d;
+    border-radius: var(--ds-r-md);
+    background: #fffbeb;
+}
+
+.admin-unowned-row {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) auto minmax(180px, 240px) auto;
+    align-items: center;
+    gap: var(--ds-3);
+    padding: var(--ds-2) 0;
+}
+
+.admin-unowned-row + .admin-unowned-row {
+    border-top: 1px solid rgba(180, 83, 9, 0.15);
+}
+
+.admin-unowned-name {
+    font-weight: 650;
+    color: var(--ds-ink-900);
+    overflow-wrap: anywhere;
+}
+
+.admin-unowned .ds-input {
+    background: var(--ds-surface);
+}
+
+@media (max-width: 800px) {
+    .admin-unowned-row {
+        grid-template-columns: 1fr;
+    }
+}
 @media (max-width: 900px) {
     .admin-main {
         padding: var(--ds-4);

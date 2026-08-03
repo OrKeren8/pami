@@ -21,6 +21,13 @@ from projects_service.main import app
 UNAUTHENTICATED_PATHS = {"/", "/health"}
 
 AUTHZ_DEPENDENCIES = {project_for_member, project_for_owner}
+
+# The one project-scoped route that cannot use a membership check, because it exists precisely
+# for projects that have no members: an admin giving an orphaned project an owner. Listed here
+# rather than allowed by a looser rule, and the exemption is only sound because
+# test_admin_routes_require_admin_specifically proves every /admin route needs an admin, and
+# test_the_orphan_route_is_the_only_membership_exemption proves nothing else creeps onto it.
+MEMBERSHIP_EXEMPT_PATHS = {"/admin/projects/{project_id}/owner"}
 # A peer service is a caller too: sibling scores are pushed by the AI service from a
 # background task with no user request in flight, so it presents a service key rather than a
 # token. What matters is that the route identifies *someone*.
@@ -90,6 +97,8 @@ def test_the_route_inventory_is_not_empty():
 def test_every_project_scoped_route_checks_membership():
     offenders = []
     for route in _project_scoped_routes():
+        if route.path in MEMBERSHIP_EXEMPT_PATHS:
+            continue
         dependencies = _dependency_callables(route)
         if not (dependencies & AUTHZ_DEPENDENCIES):
             offenders.append(f"{sorted(route.methods)} {route.path}")
@@ -99,6 +108,23 @@ def test_every_project_scoped_route_checks_membership():
         "project, so passing someone else's id would be enough to reach their data: "
         + "; ".join(sorted(offenders))
     )
+
+
+def test_the_orphan_route_is_the_only_membership_exemption():
+    """An exemption list is a hole, so it gets its own guard.
+
+    Every exempt path must exist, must be under /admin, and must be one the app actually
+    serves - so a stale entry cannot sit here quietly excusing a route that was renamed into
+    something user-facing.
+    """
+    served = {getattr(route, "path", "") for route in _all_routes()}
+    for path in MEMBERSHIP_EXEMPT_PATHS:
+        assert path in served, (
+            f"{path} is exempted but not served; delete the exemption"
+        )
+        assert path.startswith("/admin/"), (
+            f"{path} is exempted from the membership check but is not an admin route"
+        )
 
 
 def test_every_non_public_route_is_authenticated():
