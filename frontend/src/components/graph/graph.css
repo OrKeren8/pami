@@ -349,3 +349,144 @@
     animation: none;
   }
 }
+
+/* ---------- Time machine ---------- */
+
+.graph-timeline {
+    position: absolute;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: var(--ds-3);
+    width: min(620px, calc(100% - 32px));
+    padding: 8px 14px;
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-r-pill);
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--ds-shadow-2);
+}
+
+/* Rewound is a state worth seeing from across the room: the bar picks up the accent so the
+   graph on screen is never mistaken for the current one. */
+.graph-timeline-past {
+    border-color: var(--ds-pink-300);
+    box-shadow: var(--ds-shadow-2), 0 0 0 3px rgba(244, 114, 182, 0.15);
+}
+
+.graph-timeline-play {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: linear-gradient(180deg, var(--ds-pink-500), var(--ds-pink-600));
+    color: #fff;
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: var(--ds-shadow-accent);
+}
+
+.graph-timeline-play:hover {
+    background: linear-gradient(180deg, var(--ds-pink-400), var(--ds-pink-500));
+}
+
+.graph-timeline-play:focus-visible {
+    outline: 2px solid var(--ds-pink-400);
+    outline-offset: 2px;
+}
+
+.graph-timeline-track {
+    flex: 1;
+    min-width: 0;
+    height: 4px;
+    margin: 0;
+    padding: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    border-radius: 999px;
+    background: var(--ds-ink-200);
+    cursor: pointer;
+}
+
+.graph-timeline-track::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: var(--ds-pink-600);
+    box-shadow: 0 1px 4px rgba(190, 24, 93, 0.5);
+    cursor: grab;
+}
+
+.graph-timeline-track::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: var(--ds-pink-600);
+    cursor: grab;
+}
+
+.graph-timeline-track:focus-visible {
+    outline: 2px solid var(--ds-pink-400);
+    outline-offset: 4px;
+}
+
+.graph-timeline-readout {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.2;
+}
+
+.graph-timeline-readout strong {
+    color: var(--ds-ink-900);
+    font-size: var(--ds-t-sm);
+    font-weight: 650;
+}
+
+.graph-timeline-readout span {
+    color: var(--ds-ink-400);
+    font-size: var(--ds-t-xs);
+    font-variant-numeric: tabular-nums;
+}
+
+.graph-timeline-now {
+    flex-shrink: 0;
+    padding: 5px 11px;
+    border: 1px solid var(--ds-pink-200);
+    border-radius: var(--ds-r-pill);
+    background: var(--ds-pink-50);
+    color: var(--ds-accent-strong);
+    font-family: inherit;
+    font-size: var(--ds-t-xs);
+    font-weight: 650;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.graph-timeline-now:hover {
+    border-color: var(--ds-pink-300);
+}
+
+@media (max-width: 700px) {
+    .graph-timeline {
+        gap: var(--ds-2);
+        padding: 7px 10px;
+    }
+
+    .graph-timeline-readout {
+        display: none;
+    }
+}

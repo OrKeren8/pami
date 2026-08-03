@@ -5,8 +5,10 @@ import { zoom as d3Zoom, zoomIdentity } from 'd3-zoom';
 import GraphControls from './GraphControls';
 import GraphEdges from './GraphEdges';
 import GraphNode from './GraphNode';
+import GraphTimeline from './GraphTimeline';
 import { deriveGraph } from '../../lib/graph/deriveGraph';
 import { useForceGraph } from '../../hooks/useForceGraph';
+import { useTimeMachine } from '../../hooks/useTimeMachine';
 import './graph.css';
 
 const SCALE_MIN = 0.3;
@@ -59,9 +61,14 @@ function GraphCanvas({
     const [search, setSearch] = useState('');
     const [settings, setSettings] = useState(readSettings);
 
+    // The graph is drawn from whatever list it is handed, so rewinding the project is a
+    // matter of handing it the nodes that existed at that moment. deriveGraph drops a link
+    // whose other end is missing, which unwinds the connections for free.
+    const timeMachine = useTimeMachine(contextNodes);
+
     const { nodes: sourceNodes, links: sourceLinks } = useMemo(
-        () => deriveGraph(contextNodes),
-        [contextNodes]
+        () => deriveGraph(timeMachine.visibleNodes),
+        [timeMachine.visibleNodes]
     );
 
     const {
@@ -187,6 +194,13 @@ function GraphCanvas({
     }, [links, spotlightId]);
 
     const spotlightActive = Boolean(spotlightId) && nodes.some((node) => node.id === spotlightId);
+
+    // A node created while the graph is rewound would be created into the past and never seen.
+    // The spotlight exists to show it arriving, so it returns to the present first.
+    useEffect(() => {
+        if (spotlightId && !timeMachine.isLive) timeMachine.goLive();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [spotlightId]);
 
     useEffect(() => {
         if (!spotlightId) return;
@@ -373,10 +387,16 @@ function GraphCanvas({
             </div>
         );
     } else if (!sourceNodes.length) {
-        overlay = (
+        overlay = timeMachine.isLive ? (
             <div className="graph-state graph-state-empty">
                 <p>No conversations in this project yet.</p>
                 <span>Start a chat and the graph will fill in as conversations connect.</span>
+            </div>
+        ) : (
+            // Rewound past the first node. Saying so beats an empty canvas that looks broken.
+            <div className="graph-state graph-state-empty">
+                <p>Before the project began.</p>
+                <span>Nothing had been discussed yet at this point.</span>
             </div>
         );
     }
@@ -441,6 +461,18 @@ function GraphCanvas({
 
                 {overlay}
             </div>
+
+            <GraphTimeline
+                total={timeMachine.total}
+                step={timeMachine.step}
+                at={timeMachine.at}
+                isLive={timeMachine.isLive}
+                isPlaying={timeMachine.isPlaying}
+                onScrub={timeMachine.scrubTo}
+                onPlay={timeMachine.play}
+                onPause={timeMachine.pause}
+                onLive={timeMachine.goLive}
+            />
         </div>
     );
 }
