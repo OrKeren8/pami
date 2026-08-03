@@ -461,6 +461,15 @@
 
 /* ---------- Narrow windows ---------- */
 
+/* Below this the two panes are about 300px each, which is too narrow for a monospace
+   skeleton and too narrow to read the formatted result. They stack instead. */
+@media (max-width: 1080px) {
+    .jira-editor-split {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: minmax(200px, 1fr) minmax(140px, auto);
+    }
+}
+
 @media (max-width: 900px) {
     .jira-main {
         padding: var(--ds-4);

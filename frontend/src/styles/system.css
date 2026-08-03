@@ -40,7 +40,6 @@
     /* The page is a shade darker than a panel, so white reads as paper laid on a surface. */
     --ds-bg: #f6f3f8;
     --ds-surface: var(--ds-ink-0);
-    --ds-surface-soft: #fbf8fc;
     /* Lines are neutral. Outlining every input in pink spent the accent on things that are
        not actions, which left nothing to make the real action stand out. */
     --ds-line: var(--ds-ink-200);
@@ -52,7 +51,6 @@
     --ds-accent: var(--ds-pink-500);
     --ds-accent-strong: var(--ds-pink-600);
     --ds-accent-deep: var(--ds-pink-700);
-    --ds-accent-soft: var(--ds-pink-100);
     --ds-danger: #c0332b;
     --ds-danger-soft: #fdf4f3;
     --ds-danger-line: #f3ccc8;

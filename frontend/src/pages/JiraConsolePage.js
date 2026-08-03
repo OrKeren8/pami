@@ -472,7 +472,7 @@ function JiraConsolePage() {
                 </span>
                 <form className="jira-browser-find" onSubmit={openIssue}>
                     <input
-                        className="ds-input ds-input-sm"
+                        className="ds-input"
                         type="text"
                         value={issueFilter}
                         placeholder="Filter, or type a key…"
