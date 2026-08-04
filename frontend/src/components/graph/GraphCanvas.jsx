@@ -113,6 +113,7 @@ function GraphCanvas({
         dragStart,
         dragMove,
         dragEnd,
+        dragCancel,
         unpin,
         resetLayout
     } = useForceGraph({
@@ -218,13 +219,20 @@ function GraphCanvas({
             const onUp = () => {
                 window.removeEventListener('pointermove', onMove);
                 window.removeEventListener('pointerup', onUp);
+                window.removeEventListener('pointercancel', onUp);
+                // Every press ends in one of these two. Leaving the no-movement case
+                // unhandled is what kept the simulation running for ever.
                 if (moved) dragEnd(node.id);
+                else dragCancel(node.id);
             };
 
             window.addEventListener('pointermove', onMove);
             window.addEventListener('pointerup', onUp);
+            // A press that leaves the window, or is taken over by a scroll gesture, never
+            // fires pointerup.
+            window.addEventListener('pointercancel', onUp);
         },
-        [dragEnd, dragMove, dragStart, toScene]
+        [dragCancel, dragEnd, dragMove, dragStart, toScene]
     );
 
     // A node just created from a conversation: everything else dims and its connections are

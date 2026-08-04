@@ -278,6 +278,24 @@ export function useForceGraph({
         [scheduleRender]
     );
 
+    // A press that never became a drag. dragStart has already reheated the simulation and
+    // fixed the node, and only dragEnd undid either - so a plain click on a pill left
+    // alphaTarget at 0.3 for the rest of the session. Alpha decays towards its target, never
+    // below it, so the simulation never reached alphaMin and never stopped: in a dense cluster
+    // the collide force kept trading pushes with the link force and the pills jittered
+    // forever. Clicking a node is the most ordinary thing there is to do on this graph.
+    const dragCancel = useCallback((id) => {
+        simulationRef.current?.alphaTarget(0);
+        const node = datumRef.current.nodes.find((candidate) => candidate.id === id);
+        if (!node) return;
+        // Only a real drag pins. Without this a click also froze the node where it stood,
+        // with no pin marker to explain why it had stopped moving with the others.
+        if (!pinsRef.current[id]) {
+            node.fx = null;
+            node.fy = null;
+        }
+    }, []);
+
     const dragEnd = useCallback(
         (id) => {
             const simulation = simulationRef.current;
@@ -327,6 +345,7 @@ export function useForceGraph({
         dragStart,
         dragMove,
         dragEnd,
+        dragCancel,
         unpin,
         resetLayout
     };
