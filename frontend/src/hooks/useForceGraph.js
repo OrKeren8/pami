@@ -106,6 +106,9 @@ export function useForceGraph({
     const datumRef = useRef({ nodes: [], links: [] });
     const pinsRef = useRef({});
     const frameRef = useRef(null);
+    // Which node is being dragged, as opposed to merely pressed. Null for a press that has
+    // not moved yet, which is what a click is.
+    const draggingRef = useRef(null);
     const [tick, setTick] = useState(0);
     // Mirrored into state because the pin marker is rendered: a ref alone would leave the
     // marker one interaction behind.
@@ -260,13 +263,23 @@ export function useForceGraph({
         if (!simulation || !node) return;
         node.fx = node.x;
         node.fy = node.y;
-        simulation.alphaTarget(DRAG_ALPHA_TARGET).restart();
+        // Deliberately does NOT reheat. Most presses are clicks, and reheating on press meant
+        // that opening a node set the whole layout moving for the five seconds alpha takes to
+        // decay. The simulation wakes on the first actual movement instead.
+        draggingRef.current = null;
     }, []);
 
     const dragMove = useCallback(
         (id, x, y) => {
             const node = datumRef.current.nodes.find((candidate) => candidate.id === id);
             if (!node) return;
+            if (draggingRef.current !== id) {
+                // First real movement: now the layout has to respond, so wake it.
+                draggingRef.current = id;
+                if (!prefersReducedMotion()) {
+                    simulationRef.current?.alphaTarget(DRAG_ALPHA_TARGET).restart();
+                }
+            }
             node.fx = x;
             node.fy = y;
             node.x = x;
@@ -285,6 +298,7 @@ export function useForceGraph({
     // the collide force kept trading pushes with the link force and the pills jittered
     // forever. Clicking a node is the most ordinary thing there is to do on this graph.
     const dragCancel = useCallback((id) => {
+        draggingRef.current = null;
         simulationRef.current?.alphaTarget(0);
         const node = datumRef.current.nodes.find((candidate) => candidate.id === id);
         if (!node) return;
@@ -300,6 +314,7 @@ export function useForceGraph({
         (id) => {
             const simulation = simulationRef.current;
             const node = datumRef.current.nodes.find((candidate) => candidate.id === id);
+            draggingRef.current = null;
             simulation?.alphaTarget(0);
             if (!node) return;
             pinsRef.current = { ...pinsRef.current, [id]: { x: node.fx, y: node.fy } };
