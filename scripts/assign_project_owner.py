@@ -37,6 +37,11 @@ except ImportError:  # pragma: no cover - the service's own dependency
 
 DEFAULT_ENV = Path(__file__).resolve().parent.parent / "projects_service" / ".env"
 
+# The identity the service uses when a request carries no token, from
+# projects_service.core.config. It is not a person, so a project "owned" by it has no real
+# owner - which is what happens when a project is created through the API unauthenticated.
+STAND_IN_USER = "local-dev-user"
+
 
 def read_env(path: Path) -> dict:
     if not path.exists():
@@ -90,9 +95,16 @@ def main() -> int:
             )
         )
 
-    # A project belongs to nobody only when it has no members at all. owner_id alone is not the
-    # test: the owner is stored as a member row too, and membership is what read access checks.
-    ownerless = {"$or": [{"members": {"$size": 0}}, {"members": {"$exists": False}}]}
+    # A project belongs to nobody when it has no members at all, or when its only member is
+    # the stand-in identity. owner_id alone is not the test: the owner is stored as a member
+    # row too, and membership is what read access checks.
+    ownerless = {
+        "$or": [
+            {"members": {"$size": 0}},
+            {"members": {"$exists": False}},
+            {"members": {"$size": 1}, "members.user_id": STAND_IN_USER},
+        ]
+    }
     candidates = [
         doc
         for doc in db["projects"].find(ownerless, {"name": 1})
