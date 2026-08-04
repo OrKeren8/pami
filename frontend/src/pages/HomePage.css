@@ -7050,3 +7050,12 @@ button[aria-label*="Slack"] {
   flex: 1 1 auto;
   min-height: 0;
 }
+
+/* A snapshot whose messages are gone: the node is still useful - header, summary, links - so
+   this replaces the button rather than disabling it, which would invite a click. */
+.node-details-no-transcript {
+    max-width: 34ch;
+    color: var(--ds-text-muted);
+    font-size: var(--ds-t-sm);
+    line-height: 1.45;
+}

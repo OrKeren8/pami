@@ -22,7 +22,7 @@ const MODAL_LABELS = {
     shareProject: "Share project",
 };
 
-const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, nearPeers = [], isModalDataLoading, closeModal, fetchProjects, onNodeColorChange, onOpenConversation }) => {
+const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, nearPeers = [], isModalDataLoading, closeModal, fetchProjects, onNodeColorChange, onOpenConversation, hasTranscript }) => {
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSavingColor, setIsSavingColor] = useState(false);
     const toast = useToast();
@@ -108,14 +108,24 @@ const NodeDetailsModal = ({ selectedNode, nodeTasks, subNodes, nearPeers = [], i
                 </div>
 
                 <div className="node-details-actions">
-                    <button
-                        type="button"
-                        className="node-details-action node-details-action-secondary"
-                        onClick={() => onOpenConversation && onOpenConversation(selectedNode)}
-                        title="Open node chat"
-                    >
-                        Open Chat
-                    </button>
+                    {/* Only offered when the transcript exists. A node keeps its header,
+                        summary and links in Mongo, but the messages live in S3 - and the ones
+                        written before this AWS account did not come across with the migration.
+                        Offering a button that cannot work is worse than not offering it. */}
+                    {hasTranscript === false ? (
+                        <span className="node-details-no-transcript">
+                            The messages behind this snapshot are no longer stored.
+                        </span>
+                    ) : (
+                        <button
+                            type="button"
+                            className="node-details-action node-details-action-secondary"
+                            onClick={() => onOpenConversation && onOpenConversation(selectedNode)}
+                            title="Open node chat"
+                        >
+                            Open Chat
+                        </button>
+                    )}
 
                     <button
                         type="button"
@@ -447,6 +457,46 @@ const HomePage = () => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    // Conversation ids the AI service can actually serve. It lists from the transcript
+    // store, so this is precisely the set whose messages still exist - which is not the same
+    // as the set of nodes.
+    const [storedConversationIds, setStoredConversationIds] = useState(null);
+
+    useEffect(() => {
+        if (!selectedProjectId) {
+            setStoredConversationIds(null);
+            return undefined;
+        }
+
+        let cancelled = false;
+        aiApi
+            .get(`/ai-conversations/project/${selectedProjectId}`)
+            .then((response) => {
+                if (cancelled) return;
+                const ids = (response.data || [])
+                    .map((row) => row.conversation_id || row.id)
+                    .filter(Boolean);
+                setStoredConversationIds(new Set(ids));
+            })
+            .catch((error) => {
+                console.error('Could not list stored conversations:', error);
+                // Unknown rather than empty: a failed request must not make every node look
+                // like its transcript is missing.
+                if (!cancelled) setStoredConversationIds(null);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [selectedProjectId]);
+
+    const nodeHasTranscript = (node) => {
+        const convId = node?.conversation_id || node?.conversationId || node?.conversation;
+        if (!convId) return false;
+        if (!storedConversationIds) return undefined;
+        return storedConversationIds.has(convId);
     };
 
     const fetchContextNodes = async (projectId) => {
@@ -783,7 +833,16 @@ const HomePage = () => {
             return true;
         } catch (err) {
             console.error('Failed to load conversation:', err);
-            toast.error('Could not load the conversation. Please try again.');
+            if (err?.response?.status === 404) {
+                // Not retryable: the node is in Mongo but its messages are not in this
+                // account's transcript store. Saying "try again" sent people in circles.
+                toast.error(
+                    'The messages behind this snapshot are no longer stored, so it cannot be opened. Its summary is still on the node.',
+                    { duration: 8000 }
+                );
+            } else {
+                toast.error('Could not load the conversation. Please try again.');
+            }
             return false;
         }
     };
@@ -793,6 +852,10 @@ const HomePage = () => {
         const convId = node.conversation_id || node.conversationId || node.conversation || null;
         if (!convId) {
             toast.notify('This node has no associated conversation.');
+            return;
+        }
+        if (nodeHasTranscript(node) === false) {
+            toast.notify('The messages behind this snapshot are no longer stored.');
             return;
         }
         await openConversationById(convId);
@@ -1240,6 +1303,7 @@ const HomePage = () => {
                 fetchProjects={fetchProjects}
                 onNodeColorChange={handleNodeColorChange}
                 onOpenConversation={goToNodeConversation}
+                hasTranscript={nodeHasTranscript(selectedNode)}
             />
         );
         return renderJiraSignpost();
