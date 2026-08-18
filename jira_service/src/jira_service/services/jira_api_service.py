@@ -9,6 +9,7 @@ from requests.auth import HTTPBasicAuth
 
 from jira_service.core.config import settings
 from jira_service.schemas.jira_schemas import CreateIssueRequest
+from jira_service.services.markdown_adf import markdown_to_adf
 
 logger = logging.getLogger(__name__)
 
@@ -92,21 +93,13 @@ class JiraApiService:
         return response.json()
 
     def _description_to_adf(self, description: str) -> dict[str, Any]:
-        return {
-            "type": "doc",
-            "version": 1,
-            "content": [
-                {
-                    "type": "paragraph",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": description,
-                        }
-                    ],
-                }
-            ],
-        }
+        """The ticket text as a document, not as one paragraph.
+
+        Jira stores ADF, so wrapping the whole description in a single text node published a
+        ticket that read as one block of prose with the raw `##`, `-` and `**` still in it -
+        however carefully it had been structured in the editor.
+        """
+        return markdown_to_adf(description)
 
     def _adf_to_text(self, document: Any) -> str:
         """Flatten Atlassian Document Format back to plain text.
@@ -122,25 +115,46 @@ class JiraApiService:
 
         pieces: list[str] = []
         block_types = {"paragraph", "heading", "listItem", "blockquote", "codeBlock"}
+        # Written back in the notation the editor uses, so an issue read out of Jira keeps the
+        # shape it was published with instead of flattening to prose on the round trip.
+        markers = {"bulletList": "- ", "orderedList": "- "}
 
-        def walk(node: Any) -> None:
+        def walk(node: Any, marker: str = "") -> None:
             if isinstance(node, list):
                 for item in node:
-                    walk(item)
+                    walk(item, marker)
                 return
             if not isinstance(node, dict):
                 return
 
             node_type = node.get("type")
             if node_type == "text":
-                pieces.append(node.get("text") or "")
+                text = node.get("text") or ""
+                marks = {mark.get("type") for mark in node.get("marks") or []}
+                if "code" in marks:
+                    text = f"`{text}`"
+                if "strong" in marks:
+                    text = f"**{text}**"
+                elif "em" in marks:
+                    text = f"*{text}*"
+                pieces.append(text)
             elif node_type == "hardBreak":
                 pieces.append("\n")
+            elif node_type == "rule":
+                pieces.append("---" + "\n")
+            elif node_type == "heading":
+                level = (node.get("attrs") or {}).get("level") or 1
+                pieces.append("#" * int(level) + " ")
+            elif node_type == "listItem":
+                pieces.append(marker)
+            elif node_type == "taskItem":
+                state = (node.get("attrs") or {}).get("state")
+                pieces.append("- [x] " if state == "DONE" else "- [ ] ")
 
-            walk(node.get("content"))
+            walk(node.get("content"), markers.get(node_type, marker))
 
             # Block nodes end a line, so paragraphs and list items do not run together.
-            if node_type in block_types:
+            if node_type in block_types or node_type == "taskItem":
                 pieces.append("\n")
 
         walk(document.get("content"))
