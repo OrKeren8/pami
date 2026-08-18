@@ -1218,16 +1218,21 @@ function JiraConsolePage() {
                         <aside className="ds-panel ds-panel-pad jira-assist" aria-label="Refine with PAMI">
                             <div className="jira-assist-head">
                                 <span className="ds-section-label">Refine with PAMI</span>
-                                {origin?.conversationId && (
-                                    <a
-                                        className="ds-hint jira-assist-source"
-                                        href={`/dashboard?conversation=${encodeURIComponent(
-                                            origin.conversationId
-                                        )}`}
-                                    >
-                                        Open the full chat &rarr;
-                                    </a>
-                                )}
+                                {/* Always offered, not only when a draft arrived from a chat:
+                                    this pane is a narrow drafting thread, and the way out of it
+                                    should not depend on how you got here. */}
+                                <a
+                                    className="ds-btn ds-btn-ghost ds-btn-sm jira-assist-back"
+                                    href={
+                                        origin?.conversationId
+                                            ? `/dashboard?conversation=${encodeURIComponent(
+                                                  origin.conversationId
+                                              )}`
+                                            : '/chats'
+                                    }
+                                >
+                                    &larr; {origin?.conversationId ? 'Back to chat' : 'Chat view'}
+                                </a>
                             </div>
 
                             <div className="jira-assist-thread">

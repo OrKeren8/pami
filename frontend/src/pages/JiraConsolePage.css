@@ -589,8 +589,10 @@
     gap: var(--ds-3);
 }
 
-.jira-assist-source {
+.jira-assist-back {
+    flex: 0 0 auto;
     white-space: nowrap;
+    text-decoration: none;
 }
 
 .jira-assist-thread {
