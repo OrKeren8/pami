@@ -39,7 +39,6 @@ function GraphNode({
                 }
                 onPointerDown(event, node);
             }}
-            onDoubleClick={() => onOpen(node)}
             onMouseEnter={() => onHover(node.id)}
             onMouseLeave={() => onHover(null)}
             onFocus={() => onHover(node.id)}

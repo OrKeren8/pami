@@ -45,6 +45,10 @@ const isMediumTopic = (topic) => {
     return words.length > 0 && words.every((word) => MEDIUM_WORDS.has(word));
 };
 
+// How far the pointer must travel before a press counts as dragging the node rather than
+// clicking it. Small enough that a deliberate nudge still moves the pill.
+const DRAG_THRESHOLD_PX = 4;
+
 const SCALE_MIN = 0.3;
 const SCALE_MAX = 2.5;
 const SETTINGS_KEY = 'pami.graph.forces';
@@ -210,9 +214,18 @@ function GraphCanvas({
             setSelectedId(node.id);
             dragStart(node.id);
 
+            const origin = { x: event.clientX, y: event.clientY };
             let moved = false;
             const onMove = (moveEvent) => {
-                moved = true;
+                // A press is never perfectly still, so any movement at all used to count as a
+                // drag. Below the threshold this stays a click - which is what lets a click
+                // open the conversation without a stray pixel turning it into a nudge.
+                if (!moved) {
+                    const dx = moveEvent.clientX - origin.x;
+                    const dy = moveEvent.clientY - origin.y;
+                    if (dx * dx + dy * dy < DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) return;
+                    moved = true;
+                }
                 const point = toScene(moveEvent);
                 dragMove(node.id, point.x, point.y);
             };
@@ -222,8 +235,15 @@ function GraphCanvas({
                 window.removeEventListener('pointercancel', onUp);
                 // Every press ends in one of these two. Leaving the no-movement case
                 // unhandled is what kept the simulation running for ever.
-                if (moved) dragEnd(node.id);
-                else dragCancel(node.id);
+                if (moved) {
+                    dragEnd(node.id);
+                } else {
+                    dragCancel(node.id);
+                    // The pill is a button showing a conversation; clicking it should open
+                    // that conversation. It used to need a double click, so a single click
+                    // selected the node and otherwise did nothing at all.
+                    if (onOpenNode) onOpenNode(node);
+                }
             };
 
             window.addEventListener('pointermove', onMove);
@@ -232,7 +252,7 @@ function GraphCanvas({
             // fires pointerup.
             window.addEventListener('pointercancel', onUp);
         },
-        [dragCancel, dragEnd, dragMove, dragStart, toScene]
+        [dragCancel, dragEnd, dragMove, dragStart, onOpenNode, toScene]
     );
 
     // A node just created from a conversation: everything else dims and its connections are
