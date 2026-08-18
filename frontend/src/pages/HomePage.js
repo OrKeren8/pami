@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom";
 import "./HomePage.css";
 import { projectsApi, aiApi } from "../api/axios";
+import ChatMarkdown from '../components/chat/ChatMarkdown';
 import AppSidebar from "../components/layout/AppSidebar";
 import GraphCanvas from "../components/graph/GraphCanvas";
 import { deriveGraph } from "../lib/graph/deriveGraph";
@@ -1528,10 +1529,24 @@ const HomePage = () => {
                                                             <div className="message-avatar assistant" style={{ backgroundImage: 'url("/pami_ai_avatar.png")' }} />
                                                         )}
                                                         <div className="message-content">
-                                                            <p>
-                                                                {shownText}
-                                                                {isRevealing && <span className="reveal-caret" aria-hidden="true" />}
-                                                            </p>
+                                                            {/* The model writes markdown, so the
+                                                                assistant side is rendered. What the
+                                                                user typed stays exactly as typed. */}
+                                                            {isUser ? (
+                                                                <p>{shownText}</p>
+                                                            ) : (
+                                                                <ChatMarkdown
+                                                                    text={shownText}
+                                                                    trailing={
+                                                                        isRevealing ? (
+                                                                            <span
+                                                                                className="reveal-caret"
+                                                                                aria-hidden="true"
+                                                                            />
+                                                                        ) : null
+                                                                    }
+                                                                />
+                                                            )}
                                                             {!isUser && !isRevealing && msg.jiraDraft && (
                                                                 <a
                                                                     className="jira-draft-chip"
