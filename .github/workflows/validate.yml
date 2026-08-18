@@ -12,7 +12,10 @@ on:
 concurrency:
   # The ai-conversation tests share one Atlas test database, so two runs must not overlap.
   group: validate-${{ github.ref }}
-  cancel-in-progress: true
+  # Queue, never cancel: the three deploy workflows all call this on the same ref, so
+  # cancel-in-progress made any two dispatched deploys kill each other's validation - and
+  # with it the whole deploy run. Queuing still keeps two test runs off the shared database.
+  cancel-in-progress: false
 
 jobs:
   python:
