@@ -17,14 +17,18 @@ jobs:
           JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         run: |
-          auth() { curl -s -m 20 -u "$JIRA_USERNAME:$JIRA_API_TOKEN" -H "Accept: application/json" "$JIRA_BASE_URL$1"; }
-          echo "== base url host =="
-          echo "$JIRA_BASE_URL" | sed 's#https\?://##'
-          echo "== myself =="
-          auth "/rest/api/3/myself" | jq -r '{displayName, accountType, active} // .'
-          echo "== live projects =="
-          auth "/rest/api/3/project/search?status=live" | jq -r '.total, (.values[]? | "  \(.key)  \(.name)")'
-          echo "== trashed projects =="
-          auth "/rest/api/3/project/search?status=deleted" | jq -r '.total, (.values[]? | "  \(.key)  \(.name)")'
-          echo "== archived projects =="
-          auth "/rest/api/3/project/search?status=archived" | jq -r '.total, (.values[]? | "  \(.key)  \(.name)")'
+          # Trimmed: a trailing newline or slash in a pasted secret breaks the URL, and the
+          # error that produces is indistinguishable from a dead connection.
+          BASE=$(printf '%s' "$JIRA_BASE_URL" | tr -d '[:space:]' | sed 's:/*$::')
+          USER=$(printf '%s' "$JIRA_USERNAME" | tr -d '[:space:]')
+          TOKEN=$(printf '%s' "$JIRA_API_TOKEN" | tr -d '[:space:]')
+          ask() {
+            code=$(curl -s -m 20 -o /tmp/body -w '%{http_code}' -u "$USER:$TOKEN" -H "Accept: application/json" "$BASE$1")
+            echo "[$code] $1"
+            head -c 500 /tmp/body; echo
+          }
+          echo "host: $(echo "$BASE" | sed 's#https\?://##')"
+          ask "/rest/api/3/myself"
+          ask "/rest/api/3/project/search?status=live"
+          ask "/rest/api/3/project/search?status=deleted"
+          ask "/rest/api/3/project/search?status=archived"
