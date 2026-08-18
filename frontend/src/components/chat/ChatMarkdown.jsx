@@ -78,7 +78,11 @@ function ChatMarkdown({ text, trailing = null }) {
                 if (block.kind === 'steps' || block.kind === 'bullets') {
                     const List = block.kind === 'steps' ? 'ol' : 'ul';
                     return (
-                        <List key={index} className="chat-md-list">
+                        <List
+                            key={index}
+                            className="chat-md-list"
+                            start={block.kind === 'steps' ? block.start : undefined}
+                        >
                             {block.items.map((item, itemIndex) => (
                                 <li key={itemIndex}>{renderInline(item.text)}</li>
                             ))}

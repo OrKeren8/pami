@@ -74,12 +74,26 @@ export const parseBlocks = (text) => {
             flushParagraph();
             if (list?.kind !== 'steps') {
                 flushList();
-                list = { kind: 'steps', items: [] };
+                // Carries its own first number so a list broken up by prose between the items
+                // keeps counting instead of restarting at 1 on every fragment.
+                list = { kind: 'steps', start: Number(numbered[1]) || 1, items: [] };
             }
             list.items.push({ text: numbered[2] });
             continue;
         }
 
+        // An indented line under a list item belongs to that item - that is how the model
+        // writes "1. **Title**" followed by its description.
+        if (list && /^\s{2,}/.test(rawLine) && list.items.length) {
+            const last = list.items[list.items.length - 1];
+            last.text = `${last.text} ${line.trim()}`.trim();
+            continue;
+        }
+
+        // Any other prose ends the list. Without this the list stayed open while the paragraph
+        // collected separately, and whichever flushed first won - so descriptions came out
+        // above the items they described.
+        flushList();
         paragraph.push(line.trim());
     }
 
