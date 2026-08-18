@@ -147,6 +147,12 @@ class JiraApiService:
         return "".join(pieces).strip()
 
     def test_connection(self) -> dict[str, Any]:
+        # Identity first: Atlassian does not reject bad credentials on /project/search, it
+        # silently degrades to an anonymous caller and answers 200 with an empty list - so a
+        # revoked token read as "Connected, 0 projects" instead of as the failure it is.
+        # /myself is the endpoint that actually authenticates.
+        self._request("GET", "/myself")
+
         data = self._request(
             "GET",
             "/project/search",
