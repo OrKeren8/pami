@@ -24,6 +24,7 @@ import './JiraConsolePage.css';
 // The draft survives a refresh: it is the one thing on this page a user would be upset to
 // lose, and it only exists in the browser until they press Submit.
 const DRAFT_KEY = 'pami.jira.draft';
+const ASSIST_KEY = 'pami.jira.assist';
 const PROJECT_KEY = 'pami.jira.projectKey';
 
 const readStored = (key) => {
@@ -100,7 +101,14 @@ function JiraConsolePage() {
     const descriptionRef = useRef(null);
     // The drafting conversation beside the ticket. Seeded with the exchange that produced the
     // draft, so the reasoning is on screen rather than back on the dashboard.
-    const [assistMessages, setAssistMessages] = useState([]);
+    const [assistMessages, setAssistMessages] = useState(() => {
+        try {
+            const stored = JSON.parse(readStored(ASSIST_KEY) || '[]');
+            return Array.isArray(stored) ? stored : [];
+        } catch (error) {
+            return [];
+        }
+    });
     const [assistInput, setAssistInput] = useState('');
     const [isAssisting, setIsAssisting] = useState(false);
     const assistEndRef = useRef(null);
@@ -139,6 +147,12 @@ function JiraConsolePage() {
         writeStored(DRAFT_KEY, JSON.stringify(ticket));
         setSavedAt(Date.now());
     }, [ticket]);
+
+    // The drafting thread is stored with the ticket. Going back to the chat and returning is
+    // the intended round trip, so it must not cost the exchange that shaped the draft.
+    useEffect(() => {
+        writeStored(ASSIST_KEY, JSON.stringify(assistMessages));
+    }, [assistMessages]);
 
     useEffect(() => {
         if (projectKey) writeStored(PROJECT_KEY, projectKey);
@@ -273,18 +287,10 @@ function JiraConsolePage() {
         };
     }, [projectKey, mode]);
 
-    // A half-written ticket only lives in this tab, so leaving is worth one question.
-    useEffect(() => {
-        const warn = (event) => {
-            if (!ticketHasContent(ticket)) return undefined;
-            event.preventDefault();
-            // Browsers show their own wording; the string only has to be non-empty.
-            event.returnValue = '';
-            return '';
-        };
-        window.addEventListener('beforeunload', warn);
-        return () => window.removeEventListener('beforeunload', warn);
-    }, [ticket]);
+    // No "are you sure you want to leave" here. It was written for a ticket that "only lives
+    // in this tab", but every edit is written to storage and read back on the next visit -
+    // which is what "Draft saved" reports. The warning was about losing work that cannot be
+    // lost, and it stood in front of the button back to the chat.
 
     // --- Template, submit, discard -----------------------------------------------------
 
@@ -328,6 +334,9 @@ function JiraConsolePage() {
     useEffect(() => {
         const conversationId = origin?.conversationId;
         if (!conversationId) return;
+        // A stored thread is the one being worked on; re-seeding would drop the turns that
+        // happened here in favour of the conversation as it was.
+        if (assistMessages.length) return;
         let cancelled = false;
         aiApi
             .get(`/ai-conversations/${conversationId}`)
@@ -548,6 +557,8 @@ function JiraConsolePage() {
         }
         setIsConfirmingDiscard(false);
         setTicket(blankTicket(ticket.templateId, projectKey));
+        // The thread was about the ticket that just went away.
+        setAssistMessages([]);
         setLastCreated(null);
         summaryRef.current?.focus();
     };
@@ -585,6 +596,7 @@ function JiraConsolePage() {
             // A submitted ticket is done, so the canvas clears - which is the whole "new
             // canvas appears" behaviour, just reached by succeeding instead of discarding.
             setTicket(blankTicket(ticket.templateId, projectKey));
+            setAssistMessages([]);
         } catch (error) {
             console.error('Failed to create the Jira issue:', error);
             const detail = error?.response?.data?.detail;
