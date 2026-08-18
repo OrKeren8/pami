@@ -208,6 +208,7 @@
 .jira-description-box {
     /* Monospace for the section skeleton: the "## AC" headings and "- [ ]" checkboxes line
        up, which is what makes the template readable while it is being filled. */
+    flex: 1;
     height: 100%;
     min-height: 220px;
     padding: var(--ds-4);
@@ -223,26 +224,36 @@
     background: var(--ds-surface);
 }
 
-/* Write on the left, read on the right. Two panes of one object, so they share a height and
-   scroll independently: a long ticket must not push the meta fields off the canvas. */
-.jira-editor-split {
-    flex: 1;
-    min-height: 0;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: var(--ds-3);
-}
-
-.jira-editor-split > * {
-    min-height: 0;
-    overflow-y: auto;
-}
-
+/* One pane, two states: formatted until clicked, a textarea while being written. Both take
+   the same box so switching between them never moves the meta fields underneath. */
 .jira-description-preview {
+    flex: 1;
+    min-height: 220px;
+    overflow-y: auto;
     padding: var(--ds-4);
     border: 1px solid var(--ds-line);
     border-radius: var(--ds-r-sm);
     background: var(--ds-ink-50);
+}
+
+/* It is a button so the keyboard reaches it, but it has to read as the document it shows -
+   left aligned, full width, no control chrome. */
+.jira-description-open {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: text;
+}
+
+.jira-description-open:hover {
+    border-color: var(--ds-pink-300);
+}
+
+.jira-description-open:focus-visible {
+    outline: 2px solid var(--ds-pink-400);
+    outline-offset: 2px;
 }
 
 #jira-summary {
@@ -504,15 +515,6 @@
 
 /* ---------- Narrow windows ---------- */
 
-/* Below this the two panes are about 300px each, which is too narrow for a monospace
-   skeleton and too narrow to read the formatted result. They stack instead. */
-@media (max-width: 1080px) {
-    .jira-editor-split {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: minmax(200px, 1fr) minmax(140px, auto);
-    }
-}
-
 @media (max-width: 900px) {
     .jira-main {
         padding: var(--ds-4);
@@ -561,4 +563,97 @@
 .ticket-preview-checks li,
 .ticket-preview-heading {
     overflow-wrap: anywhere;
+}
+
+
+/* ================================
+   Refine with PAMI.
+
+   The description used to sit in a two-pane split; showing it formatted until clicked freed
+   the right half. It holds the conversation that produced the ticket, and the input that keeps
+   revising it - so the reasoning and the result are on one screen instead of two pages apart.
+   ================================ */
+
+.jira-assist {
+    flex: 0 0 clamp(300px, 30%, 420px);
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-3);
+    min-height: 0;
+}
+
+.jira-assist-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--ds-3);
+}
+
+.jira-assist-source {
+    white-space: nowrap;
+}
+
+.jira-assist-thread {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-2);
+    padding-right: 2px;
+}
+
+.jira-assist-empty {
+    margin: 0;
+}
+
+.jira-assist-message {
+    max-width: 92%;
+    padding: 8px 11px;
+    border-radius: var(--ds-r-sm);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.jira-assist-user {
+    align-self: flex-end;
+    background: var(--ds-pink-500);
+    color: #fff;
+}
+
+.jira-assist-assistant {
+    align-self: flex-start;
+    border: 1px solid var(--ds-line);
+    background: var(--ds-ink-50);
+}
+
+.jira-assist-pending {
+    color: var(--ds-ink-500);
+    font-style: italic;
+}
+
+.jira-assist-compose {
+    display: flex;
+    gap: var(--ds-2);
+}
+
+.jira-assist-compose .ds-input {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Under this the ticket and the thread are both too narrow to use side by side, so the thread
+   moves below the ticket rather than squeezing it. */
+@media (max-width: 1180px) {
+    .jira-body {
+        flex-direction: column;
+        overflow-y: auto;
+    }
+
+    .jira-assist {
+        flex: 0 0 auto;
+        max-height: 380px;
+    }
 }

@@ -77,6 +77,12 @@ const loadDraft = () => {
     }
 };
 
+// How much of the originating conversation to show. Enough to see why the ticket says what it
+// says, without pasting an hour of chat beside a form.
+const ASSIST_SEED_LIMIT = 20;
+// What travels back to the model each turn. The endpoint trims again on its side.
+const ASSIST_HISTORY_LIMIT = 12;
+
 function JiraConsolePage() {
     const toast = useToast();
 
@@ -89,6 +95,15 @@ function JiraConsolePage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [lastCreated, setLastCreated] = useState(null);
     const summaryRef = useRef(null);
+    // The description shows formatted and becomes a textarea on click.
+    const [isEditingDescription, setIsEditingDescription] = useState(false);
+    const descriptionRef = useRef(null);
+    // The drafting conversation beside the ticket. Seeded with the exchange that produced the
+    // draft, so the reasoning is on screen rather than back on the dashboard.
+    const [assistMessages, setAssistMessages] = useState([]);
+    const [assistInput, setAssistInput] = useState('');
+    const [isAssisting, setIsAssisting] = useState(false);
+    const assistEndRef = useRef(null);
     // Set when the chat handed this draft over, so there is a way back to the exact
     // conversation that produced it.
     const [origin] = useState(() => readDraftOrigin());
@@ -294,6 +309,110 @@ function JiraConsolePage() {
             toast.notify(
                 'Switched the ticket type. Your description was kept - clear it to load the template.'
             );
+        }
+    };
+
+    // The textarea does not exist at click time, so focus waits for the render that creates
+    // it. Caret at the end rather than at 0, which is where a fresh focus would land and is
+    // never where someone reopening a written ticket wants to be.
+    useEffect(() => {
+        if (!isEditingDescription) return;
+        const field = descriptionRef.current;
+        if (!field) return;
+        field.focus();
+        field.setSelectionRange(field.value.length, field.value.length);
+    }, [isEditingDescription]);
+
+    // Seed the pane with the conversation the draft came from. Read once: this is context for
+    // the drafting session, not a live view of that thread.
+    useEffect(() => {
+        const conversationId = origin?.conversationId;
+        if (!conversationId) return;
+        let cancelled = false;
+        aiApi
+            .get(`/ai-conversations/${conversationId}`)
+            .then((response) => {
+                if (cancelled) return;
+                const history = (response.data?.messages || [])
+                    .filter((message) => String(message.content || '').trim())
+                    .map((message) => ({
+                        role: message.role === 'user' ? 'user' : 'assistant',
+                        content: String(message.content)
+                    }));
+                // Oldest trimmed rather than newest: the end of the thread is what produced
+                // this ticket.
+                setAssistMessages(history.slice(-ASSIST_SEED_LIMIT));
+            })
+            .catch((error) => {
+                console.error('Could not load the originating conversation:', error);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [origin]);
+
+    useEffect(() => {
+        assistEndRef.current?.scrollIntoView({ block: 'end' });
+    }, [assistMessages, isAssisting]);
+
+    const sendAssist = async (event) => {
+        event.preventDefault();
+        const message = assistInput.trim();
+        if (!message || isAssisting) return;
+
+        // Sent before the reply lands, and kept even if the request fails: retyping what you
+        // just asked is worse than seeing it sit there unanswered.
+        const history = assistMessages.slice(-ASSIST_HISTORY_LIMIT);
+        setAssistMessages((current) => [...current, { role: 'user', content: message }]);
+        setAssistInput('');
+        setIsAssisting(true);
+
+        try {
+            const response = await aiApi.post('/jira-drafts/assist', {
+                message,
+                draft: {
+                    template_id: ticket.templateId,
+                    summary: ticket.summary,
+                    description: ticket.description,
+                    issue_type: resolvedIssueType,
+                    priority: ticket.priority || null,
+                    due_date: ticket.dueDate || null,
+                    labels: ticket.labels
+                },
+                history,
+                available_issue_types: issueTypes.map((type) => type.name)
+            });
+
+            const revised = response.data?.draft;
+            if (revised) {
+                // Only the fields the model is allowed to touch. The project, the assignee and
+                // the template are the user's, and are not in the response to begin with.
+                patch({
+                    summary: revised.summary,
+                    description: revised.description,
+                    issueType: revised.issue_type,
+                    priority: revised.priority || '',
+                    dueDate: revised.due_date || '',
+                    labels: revised.labels?.length ? revised.labels : ticket.labels
+                });
+            }
+            setAssistMessages((current) => [
+                ...current,
+                { role: 'assistant', content: response.data?.reply || 'Updated the ticket.' }
+            ]);
+        } catch (error) {
+            console.error('Could not revise the ticket:', error);
+            const detail = error.response?.data?.detail;
+            toast.error(typeof detail === 'string' ? detail : 'PAMI could not revise the ticket.');
+            setAssistMessages((current) => [
+                ...current,
+                {
+                    role: 'assistant',
+                    content: 'I could not revise the ticket just then. Try asking again.'
+                }
+            ]);
+        } finally {
+            setIsAssisting(false);
         }
     };
 
@@ -918,30 +1037,44 @@ function JiraConsolePage() {
                                     </div>
                                 )}
 
-                                {/* Both at once. A toggle meant the ticket was either editable
-                                    or readable and never both, and the button that switched
-                                    between them read as a heading. */}
-                                <div className="jira-editor-split">
+                                {/* Formatted until you click into it. Leaving is tied to
+                                    clicking away rather than to a timer: people stop to think
+                                    mid-sentence, and an editor that closes on a pause takes the
+                                    cursor and the scroll position with it. */}
+                                {isEditingDescription ? (
                                     <textarea
                                         id="jira-description"
+                                        ref={descriptionRef}
                                         className="ds-textarea jira-description-box"
                                         value={ticket.description}
                                         onChange={(event) =>
                                             patch({ description: event.target.value })
                                         }
+                                        onBlur={() => setIsEditingDescription(false)}
+                                        onKeyDown={(event) => {
+                                            if (event.key === 'Escape') {
+                                                event.stopPropagation();
+                                                setIsEditingDescription(false);
+                                            }
+                                        }}
                                         spellCheck="true"
-                                        autoFocus
                                     />
-                                    <div className="jira-description-preview">
+                                ) : (
+                                    <button
+                                        type="button"
+                                        className="jira-description-preview jira-description-open"
+                                        onClick={() => setIsEditingDescription(true)}
+                                        aria-label="Edit the description"
+                                    >
                                         {ticket.description.trim() ? (
                                             <TicketPreview text={ticket.description} />
                                         ) : (
                                             <p className="ds-hint">
-                                                The formatted ticket appears here as you write.
+                                                Click to write the description.
                                             </p>
                                         )}
-                                    </div>
-                                </div>
+                                    </button>
+                                )}
                             </div>
 
                             <div className="jira-field-row">
@@ -1076,6 +1209,68 @@ function JiraConsolePage() {
                                 </p>
                             )}
                         </form>
+                    )}
+
+                    {/* Beside the ticket, not behind it: the thread that produced this draft,
+                        and a way to keep shaping it without leaving the page. Compose only -
+                        on the issue browser there is no draft to revise. */}
+                    {mode === 'compose' && (
+                        <aside className="ds-panel ds-panel-pad jira-assist" aria-label="Refine with PAMI">
+                            <div className="jira-assist-head">
+                                <span className="ds-section-label">Refine with PAMI</span>
+                                {origin?.conversationId && (
+                                    <a
+                                        className="ds-hint jira-assist-source"
+                                        href={`/dashboard?conversation=${encodeURIComponent(
+                                            origin.conversationId
+                                        )}`}
+                                    >
+                                        Open the full chat &rarr;
+                                    </a>
+                                )}
+                            </div>
+
+                            <div className="jira-assist-thread">
+                                {assistMessages.length === 0 && !isAssisting && (
+                                    <p className="ds-hint jira-assist-empty">
+                                        Ask for a change and PAMI rewrites the ticket on the
+                                        left. Try "tighten the acceptance criteria" or "add the
+                                        edge cases we discussed".
+                                    </p>
+                                )}
+                                {assistMessages.map((message, index) => (
+                                    <div
+                                        key={index}
+                                        className={`jira-assist-message jira-assist-${message.role}`}
+                                    >
+                                        {message.content}
+                                    </div>
+                                ))}
+                                {isAssisting && (
+                                    <div className="jira-assist-message jira-assist-assistant jira-assist-pending">
+                                        Rewriting the ticket…
+                                    </div>
+                                )}
+                                <div ref={assistEndRef} />
+                            </div>
+
+                            <form className="jira-assist-compose" onSubmit={sendAssist}>
+                                <input
+                                    className="ds-input"
+                                    value={assistInput}
+                                    onChange={(event) => setAssistInput(event.target.value)}
+                                    placeholder="What should change?"
+                                    aria-label="Ask PAMI to change the ticket"
+                                />
+                                <button
+                                    type="submit"
+                                    className="ds-btn ds-btn-primary ds-btn-sm"
+                                    disabled={isAssisting || !assistInput.trim()}
+                                >
+                                    Send
+                                </button>
+                            </form>
+                        </aside>
                     )}
                 </section>
             </main>
