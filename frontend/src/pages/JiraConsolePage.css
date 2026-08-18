@@ -565,6 +565,20 @@
     overflow-wrap: anywhere;
 }
 
+/* An unfilled row of the template. It reads as a line waiting for text rather than as the
+   word "empty", which the reader would otherwise have to work out is not part of the ticket. */
+.ticket-preview-blank {
+    display: inline-block;
+    width: 84px;
+    border-bottom: 1px dashed var(--ds-line);
+    /* Aligned to where the text would sit, so the rule does not ride on the baseline. */
+    transform: translateY(-3px);
+}
+
+.ticket-preview-checks li > span[aria-hidden] {
+    margin-right: 6px;
+}
+
 
 /* ================================
    Refine with PAMI.

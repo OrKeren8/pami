@@ -58,18 +58,20 @@ export const parseBlocks = (text) => {
             continue;
         }
 
-        const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+        // The text is optional: a template ships its lists empty, and a bare `-` is an item
+        // waiting to be filled, not a paragraph that happens to start with a dash.
+        const bullet = line.match(/^\s*[-*](?:\s+(.*))?$/);
         if (bullet) {
             flushParagraph();
             if (list?.kind !== 'bullets') {
                 flushList();
                 list = { kind: 'bullets', items: [] };
             }
-            list.items.push({ text: bullet[1] });
+            list.items.push({ text: bullet[1] || '' });
             continue;
         }
 
-        const numbered = line.match(/^\s*(\d+)[.)]\s+(.*)$/);
+        const numbered = line.match(/^\s*(\d+)[.)](?:\s+(.*))?$/);
         if (numbered) {
             flushParagraph();
             if (list?.kind !== 'steps') {
@@ -78,7 +80,7 @@ export const parseBlocks = (text) => {
                 // keeps counting instead of restarting at 1 on every fragment.
                 list = { kind: 'steps', start: Number(numbered[1]) || 1, items: [] };
             }
-            list.items.push({ text: numbered[2] });
+            list.items.push({ text: numbered[2] || '' });
             continue;
         }
 

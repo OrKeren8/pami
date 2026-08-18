@@ -38,7 +38,7 @@ function TicketPreview({ text }) {
                             {block.items.map((item, itemIndex) => (
                                 <li key={itemIndex} className={item.done ? 'done' : ''}>
                                     <span aria-hidden="true">{item.done ? '☑' : '☐'}</span>
-                                    {item.text || <em>empty</em>}
+                                    {item.text || <span className="ticket-preview-blank" />}
                                 </li>
                             ))}
                         </ul>
@@ -48,7 +48,9 @@ function TicketPreview({ text }) {
                     return (
                         <ol key={index} className="ticket-preview-list">
                             {block.items.map((item, itemIndex) => (
-                                <li key={itemIndex}>{item.text || <em>empty</em>}</li>
+                                <li key={itemIndex}>
+                                    {item.text || <span className="ticket-preview-blank" />}
+                                </li>
                             ))}
                         </ol>
                     );
@@ -57,7 +59,9 @@ function TicketPreview({ text }) {
                     return (
                         <ul key={index} className="ticket-preview-list">
                             {block.items.map((item, itemIndex) => (
-                                <li key={itemIndex}>{item.text || <em>empty</em>}</li>
+                                <li key={itemIndex}>
+                                    {item.text || <span className="ticket-preview-blank" />}
+                                </li>
                             ))}
                         </ul>
                     );
