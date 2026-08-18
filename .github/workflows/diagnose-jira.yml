@@ -1,0 +1,30 @@
+name: Diagnose Jira Connection
+
+# Manual-only diagnostic: asks Atlassian, with the same token the jira-service uses, who the
+# token is and which projects it can see - including trashed and archived ones, which the
+# service's own listing never shows. Exists because "connected but zero projects" cannot be
+# told apart from "project deleted" or "access revoked" from outside.
+on:
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Who is this token, and what can it see
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USERNAME: ${{ secrets.JIRA_USERNAME }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          auth() { curl -s -m 20 -u "$JIRA_USERNAME:$JIRA_API_TOKEN" -H "Accept: application/json" "$JIRA_BASE_URL$1"; }
+          echo "== base url host =="
+          echo "$JIRA_BASE_URL" | sed 's#https\?://##'
+          echo "== myself =="
+          auth "/rest/api/3/myself" | jq -r '{displayName, accountType, active} // .'
+          echo "== live projects =="
+          auth "/rest/api/3/project/search?status=live" | jq -r '.total, (.values[]? | "  \(.key)  \(.name)")'
+          echo "== trashed projects =="
+          auth "/rest/api/3/project/search?status=deleted" | jq -r '.total, (.values[]? | "  \(.key)  \(.name)")'
+          echo "== archived projects =="
+          auth "/rest/api/3/project/search?status=archived" | jq -r '.total, (.values[]? | "  \(.key)  \(.name)")'
