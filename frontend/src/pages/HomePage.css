@@ -4729,22 +4729,29 @@ button[aria-label*="Slack"] {
   clip-path: polygon(50% 0%, 61% 37%, 100% 50%, 61% 63%, 50% 100%, 39% 63%, 0% 50%, 39% 37%);
 }
 
-.pami-assistant-online {
+/* Replaces the green "Online" dot. The panel is a mock-up, and a live-status light on top of
+   invented numbers read as a report about the user's own project. */
+.pami-assistant-sample {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  color: rgba(83, 72, 96, 0.72);
-  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(83, 72, 96, 0.18);
+  color: rgba(83, 72, 96, 0.7);
+  background: rgba(83, 72, 96, 0.05);
+  font-size: 0.64rem;
   font-weight: 750;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
-.pami-assistant-online span {
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: #55c982;
-  box-shadow: 0 0 0 4px rgba(85, 201, 130, 0.12);
+.pami-assistant-disclaimer {
+  margin: 6px 0 0;
+  color: rgba(83, 72, 96, 0.6);
+  font-size: 0.62rem;
+  font-style: italic;
+  line-height: 1.35;
 }
 
 .pami-assistant-bubble {
@@ -5078,9 +5085,7 @@ button[aria-label*="Slack"] {
   line-height: 1.1 !important;
 }
 
-.pami-assistant-online {
-  font-size: 0.64rem !important;
-}
+
 
 .pami-assistant-bubble {
   min-height: 168px !important;
@@ -7142,4 +7147,30 @@ button[aria-label*="Slack"] {
 
 .pami-chat-pane .chat-md strong {
   font-weight: 700;
+}
+
+
+/* ================================
+   Assistant panel, after the two dead action buttons were removed.
+
+   The bubble is set to grow into whatever room the panel has, so losing the buttons turned it
+   into a tall empty box with three lines of text at the top. It sizes to its content now, and
+   the panel no longer reserves height for a row that is gone.
+   ================================ */
+
+.pami-sidebar-assistant-panel {
+  min-height: 0 !important;
+}
+
+.pami-sidebar-assistant-panel .pami-assistant-bubble {
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+
+.pami-sidebar-assistant-panel .pami-assistant-message {
+  flex: 0 0 auto !important;
+  max-height: none !important;
+  overflow: visible !important;
 }

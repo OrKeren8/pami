@@ -9,6 +9,9 @@ const ASSISTANT_IMAGE = '/pami-assistant.png';
 const SLACK_LOGO = 'https://a.slack-edge.com/80588/marketing/img/icons/icon_slack_hash_colored.png';
 const JIRA_LOGO = 'https://cdn.worldvectorlogo.com/logos/jira-1.svg';
 
+// Illustrative only: nothing here reads the user's project. Shown behind a "Sample" badge and
+// a disclaimer rather than as live output, because the panel used to claim "12 tasks may miss
+// due dates" for a project with no tasks at all - and the three cards contradicted each other.
 const RECOMMENDATIONS = [
     {
         title: 'Recommendation 1',
@@ -132,10 +135,7 @@ function AppSidebar({ active }) {
                         <span className="pami-assistant-spark" aria-hidden="true" />
                         <span>PAMI Assistant</span>
                     </div>
-                    <div className="pami-assistant-online">
-                        <span />
-                        Online
-                    </div>
+                    <span className="pami-assistant-sample">Sample</span>
                 </div>
 
                 <div className="pami-assistant-bubble">
@@ -183,6 +183,10 @@ function AppSidebar({ active }) {
                                 <li key={bullet}>{bullet}</li>
                             ))}
                         </ul>
+                        <p className="pami-assistant-disclaimer">
+                            Example of what PAMI will report. The numbers are not from your
+                            project.
+                        </p>
                     </div>
                 </div>
 
@@ -190,14 +194,6 @@ function AppSidebar({ active }) {
                     <img src={avatar} alt="PAMI assistant avatar" className="pami-assistant-avatar-image" />
                 </div>
 
-                <div className="pami-assistant-actions">
-                    <button type="button" className="pami-assistant-check-btn">
-                        Check for new
-                    </button>
-                    <button type="button" className="pami-assistant-history-btn">
-                        History
-                    </button>
-                </div>
             </div>
         </aside>
     );
