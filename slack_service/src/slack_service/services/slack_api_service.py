@@ -159,8 +159,18 @@ class SlackApiService:
             result = self.client.users_info(user=user_id)
             profile = result["user"].get("profile", {})
             name = profile.get("display_name") or profile.get("real_name") or result["user"].get("name") or user_id
-        except SlackApiError:
-            name = user_id
+        except SlackApiError as error:
+            # Named so the reason is findable: without users:read every message in the console
+            # is attributed to a raw member id, which reads as a bug in the UI rather than as a
+            # missing scope on the Slack app.
+            logger.warning(
+                "Could not resolve Slack user %s (%s); showing the raw id",
+                user_id,
+                self._get_slack_error(error),
+            )
+            # Deliberately not cached. A failure is not an answer, and caching one meant a
+            # scope added later never took effect until the container restarted.
+            return user_id
 
         self._user_name_cache[user_id] = name
         return name
