@@ -1005,6 +1005,10 @@ function JiraConsolePage() {
                                     className="ds-input"
                                     ref={summaryRef}
                                     type="text"
+                                    // A lone unnamed text input is one the browser will happily
+                                    // fill from anything it has saved. A ticket summary is not
+                                    // a form field it can guess at.
+                                    autoComplete="off"
                                     value={ticket.summary}
                                     placeholder={template.summaryHint}
                                     onChange={(event) => patch({ summary: event.target.value })}
@@ -1262,6 +1266,7 @@ function JiraConsolePage() {
                             <form className="jira-assist-compose" onSubmit={sendAssist}>
                                 <input
                                     className="ds-input"
+                                    autoComplete="off"
                                     value={assistInput}
                                     onChange={(event) => setAssistInput(event.target.value)}
                                     placeholder="What should change?"
