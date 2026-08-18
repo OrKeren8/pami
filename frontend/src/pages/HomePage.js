@@ -862,7 +862,7 @@ const HomePage = () => {
         await openConversationById(convId);
     };
 
-    // Chat View lists conversations on its own route and links back here, because the chat
+    // All Sessions lists conversations on its own route and links back here, because the chat
     // pane and everything it needs - the project, the graph, the node modal - live on this
     // page. The parameter is cleared so a later reload does not reopen it.
     useEffect(() => {
@@ -872,6 +872,14 @@ const HomePage = () => {
         openConversationById(requested);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [searchParams]);
+
+    // Coming back from the Jira window without a conversation to reopen: land on the chat
+    // rather than the graph, because carrying on the conversation is the reason for the trip.
+    useEffect(() => {
+        if (searchParams.get("pane") !== "chat") return;
+        setSearchParams({}, { replace: true });
+        setActivePane("chat");
+    }, [searchParams, setSearchParams]);
 
     const modalRef = useRef(null);
 

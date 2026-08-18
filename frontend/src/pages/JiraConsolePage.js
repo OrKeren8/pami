@@ -1222,9 +1222,12 @@ function JiraConsolePage() {
                         <aside className="ds-panel ds-panel-pad jira-assist" aria-label="Refine with PAMI">
                             <div className="jira-assist-head">
                                 <span className="ds-section-label">Refine with PAMI</span>
-                                {/* Always offered, not only when a draft arrived from a chat:
-                                    this pane is a narrow drafting thread, and the way out of it
-                                    should not depend on how you got here. */}
+                                {/* Back to the dashboard chat, not to the session list: this
+                                    pane is a narrow drafting thread, and the way to carry on
+                                    the real conversation - which can hand another ticket
+                                    straight back here - is the full chat on the dashboard.
+                                    Named when the draft came from one, so the round trip is
+                                    obvious. */}
                                 <a
                                     className="ds-btn ds-btn-ghost ds-btn-sm jira-assist-back"
                                     href={
@@ -1232,10 +1235,10 @@ function JiraConsolePage() {
                                             ? `/dashboard?conversation=${encodeURIComponent(
                                                   origin.conversationId
                                               )}`
-                                            : '/chats'
+                                            : '/dashboard?pane=chat'
                                     }
                                 >
-                                    &larr; {origin?.conversationId ? 'Back to chat' : 'Chat view'}
+                                    &larr; Back to the chat
                                 </a>
                             </div>
 
