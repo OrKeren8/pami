@@ -2294,7 +2294,11 @@ html, body, #root {
 
 /* User messages stay compact on the right */
 .pami-chat-pane .chat-message.user {
-  justify-content: flex-end !important;
+  /* The row is reversed, so its main axis runs right to left and `flex-start` IS the right
+     edge. It used to say `flex-end`, which packed bubble and avatar against the row's left
+     and left a tail of empty space on the right - a tail whose width changed with the length
+     of the message, so no two rows lined up. */
+  justify-content: flex-start !important;
 }
 
 .pami-chat-pane .chat-message.user .message-content {
