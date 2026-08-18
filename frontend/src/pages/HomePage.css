@@ -1692,6 +1692,13 @@ html, body, #root {
   user-select: none;
 }
 
+/* The canvas blocks selection so dragging a node never smears a text highlight across the
+   graph. The chat lives inside that same canvas, and there the text is the point: it has to
+   be selectable and copyable. */
+.tree-resizable-canvas .pami-chat-pane {
+  user-select: text;
+}
+
 .tree-resize-handle {
   position: absolute;
   top: 0;
@@ -2271,6 +2278,18 @@ html, body, #root {
   min-width: 34px !important;
   flex: 0 0 34px !important;
   font-size: 14px !important;
+  /* The circle is drawn by border-radius on this element, but the assistant fills it with a
+     background and the user fills it with an <img>. Without clipping, the square image keeps
+     its corners and reads as a picture sitting inside a frame rather than as one avatar. */
+  overflow: hidden !important;
+}
+
+.pami-chat-pane .message-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 50%;
 }
 
 /* User messages stay compact on the right */

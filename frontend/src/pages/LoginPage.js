@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import './LoginPage.css';
 import pamiLogo from '../assets/pami-logo.png';
 import {
@@ -30,7 +30,12 @@ const LoginPage = () => {
     const [notice, setNotice] = useState('');
     const [isBusy, setIsBusy] = useState(false);
     const navigate = useNavigate();
-    const { refresh } = useSession();
+    const { refresh, isAuthenticated, isLoading } = useSession();
+
+    // "/" redirects here, so this is the page an already-signed-in user lands on when they
+    // open the app from a bookmark. Asking them to sign in again when they already are is the
+    // wrong answer: send them where they were going.
+    if (!isLoading && isAuthenticated) return <Navigate to="/dashboard" replace />;
 
     const finishSignIn = async () => {
         // The session is loaded before navigating so the dashboard does not render, discover
