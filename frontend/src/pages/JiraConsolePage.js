@@ -866,10 +866,6 @@ function JiraConsolePage() {
                                 }
                             }}
                         >
-                            <div className="ds-panel-head">
-                                <span className="ds-hint">{template.hint}</span>
-                            </div>
-
                             <div className="ds-field">
                                 <div className="ds-field-head">
                                     <label htmlFor="jira-summary">Summary</label>
