@@ -118,6 +118,20 @@ export const DEFAULT_TEMPLATE_ID = 'story';
 export const templateById = (id) =>
     TICKET_TEMPLATES.find((template) => template.id === id) || TICKET_TEMPLATES[0];
 
+/**
+ * The template that belongs to a Jira issue type.
+ *
+ * The issue type is the only thing the user picks now, so the template has to follow from it
+ * rather than being chosen separately - two controls for one decision is how the editor ended
+ * up claiming "Story" while filing a Task. Types with no template of their own (Epic) keep
+ * whatever is already written instead of being handed someone else's skeleton.
+ */
+export const templateForIssueType = (issueType) => {
+    const wanted = (issueType || '').trim().toLowerCase();
+    if (!wanted) return null;
+    return TICKET_TEMPLATES.find((template) => template.issueType.toLowerCase() === wanted) || null;
+};
+
 export const PRIORITIES = ['Highest', 'High', 'Medium', 'Low', 'Lowest'];
 
 /** A fresh, empty ticket for the given template. */

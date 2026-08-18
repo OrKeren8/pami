@@ -13,9 +13,9 @@ import {
 } from '../lib/jira/jiraHandoff';
 import {
     PRIORITIES,
-    TICKET_TEMPLATES,
     blankTicket,
     templateById,
+    templateForIssueType,
     ticketHasContent
 } from '../lib/jira/ticketTemplates';
 import './HomePage.css';
@@ -273,21 +273,24 @@ function JiraConsolePage() {
 
     // --- Template, submit, discard -----------------------------------------------------
 
-    const applyTemplate = (templateId) => {
-        const template = templateById(templateId);
+    // The issue type is the whole decision: the template it implies is looked up, never
+    // chosen separately. The editor used to offer both, which let the two disagree - an AI
+    // draft would light up "Story" while the type underneath said Task.
+    const applyIssueType = (issueType) => {
+        const template = templateForIssueType(issueType);
         const previous = templateById(ticket.templateId);
         const untouched = ticket.description.trim() === previous.body.trim();
 
         // Only overwrite the description when it is still the previous skeleton. Someone who
-        // has written three paragraphs and then browses the templates should not lose them.
+        // has written three paragraphs and then changes the type should not lose them.
         setTicket((current) => ({
             ...current,
-            templateId: template.id,
-            issueType: template.issueType,
-            description: untouched ? template.body : current.description
+            templateId: template ? template.id : current.templateId,
+            issueType,
+            description: template && untouched ? template.body : current.description
         }));
 
-        if (!untouched) {
+        if (template && !untouched) {
             toast.notify(
                 'Switched the ticket type. Your description was kept - clear it to load the template.'
             );
@@ -478,7 +481,10 @@ function JiraConsolePage() {
 
     // --- Render ------------------------------------------------------------------------
 
-    const template = templateById(ticket.templateId);
+    // Follows the type shown in the select, not the stored template id: an AI draft arrives
+    // with the default template id and whatever type the model picked, and the hint has to
+    // describe what is actually being filed.
+    const template = templateForIssueType(resolvedIssueType) || templateById(ticket.templateId);
     const statusLabel = {
         checking: 'Checking…',
         connected: 'Connected',
@@ -861,22 +867,6 @@ function JiraConsolePage() {
                             }}
                         >
                             <div className="ds-panel-head">
-                                <div className="ds-tabs" role="tablist" aria-label="Ticket type">
-                                    {TICKET_TEMPLATES.map((option) => (
-                                        <button
-                                            key={option.id}
-                                            type="button"
-                                            role="tab"
-                                            aria-selected={option.id === ticket.templateId}
-                                            className="ds-tab"
-                                            onClick={() => applyTemplate(option.id)}
-                                            title={option.hint}
-                                        >
-                                            {option.label}
-                                        </button>
-                                    ))}
-                                </div>
-
                                 <span className="ds-hint">{template.hint}</span>
                             </div>
 
@@ -964,9 +954,7 @@ function JiraConsolePage() {
                                     <select
                                         className="ds-select"
                                         value={resolvedIssueType}
-                                        onChange={(event) =>
-                                            patch({ issueType: event.target.value })
-                                        }
+                                        onChange={(event) => applyIssueType(event.target.value)}
                                     >
                                         {issueTypes.length ? (
                                             issueTypes.map((type) => (
